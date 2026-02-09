@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { SupabaseAlertService, Alert, AlertStatus } from '@/services/alertService.supabase'
+import { createClient } from '@/lib/supabase/client'
 
 /**
- * Hook reactivo para consumir alertas desde Supabase.
+ * Hook reactivo para consumir alertas desde Supabase CON REALTIME.
+ * Los usuarios ven actualizaciones al instante sin recargar el navegador.
  */
 export function useSupabaseAlerts(jurisdictionId?: number) {
     const [alerts, setAlerts] = useState<Alert[]>([])
@@ -31,12 +33,28 @@ export function useSupabaseAlerts(jurisdictionId?: number) {
     useEffect(() => {
         fetchAlerts()
 
-        // Subscribe to changes
-        const unsubscribe = SupabaseAlertService.subscribe(() => {
-            fetchAlerts()
-        })
+        const supabase = createClient()
+        
+        // REALTIME: Suscripción a cambios en la tabla alerts
+        const channel = supabase
+            .channel('alerts-realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'alerts',
+                },
+                (payload) => {
+                    console.log('[Realtime] Alert cambió:', payload)
+                    fetchAlerts()
+                }
+            )
+            .subscribe()
 
-        return unsubscribe
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [jurisdictionId])
 
     const updateStatus = async (id: string, status: AlertStatus) => {

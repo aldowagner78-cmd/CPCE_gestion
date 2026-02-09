@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { SupabaseChatService, Conversation, Message, User } from '@/services/chatService.supabase'
+import { createClient } from '@/lib/supabase/client'
 
 /**
- * Hook reactivo para consumir datos del Chat desde Supabase.
+ * Hook reactivo para consumir datos del Chat desde Supabase CON REALTIME.
+ * Los usuarios ven nuevas conversaciones al instante.
  */
 export function useSupabaseChat() {
     const [users, setUsers] = useState<User[]>([])
@@ -39,11 +41,45 @@ export function useSupabaseChat() {
     useEffect(() => {
         fetchInitialData()
 
-        const unsubscribe = SupabaseChatService.subscribe(() => {
-            fetchInitialData()
-        })
+        const supabase = createClient()
+        
+        // REALTIME: Suscripción a conversaciones y usuarios
+        const conversationsChannel = supabase
+            .channel('conversations-realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'conversations',
+                },
+                (payload) => {
+                    console.log('[Realtime] Conversation cambió:', payload)
+                    fetchInitialData()
+                }
+            )
+            .subscribe()
 
-        return unsubscribe
+        const usersChannel = supabase
+            .channel('users-realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'users',
+                },
+                (payload) => {
+                    console.log('[Realtime] User cambió:', payload)
+                    fetchInitialData()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(conversationsChannel)
+            supabase.removeChannel(usersChannel)
+        }
     }, [fetchInitialData])
 
     return {
@@ -57,7 +93,8 @@ export function useSupabaseChat() {
 }
 
 /**
- * Hook para cargar mensajes de una conversación específica.
+ * Hook para cargar mensajes de una conversación específica CON REALTIME.
+ * Los mensajes nuevos aparecen automáticamente sin recargar.
  */
 export function useSupabaseMessages(conversationId: string | null) {
     const [messages, setMessages] = useState<Message[]>([])
@@ -83,9 +120,32 @@ export function useSupabaseMessages(conversationId: string | null) {
     useEffect(() => {
         fetchMessages()
 
-        const unsubscribe = SupabaseChatService.subscribe(fetchMessages)
-        return unsubscribe
-    }, [fetchMessages])
+        if (!conversationId) return
+
+        const supabase = createClient()
+        
+        // REALTIME: Suscripción a mensajes de esta conversación
+        const channel = supabase
+            .channel(`messages-${conversationId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `conversation_id=eq.${conversationId}`,
+                },
+                (payload) => {
+                    console.log('[Realtime] Message cambió:', payload)
+                    fetchMessages()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [fetchMessages, conversationId])
 
     const sendMessage = async (senderId: string, content: string) => {
         if (!conversationId) return null
