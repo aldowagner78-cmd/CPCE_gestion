@@ -33,18 +33,39 @@ export default function MatcherPage() {
         try {
             const noms = await externalNomenclatorService.getNomenclators()
             
-            // Cargar estadísticas para cada nomenclador
+            // Cargar solo nomenclatores sin estadísticas primero (rápido)
+            setNomenclators(noms.map(nom => ({
+                ...nom,
+                total_external: 0,
+                homologated: 0,
+                pending: 0,
+                percentage: 0
+            })))
+            setLoading(false)
+            
+            // Luego cargar estadísticas en background (lazy)
             const withStats = await Promise.all(
                 noms.map(async (nom) => {
-                    const stats = await homologationService.getHomologationStats(nom.id)
-                    return {
-                        ...nom,
-                        total_external: stats.total_external,
-                        homologated: stats.homologated,
-                        pending: stats.pending,
-                        percentage: stats.total_external > 0 
-                            ? Math.round((stats.homologated / stats.total_external) * 100) 
-                            : 0
+                    try {
+                        const stats = await homologationService.getHomologationStats(nom.id)
+                        return {
+                            ...nom,
+                            total_external: stats.total_external,
+                            homologated: stats.homologated,
+                            pending: stats.pending,
+                            percentage: stats.total_external > 0 
+                                ? Math.round((stats.homologated / stats.total_external) * 100) 
+                                : 0
+                        }
+                    } catch {
+                        // Si falla una estadística, continuar
+                        return {
+                            ...nom,
+                            total_external: 0,
+                            homologated: 0,
+                            pending: 0,
+                            percentage: 0
+                        }
                     }
                 })
             )
@@ -52,7 +73,6 @@ export default function MatcherPage() {
             setNomenclators(withStats)
         } catch (error) {
             console.error('Error loading nomenclators:', error)
-        } finally {
             setLoading(false)
         }
     }

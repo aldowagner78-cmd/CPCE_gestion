@@ -63,12 +63,7 @@ CREATE TABLE IF NOT EXISTS external_nomenclators (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Datos iniciales de nomencladores (se insertan si no existen)
-INSERT INTO external_nomenclators (code, name, description) VALUES
-    ('NUN', 'Nomenclador Único Nacional', 'Nomenclador bioquímico unificado estándar'),
-    ('FAAAR', 'Federación Argentina de Anestesia', 'Nomenclador específico de anestesiología'),
-    ('IAPOS', 'IAPOS', 'Instituto Autárquico Provincial de Obra Social')
-ON CONFLICT (code) DO NOTHING;
+-- NO insertar datos de ejemplo (el usuario creará sus propios nomencladores desde la UI)
 
 -- Tabla de Prácticas Externas (Los códigos importados)
 CREATE TABLE IF NOT EXISTS external_practices (
