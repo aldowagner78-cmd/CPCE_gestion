@@ -4,13 +4,16 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '@/contexts/AuthContext';
+import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const { user, loading } = useAuth();
+    const { activeJurisdiction, isDarkMode } = useJurisdiction();
 
     // Rutas públicas que no requieren layout de dashboard
     const isPublicPage = pathname?.startsWith('/login');
@@ -26,6 +29,21 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             router.push('/login');
         }
     }, [user, loading, isPublicPage, router]);
+
+    // Fondos dinámicos según jurisdicción
+    const mainBgColors = {
+        camera1Light: 'bg-blue-50/50',
+        camera1Dark: 'bg-slate-900',
+        camera2Light: 'bg-emerald-50/50',
+        camera2Dark: 'bg-slate-900',
+    };
+
+    const getMainBg = () => {
+        if (activeJurisdiction?.id === 1) {
+            return isDarkMode ? mainBgColors.camera1Dark : mainBgColors.camera1Light;
+        }
+        return isDarkMode ? mainBgColors.camera2Dark : mainBgColors.camera2Light;
+    };
 
     // Evitar hidratación incorrecta
     if (!isMounted) return null;
@@ -49,7 +67,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
     // Layout principal
     return (
-        <div className="flex min-h-screen bg-gray-50">
+        <div className={cn("flex min-h-screen", getMainBg())}>
             {/* Sidebar global */}
             <div className="hidden md:block w-64 fixed inset-y-0 z-50">
                 <Sidebar />

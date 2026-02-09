@@ -167,7 +167,7 @@
 
   /* Dynamic Themes based on Jurisdiction */
   [data-theme='camera-i'] {
-    /* Blue Theme (Official CPCE) */
+    /* Blue Theme (Official CPCE) - Modo Claro */
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
     --ring: 221.2 83.2% 53.3%;
@@ -175,7 +175,7 @@
   }
 
   [data-theme='camera-ii'] {
-    /* Green Theme (Rosario) */
+    /* Green Theme (Rosario) - Modo Claro */
     --primary: 142.1 76.2% 36.3%; /* Emerald 600 */
     --primary-foreground: 355.7 100% 97.3%;
     --ring: 142.1 76.2% 36.3%;
@@ -184,13 +184,17 @@
 
   /* Dark Mode Overrides for Themes */
   .dark[data-theme='camera-i'] {
-     --primary: 217.2 91.2% 59.8%;
-     --background: 222.2 47% 11%; /* Dark Blueish */
+     --primary: 217.2 91.2% 59.8%; /* Azul más claro en oscuro */
+     --background: 222.2 47% 8%; /* Dark Blue */
+     --card: 222.2 47% 11%;
+     --border: 217.2 50% 20%;
   }
 
   .dark[data-theme='camera-ii'] {
      --primary: 142.1 70.6% 45.3%; /* Emerald 500 */
-     --background: 145 50% 5%; /* Dark Greenish */
+     --background: 145 50% 8%; /* Dark Green */
+     --card: 145 50% 11%;
+     --border: 142 50% 20%;
   }
 }
 
