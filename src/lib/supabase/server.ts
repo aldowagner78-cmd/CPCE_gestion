@@ -1,12 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+const SUPABASE_ENABLED = supabaseUrl && supabaseKey
+
 export async function createClient() {
+    if (!SUPABASE_ENABLED) {
+        throw new Error('Supabase credentials not configured. Running in mock mode.')
+    }
+
     const cookieStore = await cookies()
 
     return createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        supabaseUrl,
+        supabaseKey,
         {
             cookies: {
                 getAll() {
@@ -26,4 +35,8 @@ export async function createClient() {
             },
         }
     )
+}
+
+export function isSupabaseEnabled() {
+    return SUPABASE_ENABLED
 }
