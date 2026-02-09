@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { isSupabaseEnabled } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +22,7 @@ export default function LoginPage() {
 
     const router = useRouter()
     const searchParams = useSearchParams()
+    const supabase = createClient()
 
     const errorParam = searchParams.get('error')
 
@@ -37,22 +38,6 @@ export default function LoginPage() {
         setError(null)
 
         try {
-            if (!isSupabaseEnabled()) {
-                // Mock login - accept any credentials
-                if (email && password) {
-                    // Simulate delay
-                    await new Promise(resolve => setTimeout(resolve, 500))
-                    router.push('/')
-                    router.refresh()
-                } else {
-                    setError('Email y contraseña requeridos')
-                }
-                return
-            }
-
-            const { createClient } = await import('@/lib/supabase/client')
-            const supabase = createClient()
-            
             const { error: signInError } = await supabase.auth.signInWithPassword({
                 email,
                 password,
@@ -82,22 +67,6 @@ export default function LoginPage() {
         setError(null)
 
         try {
-            if (!isSupabaseEnabled()) {
-                // Mock register - accept any registration
-                if (email && password && fullName) {
-                    await new Promise(resolve => setTimeout(resolve, 500))
-                    setSuccess('Cuenta creada exitosamente. Ya puede iniciar sesión.')
-                    setMode('login')
-                    setPassword('')
-                } else {
-                    setError('Todos los campos son requeridos')
-                }
-                return
-            }
-
-            const { createClient } = await import('@/lib/supabase/client')
-            const supabase = createClient()
-            
             const { data, error: signUpError } = await supabase.auth.signUp({
                 email,
                 password,
@@ -136,16 +105,6 @@ export default function LoginPage() {
         setError(null)
 
         try {
-            if (!isSupabaseEnabled()) {
-                // Mock forgot password
-                await new Promise(resolve => setTimeout(resolve, 500))
-                setSuccess('Se envió un email con instrucciones para restablecer su contraseña.')
-                return
-            }
-
-            const { createClient } = await import('@/lib/supabase/client')
-            const supabase = createClient()
-            
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/reset-password`,
             })

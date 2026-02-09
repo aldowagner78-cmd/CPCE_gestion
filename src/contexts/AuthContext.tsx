@@ -1,8 +1,9 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { isSupabaseEnabled } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { AuthUser, UserRole, Permission, userHasPermission } from '@/types/auth'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 interface AuthContextType {
     user: AuthUser | null
@@ -14,63 +15,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Mock user for development without Supabase
-const MOCK_USER: AuthUser = {
-    id: 'mock-user-id',
-    email: 'admin@cpce.local',
-    full_name: 'Admin Sistema',
-    role: 'superuser',
-    is_superuser: true,
-    jurisdiction_id: 1,
-    is_active: true,
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null)
     const [loading, setLoading] = useState(true)
+    const supabase = createClient()
 
-    useEffect(() => {
-        // Si Supabase NO está habilitado, usar mock user
-        if (!isSupabaseEnabled()) {
-            setUser(MOCK_USER)
-            setLoading(false)
-            return
-        }
-
-        // Si Supabase SÍ está habilitado, inicializar autenticación real
-        const initAuth = async () => {
-            try {
-                const { createClient } = await import('@/lib/supabase/client')
-                const supabase = createClient()
-                
-                const { data: { session } } = await supabase.auth.getSession()
-                if (session?.user) {
-                    const profile = await fetchUserProfile(session.user, supabase)
-                    setUser(profile)
-                }
-
-                const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-                    if (session?.user) {
-                        const profile = await fetchUserProfile(session.user, supabase)
-                        setUser(profile)
-                    } else {
-                        setUser(null)
-                    }
-                })
-
-                setLoading(false)
-                return () => subscription.unsubscribe()
-            } catch (error) {
-                console.error('Auth init error:', error)
-                setUser(MOCK_USER)
-                setLoading(false)
-            }
-        }
-
-        initAuth()
-    }, [])
-
-    const fetchUserProfile = async (authUser: any, supabase: any): Promise<AuthUser | null> => {
+    // BYPASS PARA DESARROLLO: Si falla fetch (porque no existe tabla/columna)
+    // o si el usuario no tiene rol asignado, lo hacemos superuser temporalmente.
+    const fetchUserProfile = async (authUser: SupabaseUser): Promise<AuthUser | null> => {
         try {
             const { data, error } = await supabase
                 .from('users')
@@ -78,20 +30,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .eq('email', authUser.email)
                 .single()
 
+            // Si hay error (ej: columna no existe) o no hay data, 
+            // creamos un perfil temporal de superusuario
             if (error || !data || !data.role) {
                 console.warn('⚠️ DEV MODE: Usando perfil temporal de Superusuario (Bypass)')
                 return {
                     id: authUser.id,
                     email: authUser.email!,
                     full_name: authUser.user_metadata.full_name || 'Usuario (Dev)',
-                    role: 'superuser',
-                    is_superuser: true,
+                    role: 'superuser',          // Forzamos superuser
+                    is_superuser: true,         // Forzamos superuser
                     jurisdiction_id: 1,
                     is_active: true,
                     avatar_url: authUser.user_metadata.avatar_url
                 }
             }
 
+            // Normal flow
             return {
                 id: data.id,
                 email: data.email,
@@ -108,15 +63,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    const signIn = async (email: string, password: string) => {
-        if (!isSupabaseEnabled()) {
-            setUser(MOCK_USER)
-            return { error: null }
+    // Initialize auth state
+    useEffect(() => {
+        const initAuth = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession()
+
+                if (session?.user) {
+                    const profile = await fetchUserProfile(session.user)
+                    setUser(profile)
+                } else {
+                    setUser(null)
+                }
+            } catch (error) {
+                console.error('Auth init error:', error)
+                setUser(null)
+            } finally {
+                setLoading(false)
+            }
         }
 
+        initAuth()
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+                if (event === 'SIGNED_IN' && session?.user) {
+                    const profile = await fetchUserProfile(session.user)
+                    setUser(profile)
+                } else if (event === 'SIGNED_OUT') {
+                    setUser(null)
+                }
+            }
+        )
+
+        return () => subscription.unsubscribe()
+    }, [])
+
+    const signIn = async (email: string, password: string) => {
         try {
-            const { createClient } = await import('@/lib/supabase/client')
-            const supabase = createClient()
             const { error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
@@ -133,18 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const signOut = async () => {
-        if (!isSupabaseEnabled()) {
-            setUser(null)
-            return
-        }
-
-        try {
-            const { createClient } = await import('@/lib/supabase/client')
-            const supabase = createClient()
-            await supabase.auth.signOut()
-        } catch (error) {
-            console.error('Sign out error:', error)
-        }
+        await supabase.auth.signOut()
         setUser(null)
     }
 
