@@ -27,8 +27,8 @@ BEGIN
             
             -- Metadatos
             notes TEXT,
-            created_by INT REFERENCES users(id) ON DELETE SET NULL,
-            updated_by INT REFERENCES users(id) ON DELETE SET NULL,
+            created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             

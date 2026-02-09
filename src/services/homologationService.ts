@@ -12,8 +12,8 @@ export interface Homologation {
     mapping_type: 'manual' | 'automatic' | 'suggested'
     confidence_score: number | null
     notes: string | null
-    created_by: number | null
-    updated_by: number | null
+    created_by: string | null
+    updated_by: string | null
     created_at: string
     updated_at: string
     
@@ -93,7 +93,7 @@ export const homologationService = {
         externalDescription?: string,
         ratio = 1.0,
         notes?: string,
-        userId?: number
+        userId?: string
     ): Promise<Homologation> {
         const { data, error } = await supabase
             .from('homologations')
@@ -130,7 +130,7 @@ export const homologationService = {
             ratio?: number
             notes?: string
         },
-        userId?: number
+        userId?: string
     ): Promise<Homologation> {
         const { data, error } = await supabase
             .from('homologations')
@@ -302,7 +302,7 @@ export const homologationService = {
             ratio?: number
             mapping_type?: 'manual' | 'automatic'
         }>,
-        userId?: number
+        userId?: string
     ): Promise<number> {
         const rows = homologations.map(h => ({
             ...h,
