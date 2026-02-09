@@ -1,11 +1,11 @@
 # 📊 PROGRESO DE DESARROLLO - CPCE SALUD
 
-**Última actualización:** 9 de febrero de 2026, 00:05    
+**Última actualización:** 9 de febrero de 2026, 01:15    
 **Sprint actual:** Nomencladores y Homologación
 
 ---
 
-## ✅ COMPLETADO (3/11 tareas principales)
+## ✅ COMPLETADO (4/11 tareas principales)
 
 ### 1. ✅ Sistema Flexible de Nomencladores Externos
 **Estado:** 100% Completo  
@@ -112,15 +112,105 @@ practiceTypeService {
 
 ---
 
+### 4. ✅ Homologador Completo con Sugerencias Automáticas
+**Estado:** 100% Completo (⚠️ Requiere migración SQL)  
+**Commit:** Pendiente  
+
+**Implementado:**
+- ✅ Tabla `homologations` con soporte 1:N (una práctica interna → múltiples códigos externos)
+- ✅ Servicio completo con 8 métodos CRUD y fuzzy matching
+- ✅ Interfaz side-by-side (prácticas externas ← → prácticas internas)
+- ✅ Sugerencias automáticas con scoring de similitud
+- ✅ Buscador de prácticas internas con resultados en tiempo real
+- ✅ Ratio de conversión configurable (factor entre unidades)
+- ✅ Tab de "Homologaciones" para ver vínculos existentes
+- ✅ Eliminación de homologaciones con confirmación
+- ✅ Página dedicada del Homologador con ruta `/practices/external/{id}/homologate`
+
+**Archivos creados:**
+- `/supabase/migrations/003_homologations.sql` - Migración con tabla completa
+- `/src/services/homologationService.ts` - Servicio backend con CRUD + fuzzy matching
+- `/src/components/practices/Homologator.tsx` - Componente UI principal (lado a lado)
+- `/src/app/practices/external/[id]/homologate/page.tsx` - Página del homologador
+- `/src/hooks/use-toast.ts` - Hook para notificaciones toast
+- `/scripts/runHomologationsMigration.ts` - Script de migración automática
+- `/MIGRACION_HOMOLOGACIONES.md` - Instrucciones detalladas
+
+**Archivos modificados:**
+- `/src/app/practices/external/[id]/page.tsx` - Botón "Homologador" + Tab "Homologaciones"
+
+**Funcionalidades del Servicio:**
+```typescript
+homologationService {
+  getHomologationsByNomenclator()  // Listar con filtros
+  createHomologation()              // Crear manual
+  updateHomologation()              // Actualizar ratio/notas
+  deleteHomologation()              // Eliminar vínculo
+  suggestHomologations()            // Fuzzy matching automático
+  getHomologationStats()            // Estadísticas (total, pendientes, tipo)
+  bulkCreateHomologations()         // Importación masiva
+}
+```
+
+**Algoritmo de Sugerencias:**
+1. Búsqueda por similitud de código (coincidencia parcial)
+2. Búsqueda por palabras clave en descripción (tokenización)
+3. Scoring combinado (0.0 a 1.0)
+4. Ordenamiento por score descendente
+5. Top 10 sugerencias con razón de coincidencia
+
+**Schema de `homologations`:**
+```sql
+- id: UUID (PK)
+- internal_practice_id: BIGINT (FK → practices)
+- external_nomenclator_id: INT (FK → external_nomenclators)
+- external_code: VARCHAR(50)
+- external_description: TEXT
+- ratio: DECIMAL(10,4) - Factor de conversión (default 1.0)
+- mapping_type: ENUM('manual', 'automatic', 'suggested')
+- confidence_score: DECIMAL(5,2) - Para ML futuro
+- notes: TEXT
+- created_by, updated_by: INT (FK → users)
+- Constraint: UNIQUE(external_nomenclator_id, external_code)
+```
+
+**Flujo de Uso:**
+1. Ir a Nomenclador Externo → Botón "Homologador"
+2. Columna izquierda: prácticas externas sin homologar
+3. Seleccionar una práctica externa
+4. Sistema muestra sugerencias automáticas con % de match
+5. O buscar manualmente práctica interna
+6. Click en práctica interna → Modal de confirmación
+7. Configurar ratio (default 1.0) y notas opcionales
+8. Confirmar → Homologación creada
+9. Ver todas las homologaciones en tab "Homologaciones"
+
+**⚠️ ACCIÓN REQUERIDA:**
+Ejecutar migración SQL manualmente en Supabase Dashboard:
+1. Copiar contenido de `supabase/migrations/003_homologations.sql`
+2. Pegar en SQL Editor del dashboard
+3. Ejecutar query
+4. Verificar tabla creada
+
+Ver instrucciones completas en: **MIGRACION_HOMOLOGACIONES.md**
+
+---
+
 ## 🔄 EN DESARROLLO
 
-### 3. Rediseño Nomencladores Internos Multi-Tipo
+Ninguna tarea en desarrollo actualmente. Listo para Task 5.
+
+---
+
+## 📝 PENDIENTE
+
+### 5. Sistema de Valores Flexible (Fijo, Porcentaje, Escalonado)
 **Estado:** 0% - No iniciado  
 **Próximos pasos:**
-1. Modificar tabla `practices` con mejor categorización
-2. Crear componente con tabs por tipo (Médico, Bioquímico, Odonto, Medicamentos, Especiales)
-3. Interfaz separada para cada nomenclador
-4. Contadores independientes por tipo
+1. Agregar campo `value_type` en tabla `practices`
+2. Crear tabla `value_scales` para valores escalonados
+3. Modificar calculadora para soportar 3 tipos de valor
+4. UI para configurar escalas (ej: 0-100 unidades = $X, 101-500 = $Y)
 
 ---
 

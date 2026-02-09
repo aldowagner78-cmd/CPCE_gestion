@@ -9,12 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Search, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
+import { Loader2, Search, ArrowLeft, Filter, FileSpreadsheet, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import { externalNomenclatorService, type ExternalPractice, type ExternalNomenclator } from '@/services/externalNomenclatorService'
 import { CsvImporter } from '@/components/practices/CsvImporter'
 import { PdfImporter } from '@/components/practices/PdfImporter'
 import { PracticeMapper } from '@/components/practices/PracticeMapper'
+import { homologationService } from '@/services/homologationService'
 
 export default function ExternalNomenclatorDetailPage() {
     const params = useParams()
@@ -29,6 +30,13 @@ export default function ExternalNomenclatorDetailPage() {
     const [totalCount, setTotalCount] = useState(0)
     const [search, setSearch] = useState('')
     const [mappingFilter, setMappingFilter] = useState<'all' | 'mapped' | 'unmapped'>('all')
+    
+    // Homologations tab
+    const [homologations, setHomologations] = useState<any[]>([])
+    const [homologationsPage, setHomologationsPage] = useState(1)
+    const [homologationsCount, setHomologationsCount] = useState(0)
+    const [homologationsSearch, setHomologationsSearch] = useState('')
+    const [loadingHomologations, setLoadingHomologations] = useState(false)
 
     useEffect(() => {
         loadData()
@@ -69,10 +77,46 @@ export default function ExternalNomenclatorDetailPage() {
         }
     }
 
+    const loadHomologations = async () => {
+        setLoadingHomologations(true)
+        try {
+            const { data, count } = await homologationService.getHomologationsByNomenclator(
+                id,
+                homologationsPage,
+                20,
+                homologationsSearch,
+                'all'
+            )
+            setHomologations(data)
+            setHomologationsCount(count)
+        } catch (error) {
+            console.error('Error loading homologations:', error)
+        } finally {
+            setLoadingHomologations(false)
+        }
+    }
+
     const handleMap = async (externalId: string, internalId: number | null) => {
         await externalNomenclatorService.mapPractice(externalId, internalId)
         loadPractices() // Reload to update UI
     }
+
+    const handleDeleteHomologation = async (homologationId: string) => {
+        if (!confirm('¿Eliminar esta homologación?')) return
+        try {
+            await homologationService.deleteHomologation(homologationId)
+            loadHomologations()
+        } catch (error) {
+            console.error('Error deleting homologation:', error)
+        }
+    }
+
+    // Load homologations when tab changes
+    useEffect(() => {
+        if (nomenclator) {
+            loadHomologations()
+        }
+    }, [homologationsPage, homologationsSearch, nomenclator])
 
     if (loading) {
         return (
@@ -95,13 +139,22 @@ export default function ExternalNomenclatorDetailPage() {
                         <h1 className="text-3xl font-bold tracking-tight">{nomenclator.name}</h1>
                         <p className="text-muted-foreground mt-1">{nomenclator.description}</p>
                     </div>
-                    <Badge variant="outline" className="text-lg">{nomenclator.code}</Badge>
+                    <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="text-lg">{nomenclator.code}</Badge>
+                        <Link href={`/practices/external/${id}/homologate`}>
+                            <Button>
+                                <Link2 className="h-4 w-4 mr-2" />
+                                Homologador
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
             </div>
 
             <Tabs defaultValue="practices" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="practices">Prácticas</TabsTrigger>
+                    <TabsTrigger value="homologations">Homologaciones</TabsTrigger>
                     <TabsTrigger value="import">Importar CSV</TabsTrigger>
                     <TabsTrigger value="pdf">Importar PDF</TabsTrigger>
                 </TabsList>
@@ -215,6 +268,115 @@ export default function ExternalNomenclatorDetailPage() {
                                 >
                                     Siguiente
                                 </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="homologations" className="space-y-4">
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <CardTitle>Homologaciones Existentes</CardTitle>
+                                <div className="relative flex-1 min-w-[200px] max-w-md">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Buscar por código externo..."
+                                        className="pl-8"
+                                        value={homologationsSearch}
+                                        onChange={(e) => setHomologationsSearch(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="rounded-md border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[120px]">Código Externo</TableHead>
+                                            <TableHead>Descripción Externa</TableHead>
+                                            <TableHead className="w-[120px]">Código Interno</TableHead>
+                                            <TableHead>Práctica Interna</TableHead>
+                                            <TableHead className="w-[80px]">Ratio</TableHead>
+                                            <TableHead className="w-[100px]">Tipo</TableHead>
+                                            <TableHead className="w-[50px]"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {loadingHomologations ? (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="h-24 text-center">
+                                                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : homologations.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                                                    No hay homologaciones todavía. Usa el Homologador para crear vínculos.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            homologations.map((homol) => (
+                                                <TableRow key={homol.id}>
+                                                    <TableCell className="font-medium">{homol.external_code}</TableCell>
+                                                    <TableCell className="max-w-[200px] truncate" title={homol.external_description || ''}>
+                                                        {homol.external_description || '-'}
+                                                    </TableCell>
+                                                    <TableCell className="font-medium text-blue-600">
+                                                        {homol.internal_practice?.code || '-'}
+                                                    </TableCell>
+                                                    <TableCell className="max-w-[250px] truncate" title={homol.internal_practice?.name || ''}>
+                                                        {homol.internal_practice?.name || '-'}
+                                                    </TableCell>
+                                                    <TableCell>{homol.ratio}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={homol.mapping_type === 'manual' ? 'default' : 'secondary'}>
+                                                            {homol.mapping_type}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleDeleteHomologation(homol.id)}
+                                                        >
+                                                            <ArrowLeft className="h-4 w-4 rotate-180" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            {/* Pagination */}
+                            <div className="flex items-center justify-between py-4">
+                                <div className="text-sm text-muted-foreground">
+                                    Total: {homologationsCount} homologaciones
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setHomologationsPage(p => Math.max(1, p - 1))}
+                                        disabled={homologationsPage === 1 || loadingHomologations}
+                                    >
+                                        Anterior
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Página {homologationsPage}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setHomologationsPage(p => p + 1)}
+                                        disabled={homologations.length < 20 || loadingHomologations}
+                                    >
+                                        Siguiente
+                                    </Button>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
