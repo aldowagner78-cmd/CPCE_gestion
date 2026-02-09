@@ -13,6 +13,7 @@ import { Loader2, Search, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-reac
 import Link from 'next/link'
 import { externalNomenclatorService, type ExternalPractice, type ExternalNomenclator } from '@/services/externalNomenclatorService'
 import { CsvImporter } from '@/components/practices/CsvImporter'
+import { PdfImporter } from '@/components/practices/PdfImporter'
 import { PracticeMapper } from '@/components/practices/PracticeMapper'
 
 export default function ExternalNomenclatorDetailPage() {
@@ -102,6 +103,7 @@ export default function ExternalNomenclatorDetailPage() {
                 <TabsList>
                     <TabsTrigger value="practices">Prácticas</TabsTrigger>
                     <TabsTrigger value="import">Importar CSV</TabsTrigger>
+                    <TabsTrigger value="pdf">Importar PDF</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="practices" className="space-y-4">
@@ -247,6 +249,33 @@ export default function ExternalNomenclatorDetailPage() {
                                 42.01.01,Consulta Médica,150.00<br />
                                 42.01.02,Consulta Guardia,200.00
                             </div>
+                        </div>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="pdf">
+                    <div className="max-w-2xl mx-auto mt-8">
+                        <PdfImporter
+                            nomenclatorId={id}
+                            onImportComplete={() => {
+                                loadPractices()
+                            }}
+                        />
+
+                        <div className="mt-8 p-4 bg-muted rounded-lg">
+                            <h3 className="font-semibold mb-2 flex items-center gap-2">
+                                <FileSpreadsheet className="h-4 w-4" />
+                                Acerca de la importación PDF
+                            </h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                El importador de PDF extrae automáticamente el texto y detecta códigos y descripciones de prácticas.
+                            </p>
+                            <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
+                                <li>Funciona mejor con PDFs con texto seleccionable (no imágenes escaneadas)</li>
+                                <li>Detecta patrones comunes: código, descripción, valor</li>
+                                <li>Puedes revisar y descargar como CSV antes de importar</li>
+                                <li>Si no detecta las prácticas correctamente, usa importación CSV manual</li>
+                            </ul>
                         </div>
                     </div>
                 </TabsContent>

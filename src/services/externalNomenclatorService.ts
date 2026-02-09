@@ -117,5 +117,78 @@ export const externalNomenclatorService = {
 
         if (error) throw error
         return data
+    },
+
+    /**
+     * Crear nuevo nomenclador
+     */
+    async createNomenclator(nomenclator: Omit<ExternalNomenclator, 'id' | 'created_at'>) {
+        const { data, error } = await supabase
+            .from('external_nomenclators')
+            .insert(nomenclator)
+            .select()
+            .single()
+
+        if (error) throw error
+        return data as ExternalNomenclator
+    },
+
+    /**
+     * Actualizar nomenclador
+     */
+    async updateNomenclator(id: number, updates: Partial<ExternalNomenclator>) {
+        const { data, error } = await supabase
+            .from('external_nomenclators')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single()
+
+        if (error) throw error
+        return data as ExternalNomenclator
+    },
+
+    /**
+     * Eliminar nomenclador (solo si no tiene prácticas asociadas)
+     */
+    async deleteNomenclator(id: number) {
+        // Verificar si tiene prácticas
+        const { count } = await supabase
+            .from('external_practices')
+            .select('*', { count: 'exact', head: true })
+            .eq('nomenclator_id', id)
+
+        if (count && count > 0) {
+            throw new Error(`No se puede eliminar. Este nomenclador tiene ${count} prácticas asociadas.`)
+        }
+
+        const { error } = await supabase
+            .from('external_nomenclators')
+            .delete()
+            .eq('id', id)
+
+        if (error) throw error
+    },
+
+    /**
+     * Obtener estadísticas de un nomenclador
+     */
+    async getNomenclatorStats(id: number) {
+        const { count: total } = await supabase
+            .from('external_practices')
+            .select('*', { count: 'exact', head: true })
+            .eq('nomenclator_id', id)
+
+        const { count: mapped } = await supabase
+            .from('external_practices')
+            .select('*', { count: 'exact', head: true })
+            .eq('nomenclator_id', id)
+            .not('internal_practice_id', 'is', null)
+
+        return {
+            total: total || 0,
+            mapped: mapped || 0,
+            unmapped: (total || 0) - (mapped || 0)
+        }
     }
 }
