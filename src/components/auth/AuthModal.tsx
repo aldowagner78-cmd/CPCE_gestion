@@ -88,7 +88,7 @@ export function AuthModal({
             setTimeout(() => {
                 onLoginSuccess?.()
             }, 500)
-        } catch (err) {
+        } catch {
             setError('Error de conexión. Intente nuevamente.')
         } finally {
             setLoading(false)
@@ -119,7 +119,7 @@ export function AuthModal({
             setTimeout(() => {
                 handleModeChange('login')
             }, 2000)
-        } catch (err) {
+        } catch {
             setError('Error al enviar el email. Intente nuevamente.')
         } finally {
             setLoading(false)

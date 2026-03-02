@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { Loader2 } from 'lucide-react'
 import Image from 'next/image'
@@ -10,17 +10,15 @@ import Image from 'next/image'
 export default function WelcomePage() {
     const router = useRouter()
     const { user, loading } = useAuth()
-    const [mounted, setMounted] = useState(false)
 
     // Redirect if already logged in
     useEffect(() => {
-        setMounted(true)
         if (!loading && user) {
             router.replace('/')
         }
     }, [user, loading, router])
 
-    if (!mounted || loading) {
+    if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-100">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-600" />

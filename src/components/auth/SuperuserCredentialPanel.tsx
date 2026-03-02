@@ -4,13 +4,11 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AlertTriangle, Loader2, Lock, Mail, Trash2, Power, RefreshCw, Clock, LogOut } from 'lucide-react'
+import { AlertTriangle, Loader2, Lock, Mail, Power, RefreshCw, Clock, LogOut } from 'lucide-react'
 
 interface UserWithCredentials {
     id: string
@@ -40,6 +38,7 @@ export function SuperuserCredentialPanel() {
     useEffect(() => {
         if (!canManageCredentials) return
         loadUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [canManageCredentials])
 
     const loadUsers = async () => {
