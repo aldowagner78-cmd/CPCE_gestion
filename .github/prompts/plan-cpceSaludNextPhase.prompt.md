@@ -156,6 +156,19 @@ Objetivo: interfaz moderna, profesional, intuitiva y totalmente interconectada, 
 
 ### Inicio de app: Bienvenida + Modal de Autenticación
 
+### Decisiones de diseño aprobadas (2/03/2026)
+- Estructura de entrada: **Bienvenida full + modal centrado**.
+- Modal de auth incluye:
+	- Login: email + password
+	- Recuperar contraseña: envío de link por email
+	- Opción "Recordarme": **persistente indefinido, control total del usuario**
+		- Si marca "Recordarme": las credenciales se guardan en el navegador (localStorage/cookies) sin expiración automática
+		- Si NO marca: credenciales no se guardan, próximo login pide datos nuevos
+		- El usuario puede eliminar/olvidar credenciales guardadas en cualquier momento (botón "Olvida este dispositivo")
+	- Mostrar/Ocultar contraseña: toggle para visibilidad
+- **Sin registro público** en el modal (el alta de usuarios se gestiona desde panel de usuarios por perfiles autorizados).
+- Estrategia de implementación: **Fase 1 Auth + Welcome** (luego UI global).
+
 Estado actual (diagnóstico):
 - Existe login visualmente cuidado, pero como **página completa** (`/login`), no modal sobre pantalla de bienvenida.
 - Existe recuperación de contraseña vía email (`resetPasswordForEmail`).
@@ -174,6 +187,13 @@ Debe incluir:
 3. Activar/desactivar usuario (ya existe; mantener y mejorar UX).
 4. Estado de credenciales (último acceso, usuario activo/inactivo, pendiente de reset).
 5. Flujos clásicos de seguridad: recuperar contraseña, cambiar contraseña, invalidar sesiones.
+
+Alcance aprobado para esta fase: **Nivel completo**.
+
+### Criterios UX/estilo obligatorios
+- Mantener coherencia visual con el diseño actual de la app (componentes y tokens existentes).
+- Evitar estilos ajenos al sistema visual actual.
+- Priorizar claridad, jerarquía visual y fricción mínima de uso.
 
 ### Restricción de ejecución
 - Esta prioridad se diseña primero.
