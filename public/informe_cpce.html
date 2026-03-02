@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPCE Salud – Informe Ejecutivo 2026</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1a202c; }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%);
+    color: white; padding: 40px 60px; display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(30,58,138,0.4);
+  }
+  .header-left h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.5px; }
+  .header-left p { font-size: 1rem; opacity: 0.85; margin-top: 6px; }
+  .header-right { text-align: right; }
+  .header-right .badge {
+    background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+    padding: 6px 18px; border-radius: 20px; font-size: 0.85rem; display: inline-block; margin-top: 8px;
+  }
+  .header-logo {
+    width: 80px; height: 80px; background: rgba(255,255,255,0.15);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 2.5rem; margin-left: 30px; border: 2px solid rgba(255,255,255,0.3);
+  }
+
+  /* TABS */
+  .tabs-nav {
+    background: white; border-bottom: 2px solid #e2e8f0;
+    padding: 0 40px; display: flex; gap: 0; overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 100;
+  }
+  .tab-btn {
+    padding: 16px 22px; cursor: pointer; font-size: 0.88rem; font-weight: 600;
+    border: none; background: none; color: #64748b; white-space: nowrap;
+    border-bottom: 3px solid transparent; transition: all 0.2s; margin-bottom: -2px;
+  }
+  .tab-btn:hover { color: #1e3a8a; background: #f8fafc; }
+  .tab-btn.active { color: #1e3a8a; border-bottom-color: #1e3a8a; background: #f0f7ff; }
+
+  /* CONTENT */
+  .tab-content { display: none; padding: 40px 60px; max-width: 1200px; margin: 0 auto; }
+  .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* SECTIONS */
+  .section { margin-bottom: 40px; }
+  .section-title {
+    font-size: 1.35rem; font-weight: 700; color: #1e3a8a;
+    border-left: 4px solid #2563eb; padding-left: 14px;
+    margin-bottom: 18px; display: flex; align-items: center; gap: 10px;
+  }
+  .section-title .icon { font-size: 1.3rem; }
+
+  /* CARDS GRID */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+  .card {
+    background: white; border-radius: 14px; padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07); border: 1px solid #e2e8f0;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.12); }
+  .card h3 { font-size: 1rem; font-weight: 700; color: #1e3a8a; margin-bottom: 10px; }
+  .card p { font-size: 0.88rem; color: #475569; line-height: 1.65; }
+  .card-icon { font-size: 2rem; margin-bottom: 12px; }
+
+  .card-blue { border-top: 4px solid #2563eb; }
+  .card-green { border-top: 4px solid #059669; }
+  .card-orange { border-top: 4px solid #d97706; }
+  .card-purple { border-top: 4px solid #7c3aed; }
+  .card-red { border-top: 4px solid #dc2626; }
+  .card-teal { border-top: 4px solid #0891b2; }
+
+  /* STAT CARDS */
+  .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 30px; }
+  .stat-card {
+    background: white; border-radius: 12px; padding: 20px; text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;
+  }
+  .stat-number { font-size: 2.4rem; font-weight: 800; color: #1e3a8a; }
+  .stat-label { font-size: 0.82rem; color: #64748b; margin-top: 4px; font-weight: 500; }
+  .stat-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+
+  /* PROGRESS BAR */
+  .progress-wrap { margin: 8px 0 4px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #475569; }
+  .progress-bar { background: #e2e8f0; border-radius: 8px; height: 10px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 8px; transition: width 1s ease; }
+  .fill-green { background: linear-gradient(90deg, #059669, #34d399); }
+  .fill-blue { background: linear-gradient(90deg, #2563eb, #60a5fa); }
+  .fill-orange { background: linear-gradient(90deg, #d97706, #fbbf24); }
+  .fill-purple { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+  .fill-red { background: linear-gradient(90deg, #dc2626, #f87171); }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: #1e3a8a; color: white; padding: 12px 16px; text-align: left; font-weight: 600; }
+  td { padding: 11px 16px; border-bottom: 1px solid #e2e8f0; color: #374151; }
+  tr:nth-child(even) { background: #f8fafc; }
+  tr:hover { background: #eff6ff; }
+
+  /* BADGES */
+  .badge-done { background: #dcfce7; color: #166534; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+  .badge-pending { background: #fef3c7; color: #92400e; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+  .badge-progress { background: #dbeafe; color: #1e40af; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+
+  /* FODA */
+  .foda-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .foda-box { background: white; border-radius: 14px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+  .foda-box h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid; }
+  .foda-f h3 { color: #059669; border-color: #059669; }
+  .foda-o h3 { color: #2563eb; border-color: #2563eb; }
+  .foda-d h3 { color: #d97706; border-color: #d97706; }
+  .foda-a h3 { color: #dc2626; border-color: #dc2626; }
+  .foda-box ul { list-style: none; }
+  .foda-box ul li { padding: 6px 0; font-size: 0.87rem; color: #475569; display: flex; align-items: flex-start; gap: 8px; }
+  .foda-box ul li::before { content: '▸'; flex-shrink: 0; margin-top: 1px; }
+
+  /* WALKTHROUGH */
+  .wt-step {
+    background: white; border-radius: 14px; padding: 24px; margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07); border-left: 5px solid #2563eb;
+    display: flex; gap: 20px; align-items: flex-start;
+  }
+  .wt-number {
+    background: #1e3a8a; color: white; width: 44px; height: 44px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.2rem; flex-shrink: 0;
+  }
+  .wt-step h3 { font-size: 1rem; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; }
+  .wt-step p { font-size: 0.87rem; color: #475569; line-height: 1.65; }
+  .wt-step .path { font-size: 0.8rem; background: #f1f5f9; padding: 3px 10px; border-radius: 6px; display: inline-block; margin-top: 8px; font-family: monospace; color: #334155; }
+
+  /* ROLES TABLE */
+  .role-card { background: white; border-radius: 14px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+  .role-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .role-icon { font-size: 2rem; }
+  .role-title { font-size: 1.1rem; font-weight: 700; color: #1e3a8a; }
+  .role-subtitle { font-size: 0.85rem; color: #64748b; }
+  .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .perm-item { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; padding: 6px 10px; border-radius: 8px; }
+  .perm-yes { background: #f0fdf4; color: #166534; }
+  .perm-no { background: #fef2f2; color: #991b1b; }
+  .perm-yes::before { content: '✓'; font-weight: 700; }
+  .perm-no::before { content: '✗'; font-weight: 700; }
+
+  /* CIRCUIT */
+  .circuit {
+    background: white; border-radius: 14px; padding: 26px; margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+  .circuit h3 { font-size: 1rem; font-weight: 700; color: #1e3a8a; margin-bottom: 16px; }
+  .circuit-steps { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .circuit-step { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 14px; font-size: 0.82rem; color: #1e40af; font-weight: 500; }
+  .circuit-arrow { color: #93c5fd; font-size: 1.2rem; font-weight: 700; }
+
+  /* TECH STACK */
+  .tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .tech-item { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+  .tech-name { font-weight: 700; color: #1e3a8a; font-size: 0.92rem; }
+  .tech-desc { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+
+  /* TIMELINE */
+  .timeline { position: relative; padding-left: 30px; }
+  .timeline::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: #bfdbfe; }
+  .tl-item { position: relative; margin-bottom: 24px; }
+  .tl-dot { position: absolute; left: -24px; top: 4px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; }
+  .tl-done { background: #059669; }
+  .tl-pending { background: #d97706; }
+  .tl-item h4 { font-size: 0.92rem; font-weight: 700; color: #1e3a8a; }
+  .tl-item p { font-size: 0.82rem; color: #64748b; margin-top: 4px; }
+
+  /* PRINT */
+  @media print {
+    .tabs-nav { display: none; }
+    .tab-content { display: block !important; page-break-before: always; }
+    .tab-content:first-child { page-break-before: avoid; }
+    body { background: white; }
+  }
+
+  /* FOOTER */
+  .footer {
+    background: #1e3a8a; color: rgba(255,255,255,0.7); text-align: center;
+    padding: 20px; font-size: 0.82rem; margin-top: 40px;
+  }
+  .footer strong { color: white; }
+
+  /* ALERT BOX */
+  .alert-box { border-radius: 10px; padding: 16px 20px; margin: 16px 0; font-size: 0.87rem; }
+  .alert-info { background: #eff6ff; border-left: 4px solid #2563eb; color: #1e40af; }
+  .alert-success { background: #f0fdf4; border-left: 4px solid #059669; color: #166534; }
+  .alert-warning { background: #fffbeb; border-left: 4px solid #d97706; color: #92400e; }
+
+  p { line-height: 1.7; color: #475569; }
+  h2 { font-size: 1.6rem; font-weight: 800; color: #1e3a8a; margin-bottom: 20px; }
+  ul.clean { list-style: none; }
+  ul.clean li { padding: 6px 0; font-size: 0.88rem; color: #475569; padding-left: 16px; position: relative; }
+  ul.clean li::before { content: '▸'; position: absolute; left: 0; color: #2563eb; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>CPCE Salud – Gestión Integral</h1>
+    <p>Sistema de Auditorías, Nomencladores y Homologación de Prácticas Médicas</p>
+    <div class="badge">Versión 1.0 &nbsp;|&nbsp; Febrero 2026 &nbsp;|&nbsp; Consejo Profesional de Ciencias Económicas</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:20px;">
+    <div class="header-logo">🏥</div>
+    <div class="header-right">
+      <div style="font-size:0.85rem; opacity:0.8;">Informe para</div>
+      <div style="font-size:1.1rem; font-weight:700;">Comisión Directiva</div>
+      <div style="font-size:0.82rem; opacity:0.7; margin-top:4px;">Santa Fe &amp; Rosario</div>
+    </div>
+  </div>
+</div>
+
+<!-- TABS NAVIGATION -->
+<div class="tabs-nav">
+  <button class="tab-btn active" onclick="showTab('resumen')">📊 Resumen Ejecutivo</button>
+  <button class="tab-btn" onclick="showTab('mision')">🎯 Misión, Visión & Objetivos</button>
+  <button class="tab-btn" onclick="showTab('funcionalidades')">⚙️ Funcionalidades</button>
+  <button class="tab-btn" onclick="showTab('foda')">📋 Análisis FODA</button>
+  <button class="tab-btn" onclick="showTab('estado')">📈 Estado del Proyecto</button>
+  <button class="tab-btn" onclick="showTab('walkthrough')">🚶 Guía de Uso</button>
+  <button class="tab-btn" onclick="showTab('manual')">📖 Manual Rápido</button>
+  <button class="tab-btn" onclick="showTab('roles')">👥 Roles & Permisos</button>
+  <button class="tab-btn" onclick="showTab('tecnologia')">💻 Tecnología</button>
+</div>
+
+<!-- ============================= TAB: RESUMEN ============================= -->
+<div id="tab-resumen" class="tab-content active">
+  <h2>Resumen Ejecutivo</h2>
+
+  <div class="alert-info alert-box">
+    <strong>CPCE Salud</strong> es una plataforma web institucional desarrollada para digitalizar, automatizar y centralizar la gestión de las prestaciones de salud del Consejo Profesional de Ciencias Económicas de la provincia de Santa Fe, con operación en las cámaras de <strong>Santa Fe</strong> y <strong>Rosario</strong>.
+  </div>
+
+  <div class="stat-cards">
+    <div class="stat-card">
+      <div class="stat-number">2</div>
+      <div class="stat-label">Jurisdicciones Activas</div>
+      <div class="stat-sub">Santa Fe & Rosario</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">5</div>
+      <div class="stat-label">Tipos de Nomencladores</div>
+      <div class="stat-sub">MED · BIO · ODO · FAR · ESP</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">9</div>
+      <div class="stat-label">Módulos Principales</div>
+      <div class="stat-sub">Funcionales o en desarrollo</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">4/9</div>
+      <div class="stat-label">Tareas Completadas</div>
+      <div class="stat-sub">Roadmap en ejecución</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">100%</div>
+      <div class="stat-label">Alojamiento en Nube</div>
+      <div class="stat-sub">Vercel + Supabase</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔑</span> Puntos Clave del Proyecto</div>
+    <div class="cards-grid">
+      <div class="card card-blue">
+        <div class="card-icon">🏛️</div>
+        <h3>Sistema Multi-Jurisdiccional</h3>
+        <p>Gestión diferenciada para cada cámara (Santa Fe y Rosario), con identidad visual propia, datos separados y auditor independiente.</p>
+      </div>
+      <div class="card card-green">
+        <div class="card-icon">⚡</div>
+        <h3>Tiempo Real</h3>
+        <p>Actualizaciones instantáneas vía WebSockets (Supabase Realtime). Cualquier cambio se refleja en todos los terminales sin necesidad de recargar.</p>
+      </div>
+      <div class="card card-orange">
+        <div class="card-icon">📋</div>
+        <h3>Nomencladores Flexibles</h3>
+        <p>Carga dinámica de cualquier nomenclador externo (sin nombres fijos). Importación desde CSV y PDF con extracción automática de datos.</p>
+      </div>
+      <div class="card card-purple">
+        <div class="card-icon">🔗</div>
+        <h3>Homologador Inteligente</h3>
+        <p>Motor de vinculación entre prácticas externas e internas con sugerencias automáticas, scoring de similitud y ratio de conversión.</p>
+      </div>
+      <div class="card card-teal">
+        <div class="card-icon">🤖</div>
+        <h3>Preparado para IA</h3>
+        <p>Arquitectura diseñada para incorporar chat de consultas, detección de anomalías y asistente de auditoría con inteligencia artificial.</p>
+      </div>
+      <div class="card card-red">
+        <div class="card-icon">🔐</div>
+        <h3>Seguridad & Roles</h3>
+        <p>Sistema de autenticación con 3 niveles de acceso: Administrador, Auditor y Afiliado. Cada rol accede solo a lo que necesita.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📅</span> Cronograma General</div>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-dot tl-done"></div>
+        <h4>✅ Fase 1 — Infraestructura Base (Completada)</h4>
+        <p>Despliegue en Vercel + Supabase, autenticación, tiempo real, UI con temas por jurisdicción.</p>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot tl-done"></div>
+        <h4>✅ Fase 2 — Nomencladores (Completada)</h4>
+        <p>CRUD de nomencladores externos e internos, importación PDF/CSV, 5 tipos separados.</p>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot tl-done"></div>
+        <h4>✅ Fase 3 — Homologador (Completada)</h4>
+        <p>Motor de vinculación, sugerencias automáticas, dashboard de progreso, ratios de conversión.</p>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot tl-pending"></div>
+        <h4>⏳ Fase 4 — Sistema de Valores Flexible (Próximo)</h4>
+        <p>Valores fijos, por porcentaje, escalonados por rangos. Modificación de calculadora.</p>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot tl-pending"></div>
+        <h4>⏳ Fase 5 — Inteligencia Artificial (Futuro)</h4>
+        <p>Chat de consultas (Groq), detección de anomalías, asistente de auditoría.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TAB: MISIÓN ============================= -->
+<div id="tab-mision" class="tab-content">
+  <h2>Misión, Visión & Objetivos</h2>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🎯</span> Misión</div>
+    <div class="card card-blue" style="max-width:800px;">
+      <p style="font-size:1rem; line-height:1.8; color:#1e3a8a; font-weight:500;">
+        Brindar a la CPCE una plataforma digital integral, segura y adaptable que centralice la gestión, auditoría y control de las prestaciones de salud de sus afiliados, garantizando transparencia institucional, eficiencia operativa y calidad de atención en todas las jurisdicciones.
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔭</span> Visión</div>
+    <div class="card card-green" style="max-width:800px;">
+      <p style="font-size:1rem; line-height:1.8; color:#065f46; font-weight:500;">
+        Ser el sistema de referencia en gestión de auditorías y nomencladores de salud del sector profesional de la región, reconocido por su capacidad de adaptación a nuevas normativas, su integración con inteligencia artificial y su aporte a la toma de decisiones estratégicas de la Comisión Directiva.
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🏆</span> Objetivos Estratégicos</div>
+    <div class="cards-grid">
+      <div class="card card-blue">
+        <div class="card-icon">1️⃣</div>
+        <h3>Centralización y Trazabilidad</h3>
+        <p>Unificar en un solo sistema toda la información de auditorías, prestaciones, nomencladores y afiliados, garantizando trazabilidad completa de cada operación.</p>
+      </div>
+      <div class="card card-green">
+        <div class="card-icon">2️⃣</div>
+        <h3>Digitalización de Procesos</h3>
+        <p>Eliminar el uso de papel y planillas manuales. Automatizar la carga, el control y la generación de informes de prestaciones de salud.</p>
+      </div>
+      <div class="card card-orange">
+        <div class="card-icon">3️⃣</div>
+        <h3>Homologación e Interoperabilidad</h3>
+        <p>Facilitar la integración con cualquier nomenclador externo (obras sociales, mutuales, convenios) sin dependencia de proveedores ni codificaciones fijas.</p>
+      </div>
+      <div class="card card-purple">
+        <div class="card-icon">4️⃣</div>
+        <h3>Control Presupuestario</h3>
+        <p>Monitorear en tiempo real los desvíos y anomalías en el uso de prestaciones, generando alertas automáticas para prevenir el fraude y el abuso.</p>
+      </div>
+      <div class="card card-teal">
+        <div class="card-icon">5️⃣</div>
+        <h3>Autonomía Institucional</h3>
+        <p>Que la CPCE pueda crear, actualizar y administrar sus propios nomencladores, convenios y coberturas sin depender de terceros ni de desarrollos custom adicionales.</p>
+      </div>
+      <div class="card card-red">
+        <div class="card-icon">6️⃣</div>
+        <h3>Escalabilidad y Continuidad</h3>
+        <p>Construir sobre una arquitectura moderna (Next.js + Supabase) que permita incorporar nuevas funcionalidades, usuarios y jurisdicciones sin rediseñar el sistema.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📌</span> Valores Institucionales del Proyecto</div>
+    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">
+      <div style="background:white; border-radius:10px; padding:16px; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <div style="font-size:1.8rem;">🔒</div><strong style="color:#1e3a8a;">Seguridad</strong><p style="font-size:0.8rem; margin-top:6px;">Datos protegidos con autenticación robusta y roles diferenciados</p>
+      </div>
+      <div style="background:white; border-radius:10px; padding:16px; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <div style="font-size:1.8rem;">👁️</div><strong style="color:#1e3a8a;">Transparencia</strong><p style="font-size:0.8rem; margin-top:6px;">Trazabilidad completa de cada auditoría y decisión</p>
+      </div>
+      <div style="background:white; border-radius:10px; padding:16px; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <div style="font-size:1.8rem;">⚡</div><strong style="color:#1e3a8a;">Eficiencia</strong><p style="font-size:0.8rem; margin-top:6px;">Automatización de tareas repetitivas y reducción de errores manuales</p>
+      </div>
+      <div style="background:white; border-radius:10px; padding:16px; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <div style="font-size:1.8rem;">🌱</div><strong style="color:#1e3a8a;">Escalabilidad</strong><p style="font-size:0.8rem; margin-top:6px;">Arquitectura preparada para crecer con la institución</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TAB: FUNCIONALIDADES ============================= -->
+<div id="tab-funcionalidades" class="tab-content">
+  <h2>Módulos y Funcionalidades</h2>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🧮</span> Módulo 1 – Calculadora de Cobertura</div>
+    <div class="card card-blue">
+      <p>Permite ingresar un afiliado, un plan y una práctica médica para calcular automáticamente la cobertura correspondiente.</p>
+      <ul class="clean" style="margin-top:12px;">
+        <li>Cálculo automático de monto cubierto, coseguro y autorización requerida</li>
+        <li>Motor de reglas configurable por plan (porcentajes, limitaciones, períodos de espera)</li>
+        <li>Generación de auditoría automática al calcular</li>
+        <li>Historial de cálculos por afiliado</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔗</span> Módulo 2 – Homologador</div>
+    <div class="card card-purple">
+      <p>Sistema para vincular códigos de nomencladores externos (obras sociales, mutuales) con los nomencladores internos de la CPCE.</p>
+      <ul class="clean" style="margin-top:12px;">
+        <li>Dashboard de progreso por nomenclador (% homologado)</li>
+        <li>Interfaz lado a lado: práctica externa ↔ práctica interna</li>
+        <li>Sugerencias automáticas con scoring de similitud (fuzzy matching)</li>
+        <li>Ratio de conversión configurable entre unidades</li>
+        <li>Historial de homologaciones con opción de editar o eliminar</li>
+        <li>Soporte 1:N (un código interno puede mapear a múltiples externos)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📁</span> Módulo 3 – Auditorías</div>
+    <div class="card card-green">
+      <p>Gestión completa del ciclo de auditoría médica, con seguimiento de estados y registro de decisiones.</p>
+      <ul class="clean" style="margin-top:12px;">
+        <li>Estados: Pendiente, Aprobado, Rechazado, Parcial, Requiere Autorización</li>
+        <li>Registro de auditor, notas y código de autorización</li>
+        <li>Filtrado por jurisdicción, estado y fecha</li>
+        <li>Dashboard con contadores en tiempo real</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔔</span> Módulo 4 – Sistema de Alertas</div>
+    <div class="card card-orange">
+      <p>Monitoreo automático de desvíos y anomalías en el uso de prestaciones.</p>
+      <ul class="clean" style="margin-top:12px;">
+        <li>Reglas configurables por frecuencia, monto, proveedor y categoría</li>
+        <li>3 niveles de severidad: Información, Advertencia, Crítica</li>
+        <li>Notificaciones en tiempo real en el badge del sidebar</li>
+        <li>Acciones: revisar, desestimar, escalar</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📄</span> Módulo 5 – Nomencladores Internos</div>
+    <div class="card card-teal">
+      <p>Gestión de los 5 nomencladores propios de la CPCE, cada uno en su tab independiente.</p>
+      <table style="margin-top:12px;">
+        <tr><th>Tipo</th><th>Código</th><th>Descripción</th><th>Unidad</th></tr>
+        <tr><td>Médico General</td><td>MED</td><td>Prácticas médicas generales y especialidades</td><td>Galeno</td></tr>
+        <tr><td>Bioquímico</td><td>BIO</td><td>Análisis clínicos y estudios bioquímicos</td><td>NBU</td></tr>
+        <tr><td>Odontológico</td><td>ODO</td><td>Prácticas odontológicas y prostodoncia</td><td>UO</td></tr>
+        <tr><td>Medicamentos</td><td>FAR</td><td>Medicamentos y fármacos ambulatorios</td><td>-</td></tr>
+        <tr><td>Especiales</td><td>ESP</td><td>Programas especiales y coberturas específicas</td><td>-</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🌐</span> Módulo 6 – Nomencladores Externos</div>
+    <div class="card card-blue">
+      <p>Gestión dinámica de nomencladores de terceros (obras sociales, mutuales, convenios) sin nombres predefinidos.</p>
+      <ul class="clean" style="margin-top:12px;">
+        <li>Crear, editar y eliminar nomencladores con nombre y código propio</li>
+        <li>Importar prácticas desde archivos CSV</li>
+        <li>Importar desde PDF con extracción automática de texto</li>
+        <li>Estadísticas en tiempo real: total, homologadas, pendientes</li>
+        <li>Filtros por estado (homologado / sin homologar)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📊</span> Módulos Adicionales</div>
+    <div class="cards-grid">
+      <div class="card card-blue">
+        <div class="card-icon">📅</div>
+        <h3>Agenda</h3>
+        <p>Gestión de turnos y citas médicas. Integración con el sistema de auditorías.</p>
+        <span class="badge-progress">En desarrollo</span>
+      </div>
+      <div class="card card-green">
+        <div class="card-icon">💬</div>
+        <h3>Chat Consultas</h3>
+        <p>Asistente de consultas institucionales con IA (Groq). Respuestas sobre coberturas, prácticas y procedimientos.</p>
+        <span class="badge-pending">Próximamente</span>
+      </div>
+      <div class="card card-orange">
+        <div class="card-icon">💾</div>
+        <h3>Backup</h3>
+        <p>Respaldo y restauración de datos. Sincronización entre cámaras.</p>
+        <span class="badge-pending">Próximamente</span>
+      </div>
+      <div class="card card-purple">
+        <div class="card-icon">👥</div>
+        <h3>Usuarios</h3>
+        <p>Gestión de usuarios, roles y permisos del sistema.</p>
+        <span class="badge-progress">En desarrollo</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TAB: FODA ============================= -->
+<div id="tab-foda" class="tab-content">
+  <h2>Análisis FODA</h2>
+
+  <div class="alert-info alert-box" style="margin-bottom:30px;">
+    Análisis estratégico del proyecto CPCE Salud para la toma de decisiones de la Comisión Directiva.
+  </div>
+
+  <div class="foda-grid">
+    <div class="foda-box foda-f">
+      <h3>💪 FORTALEZAS</h3>
+      <ul>
+        <li>Sistema completamente propio e independiente de proveedores externos</li>
+        <li>Tecnología moderna (Next.js, Supabase) con soporte a largo plazo</li>
+        <li>Diseño multi-jurisdiccional: Santa Fe y Rosario con datos separados</li>
+        <li>Actualizaciones en tiempo real sin necesidad de recargar</li>
+        <li>Nomencladores sin hardcodeo: se crean desde la UI cuando se necesitan</li>
+        <li>Importación automática de PDF y CSV para incorporar nuevos convenios</li>
+        <li>Homologador con sugerencias automáticas que reduce trabajo manual</li>
+        <li>Accesible desde cualquier dispositivo (web, tablet, celular)</li>
+        <li>Código abierto y mantenible por cualquier desarrollador</li>
+        <li>Roles y permisos granulares para cada perfil de usuario</li>
+      </ul>
+    </div>
+    <div class="foda-box foda-o">
+      <h3>🚀 OPORTUNIDADES</h3>
+      <ul>
+        <li>Integración con inteligencia artificial para análisis predictivo</li>
+        <li>Exportación de informes para organismos reguladores (AFIP, Ministerio de Salud)</li>
+        <li>Ampliación a otras cámaras o jurisdicciones provinciales</li>
+        <li>API pública para integración con sistemas de prestadores externos</li>
+        <li>Módulo de estadísticas avanzadas para gestión presupuestaria</li>
+        <li>App móvil nativa para auditores en campo</li>
+        <li>Firma digital de auditorías y expedientes</li>
+        <li>Módulo de liquidaciones y facturación</li>
+        <li>Digitalización total del expediente del afiliado</li>
+        <li>Capacitación y soporte a otras instituciones similares</li>
+      </ul>
+    </div>
+    <div class="foda-box foda-d">
+      <h3>⚠️ DEBILIDADES</h3>
+      <ul>
+        <li>Sistema de valores (porcentaje, escalonado) aún no implementado</li>
+        <li>Módulo de afiliados en etapa inicial (gestión básica)</li>
+        <li>Sin integración directa con obra social o IOMA todavía</li>
+        <li>Chat de IA y detección de anomalías pendientes de desarrollo</li>
+        <li>Backup automático no implementado (requiere acción manual)</li>
+        <li>Dependencia del servicio Supabase (aunque tiene plan gratuito amplio)</li>
+        <li>Sin versión en papel / formularios físicos integrados</li>
+        <li>Documentación para usuarios finales todavía en construcción</li>
+      </ul>
+    </div>
+    <div class="foda-box foda-a">
+      <h3>🛡️ AMENAZAS</h3>
+      <ul>
+        <li>Cambios frecuentes en nomencladores nacionales (SSS, FAAAR, etc.)</li>
+        <li>Resistencia al cambio por parte de usuarios acostumbrados a procesos manuales</li>
+        <li>Posibles cambios regulatorios que requieran adaptaciones urgentes</li>
+        <li>Necesidad de connección a internet (sin modo offline)</li>
+        <li>Riesgo de pérdida de datos si no se implementa backup automático</li>
+        <li>Posibles problemas de privacidad con datos sanitarios (RGPD, leyes locales)</li>
+        <li>Actualización continua requerida ante cambios en frameworks y dependencias</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section" style="margin-top:40px;">
+    <div class="section-title"><span class="icon">🎯</span> Estrategias Recomendadas</div>
+    <div class="cards-grid">
+      <div class="card card-blue">
+        <h3>FO – Potenciar con IA</h3>
+        <p>Aprovechar la arquitectura moderna para incorporar módulos de IA que automaticen la detección de anomalías y las consultas de auditores. Alta ROI con bajo costo de implementación.</p>
+      </div>
+      <div class="card card-green">
+        <h3>FA – Actualización Continua</h3>
+        <p>El sistema de nomencladores sin hardcodeo permite responder a cambios regulatorios en horas, sin necesidad de modificar el código fuente. Ventaja competitiva clave.</p>
+      </div>
+      <div class="card card-orange">
+        <h3>DO – Completar Valores Flexibles</h3>
+        <p>Priorizar el sistema de valores variables (porcentaje, escalonado) para cubrir la mayor variedad de convenios y eliminar la principal debilidad operativa actual.</p>
+      </div>
+      <div class="card card-purple">
+        <h3>DA – Backup y Resiliencia</h3>
+        <p>Implementar backup automático diario antes de avanzar en módulos adicionales, para mitigar el riesgo de pérdida de datos ante contingencias.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TAB: ESTADO ============================= -->
+<div id="tab-estado" class="tab-content">
+  <h2>Estado del Proyecto</h2>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📊</span> Progreso General</div>
+
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Fase 1 – Infraestructura & Deploy</span><span>100%</span></div>
+      <div class="progress-bar"><div class="progress-fill fill-green" style="width:100%"></div></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Fase 2 – Nomencladores</span><span>100%</span></div>
+      <div class="progress-bar"><div class="progress-fill fill-green" style="width:100%"></div></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Fase 3 – Homologador</span><span>90%</span></div>
+      <div class="progress-bar"><div class="progress-fill fill-blue" style="width:90%"></div></div>
+    </div>
+    <div class="progress-wrap" style="margin-top:14px;">
+      <div class="progress-label"><span>Fase 4 – Sistema de Valores Flexible</span><span>0%</span></div>
+      <div class="progress-bar"><div class="progress-fill fill-orange" style="width:0%"></div></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Fase 5 – Inteligencia Artificial</span><span>0%</span></div>
+      <div class="progress-bar"><div class="progress-fill fill-purple" style="width:0%"></div></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Total del Proyecto</span><span>~55%</span></div>
+      <div class="progress-bar"><div class="progress-fill fill-blue" style="width:55%"></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">✅</span> Detalle de Tareas</div>
+    <table>
+      <tr>
+        <th>Módulo / Tarea</th>
+        <th>Estado</th>
+        <th>Descripción</th>
+        <th>Prioridad</th>
+      </tr>
+      <tr><td>Deploy en Vercel + Supabase</td><td><span class="badge-done">✅ Completo</span></td><td>App en producción, variables de entorno configuradas</td><td>Alta</td></tr>
+      <tr><td>Autenticación con roles</td><td><span class="badge-done">✅ Completo</span></td><td>Login, registro, roles Admin/Auditor/Afiliado</td><td>Alta</td></tr>
+      <tr><td>Tiempo Real (Realtime)</td><td><span class="badge-done">✅ Completo</span></td><td>WebSockets en 8 módulos, sin necesidad de recargar</td><td>Alta</td></tr>
+      <tr><td>Diseño UI por jurisdicción</td><td><span class="badge-done">✅ Completo</span></td><td>Colores azul/verde, modo oscuro/claro, responsive</td><td>Media</td></tr>
+      <tr><td>Calculadora de Cobertura</td><td><span class="badge-done">✅ Completo</span></td><td>Motor de reglas, cálculo automático, generación de auditoría</td><td>Alta</td></tr>
+      <tr><td>CRUD Nomencladores Externos</td><td><span class="badge-done">✅ Completo</span></td><td>Sin nombres fijos, crear/editar/eliminar desde UI</td><td>Alta</td></tr>
+      <tr><td>Importación CSV de prácticas</td><td><span class="badge-done">✅ Completo</span></td><td>Upload, mapeo de columnas, importación masiva</td><td>Alta</td></tr>
+      <tr><td>Importación PDF automática</td><td><span class="badge-done">✅ Completo</span></td><td>Extracción de texto, detección de patrones, preview</td><td>Media</td></tr>
+      <tr><td>Nomencladores Internos Multi-tipo</td><td><span class="badge-done">✅ Completo</span></td><td>5 tipos con tabs, CRUD independiente, búsqueda y paginación</td><td>Alta</td></tr>
+      <tr><td>Homologador – Motor de vinculación</td><td><span class="badge-done">✅ Completo</span></td><td>Fuzzy matching, scoring automático, ratios</td><td>Alta</td></tr>
+      <tr><td>Homologador – Dashboard de progreso</td><td><span class="badge-done">✅ Completo</span></td><td>Cards con % por nomenclador, acceso directo</td><td>Media</td></tr>
+      <tr><td>Sistema de Alertas</td><td><span class="badge-done">✅ Completo</span></td><td>Reglas configurables, 3 niveles, badges en tiempo real</td><td>Alta</td></tr>
+      <tr><td>Gestión de Auditorías</td><td><span class="badge-progress">⚙️ Parcial</span></td><td>CRUD básico, falta integración completa con Supabase</td><td>Alta</td></tr>
+      <tr><td>Sistema de Valores Flexible</td><td><span class="badge-pending">⏳ Pendiente</span></td><td>Porcentaje, escalonado, valores convenio — NO implementado</td><td>Alta</td></tr>
+      <tr><td>Backup Automático</td><td><span class="badge-pending">⏳ Pendiente</span></td><td>Exportación y restauración de datos programada</td><td>Alta</td></tr>
+      <tr><td>Chat con IA (Groq)</td><td><span class="badge-pending">⏳ Pendiente</span></td><td>Asistente de consultas sobre coberturas y prácticas</td><td>Media</td></tr>
+      <tr><td>Detección de Anomalías IA</td><td><span class="badge-pending">⏳ Pendiente</span></td><td>ML para detectar patrones sospechosos en auditorías</td><td>Media</td></tr>
+      <tr><td>Módulo Afiliados completo</td><td><span class="badge-pending">⏳ Pendiente</span></td><td>Historial, documentos, carnet digital</td><td>Media</td></tr>
+      <tr><td>Reportes y Estadísticas</td><td><span class="badge-pending">⏳ Pendiente</span></td><td>KPIs, gráficos avanzados, exportación a Excel/PDF</td><td>Media</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================= TAB: WALKTHROUGH ============================= -->
+<div id="tab-walkthrough" class="tab-content">
+  <h2>Guía de Uso – Walkthrough</h2>
+
+  <div class="alert-success alert-box">
+    Esta guía muestra el flujo completo de uso del sistema, desde el ingreso hasta la generación de una auditoría finalizada.
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔑</span> Circuito 1: Ingreso y Navegación General</div>
+    <div class="wt-step">
+      <div class="wt-number">1</div>
+      <div>
+        <h3>Acceder a la plataforma</h3>
+        <p>Ingresar a la URL de la aplicación desde cualquier navegador (Chrome, Firefox, Edge). 
+        Escribir usuario y contraseña institucionales. El sistema detecta automáticamente el rol asignado.</p>
+        <span class="path">🌐 https://cpce-app.vercel.app → /login</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">2</div>
+      <div>
+        <h3>Seleccionar Jurisdicción</h3>
+        <p>En la barra superior, hacer clic en el toggle de jurisdicción para alternar entre <strong>Cámara Santa Fe</strong> (color azul) y <strong>Cámara Rosario</strong> (color verde). Todos los datos cambian según la cámara seleccionada.</p>
+        <span class="path">Header → Toggle Jurisdicción</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">3</div>
+      <div>
+        <h3>Navegar por módulos</h3>
+        <p>Usar el menú lateral (sidebar) para ir a cada módulo. Los módulos disponibles dependen del rol del usuario. El badge naranja en "Alertas" muestra notificaciones no leídas en tiempo real.</p>
+        <span class="path">Sidebar izquierdo → Seleccionar módulo</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🧮</span> Circuito 2: Calcular Cobertura y Generar Auditoría</div>
+    <div class="wt-step">
+      <div class="wt-number">1</div>
+      <div>
+        <h3>Abrir la Calculadora</h3>
+        <p>Desde el sidebar, hacer clic en "Calculadora". Se abre el formulario de cálculo. Este es el punto de entrada principal para iniciar una prestación.</p>
+        <span class="path">Sidebar → Calculadora → /calculator</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">2</div>
+      <div>
+        <h3>Buscar Afiliado</h3>
+        <p>Ingresar el número de documento o nombre del afiliado. El sistema lo busca en la base de datos y carga automáticamente su plan de cobertura y datos.</p>
+        <span class="path">Campo "Afiliado" → Buscar por DNI o nombre</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">3</div>
+      <div>
+        <h3>Seleccionar Práctica</h3>
+        <p>Buscar la práctica médica por código o descripción. El sistema filtra el nomenclador interno correspondiente (médico, bioquímico, odontológico, etc.).</p>
+        <span class="path">Campo "Práctica" → Buscar por código (ej: 01.01.01)</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">4</div>
+      <div>
+        <h3>Calcular Cobertura</h3>
+        <p>Hacer clic en "Calcular". El motor evalúa el plan del afiliado y devuelve: <strong>% de cobertura</strong>, <strong>monto cubierto</strong>, <strong>coseguro</strong> y si requiere autorización previa.</p>
+        <span class="path">Botón "Calcular Cobertura"</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">5</div>
+      <div>
+        <h3>Guardar como Auditoría</h3>
+        <p>Revisar el resultado. Si es correcto, confirmar para registrar la auditoría en el sistema. Se asigna el auditor activo y se puede agregar notas o código de autorización.</p>
+        <span class="path">Botón "Registrar Auditoría" → Estado inicial: Pendiente</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📋</span> Circuito 3: Cargar un Nuevo Nomenclador Externo</div>
+    <div class="wt-step">
+      <div class="wt-number">1</div>
+      <div>
+        <h3>Ir a Nomencladores Externos</h3>
+        <p>Desde el sidebar o desde Prácticas, acceder al módulo de nomencladores externos. Se muestra la lista de nomencladores existentes con sus estadísticas.</p>
+        <span class="path">Sidebar → Nomencladores → /practices/external</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">2</div>
+      <div>
+        <h3>Crear Nuevo Nomenclador</h3>
+        <p>Hacer clic en "Nuevo Nomenclador". Completar: código (ej: OSDE), nombre completo y descripción. El sistema NO tiene nombres predefinidos, se ingresa libremente.</p>
+        <span class="path">Botón "+ Nuevo Nomenclador" → Formulario modal</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">3</div>
+      <div>
+        <h3>Importar Prácticas (CSV o PDF)</h3>
+        <p>Dentro del nomenclador, usar las pestañas "Importar CSV" o "Importar PDF". Para CSV: subir archivo con columnas código, descripción, valor. Para PDF: subir el documento y el sistema extrae automáticamente los datos.</p>
+        <span class="path">Detalle Nomenclador → Tabs: Importar CSV / Importar PDF</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">4</div>
+      <div>
+        <h3>Confirmar Importación</h3>
+        <p>Revisar el preview de las prácticas detectadas. Verificar que el código y la descripción sean correctos. Hacer clic en "Importar X registros" para confirmar.</p>
+        <span class="path">Preview → Botón "Importar"</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔗</span> Circuito 4: Homologar un Nomenclador Externo</div>
+    <div class="wt-step">
+      <div class="wt-number">1</div>
+      <div>
+        <h3>Abrir el Homologador</h3>
+        <p>Desde el sidebar hacer clic en "Homologador". Se muestra el dashboard con todos los nomencladores externos y su % de homologación actual.</p>
+        <span class="path">Sidebar → Homologador → /matcher</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">2</div>
+      <div>
+        <h3>Seleccionar Nomenclador a Homologar</h3>
+        <p>Hacer clic en "Homologar (X pendientes)" en el card del nomenclador deseado. Se abre la interfaz de homologación lado a lado.</p>
+        <span class="path">Card Nomenclador → Botón "Homologar"</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">3</div>
+      <div>
+        <h3>Seleccionar Práctica Externa</h3>
+        <p>En la columna izquierda, hacer clic en una práctica externa sin homologar. Automáticamente aparecen <strong>sugerencias</strong> del sistema con porcentaje de coincidencia.</p>
+        <span class="path">Columna izquierda → Click en práctica externa</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">4</div>
+      <div>
+        <h3>Vincular con Práctica Interna</h3>
+        <p>Hacer clic en una sugerencia automática (por similitud) O buscar manualmente con el buscador de la derecha. El sistema busca en todos los nomencladores internos.</p>
+        <span class="path">Sugerencias automáticas → Click / O: Buscar manualmente</span>
+      </div>
+    </div>
+    <div class="wt-step">
+      <div class="wt-number">5</div>
+      <div>
+        <h3>Confirmar Homologación</h3>
+        <p>Aparece un modal de confirmación. Verificar los datos, ajustar el ratio de conversión si las unidades son distintas (1.0 por defecto = 1:1). Agregar notas si es necesario. Confirmar.</p>
+        <span class="path">Modal → Ratio → Notas → "Confirmar Homologación"</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔔</span> Circuito 5: Gestión de Alertas</div>
+    <div class="circuit">
+      <h3>Flujo de Alerta Automática</h3>
+      <div class="circuit-steps">
+        <div class="circuit-step">Sistema detecta desvío</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Alerta generada automáticamente</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Badge naranja en sidebar</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Auditor revisa en /alerts</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Acción: Revisar / Desestimar / Escalar</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TAB: MANUAL ============================= -->
+<div id="tab-manual" class="tab-content">
+  <h2>Manual de Uso Rápido</h2>
+
+  <div class="alert-info alert-box">
+    Referencia rápida de acciones frequentes ordenadas por módulo. Para instrucciones detalladas, consultar la pestaña "Guía de Uso".
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🧮</span> Calculadora</div>
+    <table>
+      <tr><th>Acción</th><th>Pasos</th></tr>
+      <tr><td>Calcular cobertura</td><td>1. Buscar afiliado → 2. Seleccionar práctica → 3. Clic "Calcular"</td></tr>
+      <tr><td>Registrar auditoría</td><td>Después de calcular → "Registrar Auditoría"</td></tr>
+      <tr><td>Cambiar jurisdicción</td><td>Header → Toggle Santa Fe / Rosario</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔗</span> Homologador</div>
+    <table>
+      <tr><th>Acción</th><th>Pasos</th></tr>
+      <tr><td>Ver progreso de homologación</td><td>Sidebar → Homologador → Cards con % por nomenclador</td></tr>
+      <tr><td>Homologar práctica</td><td>Card → "Homologar" → Click práctica externa → Seleccionar interna → Confirmar</td></tr>
+      <tr><td>Ver homologaciones existentes</td><td>Nomenclador Externo → Tab "Homologaciones"</td></tr>
+      <tr><td>Eliminar homologación</td><td>Tab "Homologaciones" → Ícono eliminar → Confirmar</td></tr>
+      <tr><td>Usar sugerencia automática</td><td>Al seleccionar práctica externa, aparecen sugerencias con %. Click en la más apropiada.</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📄</span> Nomencladores Externos</div>
+    <table>
+      <tr><th>Acción</th><th>Pasos</th></tr>
+      <tr><td>Crear nomenclador</td><td>Nomencladores Externos → "+ Nuevo" → Código + Nombre + Descripción → Guardar</td></tr>
+      <tr><td>Editar nomenclador</td><td>Card nomenclador → Ícono editar (lápiz)</td></tr>
+      <tr><td>Eliminar nomenclador</td><td>Card nomenclador → Ícono eliminar → Confirmar</td></tr>
+      <tr><td>Importar desde CSV</td><td>Abrir nomenclador → Tab "Importar CSV" → Subir archivo → Confirmar</td></tr>
+      <tr><td>Importar desde PDF</td><td>Abrir nomenclador → Tab "Importar PDF" → Subir PDF → Revisar preview → Importar</td></tr>
+      <tr><td>Buscar práctica</td><td>Dentro del nomenclador → Campo de búsqueda → Código o descripción</td></tr>
+      <tr><td>Filtrar por estado</td><td>Selector "Todos / Sin Homologar / Homologados"</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">📋</span> Nomencladores Internos</div>
+    <table>
+      <tr><th>Acción</th><th>Pasos</th></tr>
+      <tr><td>Ver prácticas por tipo</td><td>Sidebar → Prácticas → Tabs: MED / BIO / ODO / FAR / ESP</td></tr>
+      <tr><td>Crear práctica interna</td><td>Tab del tipo → "+ Nueva práctica" → Completar formulario</td></tr>
+      <tr><td>Editar práctica</td><td>Fila de práctica → Ícono editar</td></tr>
+      <tr><td>Eliminar práctica</td><td>Fila de práctica → Ícono eliminar → Confirmar</td></tr>
+      <tr><td>Buscar práctica</td><td>Buscador arriba de cada tab → Código o nombre</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🔔</span> Alertas</div>
+    <table>
+      <tr><th>Acción</th><th>Pasos</th></tr>
+      <tr><td>Ver alertas activas</td><td>Sidebar → Alertas (badge naranja) → /alerts</td></tr>
+      <tr><td>Marcar como revisada</td><td>Alerta → "Marcar revisada"</td></tr>
+      <tr><td>Desestimar alerta</td><td>Alerta → "Desestimar"</td></tr>
+      <tr><td>Configurar reglas</td><td>Configuración → Reglas de Alerta (solo Admin)</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">⚙️</span> Atajos de Teclado</div>
+    <div class="cards-grid">
+      <div class="card card-blue">
+        <h3>Navegación</h3>
+        <ul class="clean">
+          <li>Buscar en tabla: Escribir en campo de búsqueda</li>
+          <li>Paginar: Botones "Anterior / Siguiente"</li>
+          <li>Cerrar modal: Tecla ESC</li>
+        </ul>
+      </div>
+      <div class="card card-green">
+        <h3>Formularios</h3>
+        <ul class="clean">
+          <li>Guardar: Botón "Guardar" o Enter en último campo</li>
+          <li>Cancelar: Botón "Cancelar" o ESC</li>
+          <li>Tab entre campos: Tecla TAB</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TAB: ROLES ============================= -->
+<div id="tab-roles" class="tab-content">
+  <h2>Roles & Permisos de Usuario</h2>
+
+  <div class="alert-info alert-box">
+    El sistema cuenta con 3 roles diferenciados. Cada rol tiene acceso a módulos específicos según sus responsabilidades institucionales.
+  </div>
+
+  <!-- ADMIN -->
+  <div class="role-card">
+    <div class="role-header">
+      <div class="role-icon">🛡️</div>
+      <div>
+        <div class="role-title">Administrador</div>
+        <div class="role-subtitle">Acceso total al sistema. Gestión de configuraciones, usuarios y nomencladores.</div>
+      </div>
+    </div>
+    <div class="perm-grid">
+      <div class="perm-item perm-yes">Calculadora de cobertura</div>
+      <div class="perm-item perm-yes">Homologador completo</div>
+      <div class="perm-item perm-yes">Ver y gestionar auditorías</div>
+      <div class="perm-item perm-yes">Crear/editar/eliminar nomencladores</div>
+      <div class="perm-item perm-yes">Importar CSV y PDF</div>
+      <div class="perm-item perm-yes">Nomencladores internos</div>
+      <div class="perm-item perm-yes">Gestionar alertas y reglas</div>
+      <div class="perm-item perm-yes">Gestionar usuarios</div>
+      <div class="perm-item perm-yes">Configuración del sistema</div>
+      <div class="perm-item perm-yes">Ver valores y planes</div>
+      <div class="perm-item perm-yes">Backup y restauración</div>
+      <div class="perm-item perm-yes">Cambiar jurisdicción</div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <strong style="color:#1e3a8a; font-size:0.9rem;">Circuito típico del Administrador:</strong>
+      <div class="circuit-steps" style="margin-top:10px;">
+        <div class="circuit-step">Login como Admin</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Crear nomenclador externo</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Importar prácticas (CSV/PDF)</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Homologar con nomencladores internos</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Configurar reglas de alerta</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Revisar dashboard</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUDITOR -->
+  <div class="role-card">
+    <div class="role-header">
+      <div class="role-icon">🔍</div>
+      <div>
+        <div class="role-title">Auditor</div>
+        <div class="role-subtitle">Acceso a módulos operativos. Calcula coberturas, gestiona auditorías y responde alertas.</div>
+      </div>
+    </div>
+    <div class="perm-grid">
+      <div class="perm-item perm-yes">Calculadora de cobertura</div>
+      <div class="perm-item perm-yes">Ver y gestionar auditorías</div>
+      <div class="perm-item perm-yes">Ver nomencladores externos</div>
+      <div class="perm-item perm-yes">Ver nomencladores internos</div>
+      <div class="perm-item perm-yes">Ver y responder alertas</div>
+      <div class="perm-item perm-yes">Agenda y turnos</div>
+      <div class="perm-item perm-yes">Chat consultas (cuando esté activo)</div>
+      <div class="perm-item perm-no">Crear/eliminar nomencladores</div>
+      <div class="perm-item perm-no">Importar CSV/PDF</div>
+      <div class="perm-item perm-no">Gestionar usuarios</div>
+      <div class="perm-item perm-no">Configuración del sistema</div>
+      <div class="perm-item perm-no">Backup</div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <strong style="color:#1e3a8a; font-size:0.9rem;">Circuito típico del Auditor:</strong>
+      <div class="circuit-steps" style="margin-top:10px;">
+        <div class="circuit-step">Login como Auditor</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Revisar alertas del día</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Abrir calculadora</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Buscar afiliado y práctica</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Calcular cobertura</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Registrar auditoría</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Actualizar estado</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AFILIADO -->
+  <div class="role-card">
+    <div class="role-header">
+      <div class="role-icon">👤</div>
+      <div>
+        <div class="role-title">Afiliado</div>
+        <div class="role-subtitle">Acceso limitado. Puede consultar su cobertura y el estado de sus autorizaciones.</div>
+      </div>
+    </div>
+    <div class="perm-grid">
+      <div class="perm-item perm-yes">Consultar su cobertura</div>
+      <div class="perm-item perm-yes">Ver sus auditorías</div>
+      <div class="perm-item perm-yes">Chat de consultas (cuando esté activo)</div>
+      <div class="perm-item perm-no">Calculadora completa</div>
+      <div class="perm-item perm-no">Gestionar nomencladores</div>
+      <div class="perm-item perm-no">Ver otras auditorías</div>
+      <div class="perm-item perm-no">Alertas del sistema</div>
+      <div class="perm-item perm-no">Configuración</div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <strong style="color:#1e3a8a; font-size:0.9rem;">Circuito típico del Afiliado:</strong>
+      <div class="circuit-steps" style="margin-top:10px;">
+        <div class="circuit-step">Login como Afiliado</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Ver mis auditorías</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Consultar estado de autorización</div>
+        <div class="circuit-arrow">→</div>
+        <div class="circuit-step">Consulta por chat (próximamente)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TAB: TECNOLOGÍA ============================= -->
+<div id="tab-tecnologia" class="tab-content">
+  <h2>Arquitectura & Tecnología</h2>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🏗️</span> Stack Tecnológico</div>
+    <div class="tech-grid">
+      <div class="tech-item"><div class="tech-name">⚛️ Next.js 16</div><div class="tech-desc">Framework React con App Router, SSR, Turbopack. Máxima velocidad y SEO.</div></div>
+      <div class="tech-item"><div class="tech-name">🗄️ Supabase</div><div class="tech-desc">PostgreSQL en la nube. Autenticación, Realtime, Storage. Plan gratuito amplio.</div></div>
+      <div class="tech-item"><div class="tech-name">🎨 Tailwind CSS</div><div class="tech-desc">Diseño responsive, modo oscuro/claro, temas por jurisdicción.</div></div>
+      <div class="tech-item"><div class="tech-name">☁️ Vercel</div><div class="tech-desc">Deploy automático desde GitHub, CDN global, HTTPS, 0ms cold start.</div></div>
+      <div class="tech-item"><div class="tech-name">🔷 TypeScript</div><div class="tech-desc">Tipado estricto, menos errores en runtime, mejor mantenibilidad.</div></div>
+      <div class="tech-item"><div class="tech-name">📄 pdfjs-dist</div><div class="tech-desc">Extracción de texto desde PDFs para importación automática de nomencladores.</div></div>
+      <div class="tech-item"><div class="tech-name">⚡ Supabase Realtime</div><div class="tech-desc">WebSockets para actualizaciones en tiempo real sin recargar la página.</div></div>
+      <div class="tech-item"><div class="tech-name">🔐 Supabase Auth</div><div class="tech-desc">Autenticación segura con JWT, refresh tokens y Row Level Security (RLS).</div></div>
+      <div class="tech-item"><div class="tech-name">📊 Radix UI</div><div class="tech-desc">Componentes accesibles (tabs, dialogs, dropdowns) base de la UI.</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🛡️</span> Seguridad</div>
+    <div class="cards-grid">
+      <div class="card card-blue">
+        <h3>Autenticación JWT</h3>
+        <p>Tokens seguros con expiración automática. Refresh token para sesiones prolongadas. Sin almacenamiento de contraseñas en texto plano.</p>
+      </div>
+      <div class="card card-green">
+        <h3>Row Level Security (RLS)</h3>
+        <p>Nivel de seguridad en base de datos: cada usuario solo puede ver y modificar los datos que le corresponden según su jurisdicción y rol.</p>
+      </div>
+      <div class="card card-orange">
+        <h3>HTTPS obligatorio</h3>
+        <p>Todo el tráfico cifrado con TLS 1.3. Certificados gestionados automáticamente por Vercel sin costo adicional.</p>
+      </div>
+      <div class="card card-purple">
+        <h3>Variables de Entorno</h3>
+        <p>Claves y secretos almacenados en variables de entorno de Vercel. Nunca en el código fuente. Acceso restringido al equipo de desarrollo.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">💰</span> Costos de Infraestructura</div>
+    <table>
+      <tr><th>Servicio</th><th>Plan</th><th>Costo Mensual</th><th>Límites incluidos</th></tr>
+      <tr><td>Vercel (Frontend)</td><td>Hobby (Gratuito)</td><td>$0</td><td>100GB ancho de banda, deploys ilimitados</td></tr>
+      <tr><td>Supabase (Base de Datos)</td><td>Free Tier</td><td>$0</td><td>500MB DB, 2GB storage, 5GB transferencia</td></tr>
+      <tr><td>Supabase Realtime</td><td>Incluido en Free</td><td>$0</td><td>200 conexiones concurrentes</td></tr>
+      <tr><td>Dominio personalizado</td><td>Opcional</td><td>~$15/año</td><td>cpce-salud.com.ar (si se contrata)</td></tr>
+      <tr style="font-weight:700; background:#eff6ff;"><td>TOTAL ACTUAL</td><td>-</td><td>$0/mes</td><td>Operación completa sin costo</td></tr>
+    </table>
+    <div class="alert-success alert-box" style="margin-top:14px;">
+      <strong>El sistema opera con costo $0 al mes</strong> dentro de los límites del plan gratuito de Vercel y Supabase. Solo requerirá inversión si el volumen de datos supera ~500MB o las conexiones simultáneas superan 200.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="icon">🗃️</span> Esquema de Base de Datos</div>
+    <table>
+      <tr><th>Tabla</th><th>Descripción</th><th>Registros clave</th></tr>
+      <tr><td>users</td><td>Usuarios del sistema</td><td>id, email, role, jurisdiction_id</td></tr>
+      <tr><td>jurisdictions</td><td>Cámaras (Santa Fe, Rosario)</td><td>id, name, theme_config</td></tr>
+      <tr><td>plans</td><td>Planes de cobertura</td><td>id, name, rules (JSON)</td></tr>
+      <tr><td>practice_types</td><td>Tipos de nomencladores</td><td>MED, BIO, ODO, FAR, ESP</td></tr>
+      <tr><td>practices</td><td>Prácticas del nomenclador interno</td><td>code, name, financial_value, type</td></tr>
+      <tr><td>external_nomenclators</td><td>Nomencladores externos</td><td>id, code, name (creado por usuario)</td></tr>
+      <tr><td>external_practices</td><td>Prácticas importadas de externos</td><td>nomenclator_id, code, description, value</td></tr>
+      <tr><td>homologations</td><td>Vínculos externo↔interno</td><td>internal_id, external_id, ratio</td></tr>
+      <tr><td>audits</td><td>Registro de auditorías</td><td>affiliate, practice, status, coverage</td></tr>
+      <tr><td>alert_rules</td><td>Reglas de alerta</td><td>type, threshold, severity</td></tr>
+      <tr><td>alerts</td><td>Alertas generadas</td><td>rule_id, affiliate, severity, status</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <strong>CPCE Salud – Gestión Integral</strong> &nbsp;|&nbsp; Versión 1.0 &nbsp;|&nbsp; Febrero 2026<br>
+  Consejo Profesional de Ciencias Económicas – Santa Fe &amp; Rosario<br>
+  <span style="opacity:0.5; font-size:0.75rem; margin-top:6px; display:block;">Documento generado para uso interno. Presentación ante Comisión Directiva.</span>
+</div>
+
+<script>
+  function showTab(id) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    event.target.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Animate progress bars on load
+  window.addEventListener('load', () => {
+    document.querySelectorAll('.progress-fill').forEach(el => {
+      const w = el.style.width;
+      el.style.width = '0%';
+      setTimeout(() => { el.style.width = w; }, 300);
+    });
+  });
+</script>
+
+</body>
+</html>

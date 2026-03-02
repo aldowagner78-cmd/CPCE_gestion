@@ -1,3 +1,6 @@
+import { Database as SupabaseDatabase } from './supabase'
+
+export type Database = SupabaseDatabase
 
 export type Jurisdiction = {
     id: number
@@ -22,6 +25,11 @@ export type PlanRules = {
     max_sessions_per_year?: Record<string, number>
 }
 
+/**
+ * Tipo de práctica a nivel de aplicación.
+ * `description` y `financial_value` son los campos que usa el motor de cobertura.
+ * Se mapean desde los campos de Supabase `name` y `fixed_value` respectivamente.
+ */
 export type Practice = {
     id: number
     code: string
@@ -33,13 +41,18 @@ export type Practice = {
 }
 
 export type Affiliate = {
-    id: number
+    id: string | number
+    affiliate_number?: string
     full_name: string
     document_number: string
     birth_date: string
+    gender?: 'M' | 'F' | 'X'
+    relationship?: string
+    titular_id?: string | null
     plan_id: number
     jurisdiction_id: number
     start_date: string
+    end_date?: string | null
     status?: 'activo' | 'suspendido' | 'baja'
     created_at: string
 }
@@ -47,7 +60,7 @@ export type Affiliate = {
 export type UserProfile = {
     id: string
     full_name?: string
-    role: 'admin' | 'auditor' | 'affiliate'
+    role: 'admin' | 'auditor' | 'affiliate' | 'supervisor' | 'superuser'
     jurisdiction_id?: number
     created_at: string
 }
@@ -55,9 +68,9 @@ export type UserProfile = {
 export type AuditStatus = 'pending' | 'approved' | 'rejected' | 'partial' | 'requires_auth'
 
 export type AuditRecord = {
-    id: number
+    id: string | number
     // Referencias
-    affiliate_id: number
+    affiliate_id: string | number
     affiliate_name: string
     affiliate_document: string
     practice_id: number
@@ -85,8 +98,6 @@ export type AuditRecord = {
     reviewed_at?: string
 }
 
-export type Database = any
-
 // ── Alertas de Desvíos Presupuestarios ──
 
 export type AlertSeverity = 'info' | 'warning' | 'critical'
@@ -107,10 +118,10 @@ export type AlertRule = {
 }
 
 export type Alert = {
-    id: number
+    id: number | string
     rule_id: number
     rule_name: string
-    affiliate_id?: number
+    affiliate_id?: number | string
     affiliate_name?: string
     description: string
     detected_value: number

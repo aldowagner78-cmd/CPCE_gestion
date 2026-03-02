@@ -95,7 +95,7 @@ function evaluateRules() {
 
         if (rule.type === 'frequency') {
             // Group by affiliate_id, check if any exceed threshold
-            const byAffiliate = new Map<number, number>()
+            const byAffiliate = new Map<string | number, number>()
             for (const a of periodAudits) {
                 byAffiliate.set(a.affiliate_id, (byAffiliate.get(a.affiliate_id) ?? 0) + 1)
             }
@@ -129,7 +129,7 @@ function evaluateRules() {
 
         if (rule.type === 'amount') {
             // Group by affiliate_id, sum covered_amount
-            const byAffiliate = new Map<number, { total: number; name: string; jId: number }>()
+            const byAffiliate = new Map<string | number, { total: number; name: string; jId: number }>()
             for (const a of periodAudits) {
                 const prev = byAffiliate.get(a.affiliate_id) ?? { total: 0, name: a.affiliate_name, jId: a.jurisdiction_id }
                 prev.total += a.covered_amount

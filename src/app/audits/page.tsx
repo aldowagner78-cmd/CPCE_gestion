@@ -54,7 +54,7 @@ export default function AuditsPage() {
         return matchesSearch && matchesStatus
     })
 
-    const handleStatusChange = (auditId: number, newStatus: AuditStatus) => {
+    const handleStatusChange = (auditId: string | number, newStatus: AuditStatus) => {
         AuditService.updateStatus(auditId, newStatus)
     }
 

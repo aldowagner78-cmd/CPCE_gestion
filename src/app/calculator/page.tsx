@@ -1,86 +1,100 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MOCK_AFFILIATES, MOCK_PRACTICES, MOCK_PLANS } from "@/lib/mockData"
+import { DataService } from "@/services/api"
 import { calculateCoverage, CoverageResult } from "@/lib/coverageEngine"
-import { Calculator, CheckCircle, XCircle, AlertTriangle, FileText, Loader2, ClipboardCheck, FileDown } from "lucide-react"
+import { Calculator, CheckCircle, XCircle, AlertTriangle, Loader2, ClipboardCheck, FileDown } from "lucide-react"
 import { AuditService } from "@/services/auditService"
 import { generateAuditPDF } from "@/lib/auditPDF"
+import { Affiliate, Plan, Practice, AuditRecord } from "@/types/database"
 
 export default function CalculatorPage() {
     const { activeJurisdiction } = useJurisdiction()
 
-    const [selectedAffiliateId, setSelectedAffiliateId] = useState<number | string>("")
-    const [selectedPracticeId, setSelectedPracticeId] = useState<number | string>("")
+    const [affiliates, setAffiliates] = useState<Affiliate[]>([])
+    const [practices, setPractices] = useState<Practice[]>([])
+    const [plans, setPlans] = useState<Plan[]>([])
+    const [loadingData, setLoadingData] = useState(true)
+
+    const [selectedAffiliateId, setSelectedAffiliateId] = useState<string>("")
+    const [selectedPracticeId, setSelectedPracticeId] = useState<string>("")
     const [result, setResult] = useState<CoverageResult | null>(null)
     const [isCalculating, setIsCalculating] = useState(false)
     const [auditSaved, setAuditSaved] = useState(false)
-    const [lastAffiliateId, setLastAffiliateId] = useState<number | null>(null)
-    const [lastPracticeId, setLastPracticeId] = useState<number | null>(null)
+    const [lastAuditRecord, setLastAuditRecord] = useState<AuditRecord | null>(null)
 
-    // Reset selections when jurisdiction changes
+    // Fetch data from Supabase when jurisdiction changes
     useEffect(() => {
         setSelectedAffiliateId("")
         setSelectedPracticeId("")
         setResult(null)
         setAuditSaved(false)
-    }, [activeJurisdiction])
+        setLastAuditRecord(null)
 
-    // Filter data by active jurisdiction
-    const filteredAffiliates = useMemo(() => {
-        if (!activeJurisdiction) return []
-        return MOCK_AFFILIATES.filter(a => a.jurisdiction_id === activeJurisdiction.id)
-    }, [activeJurisdiction])
+        if (!activeJurisdiction) return
 
-    const filteredPractices = useMemo(() => {
-        if (!activeJurisdiction) return []
-        return MOCK_PRACTICES.filter(p => p.jurisdiction_id === activeJurisdiction.id)
+        const fetchData = async () => {
+            setLoadingData(true)
+            try {
+                const [affs, pracs, pls] = await Promise.all([
+                    DataService.getAffiliatesByJurisdiction(activeJurisdiction.id),
+                    DataService.getPracticesByJurisdiction(activeJurisdiction.id),
+                    DataService.getPlansByJurisdiction(activeJurisdiction.id),
+                ])
+                setAffiliates(affs)
+                setPractices(pracs)
+                setPlans(pls)
+            } catch (err) {
+                console.error('Error fetching data:', err)
+            } finally {
+                setLoadingData(false)
+            }
+        }
+        fetchData()
     }, [activeJurisdiction])
 
     if (!activeJurisdiction) {
         return <div className="p-8 text-center text-muted-foreground">Cargando configuración de cámara...</div>
     }
 
-    const handleCalculate = () => {
+    const handleCalculate = async () => {
         if (!selectedAffiliateId || !selectedPracticeId) return
 
         setIsCalculating(true)
         setAuditSaved(false)
 
-        // Simular breve delay para feedback visual (con datos reales será real)
-        setTimeout(() => {
-            const affiliate = MOCK_AFFILIATES.find(a => a.id === Number(selectedAffiliateId))
-            const practice = MOCK_PRACTICES.find(p => p.id === Number(selectedPracticeId))
+        const affiliate = affiliates.find(a => String(a.id) === selectedAffiliateId)
+        const practice = practices.find(p => String(p.id) === selectedPracticeId)
 
-            if (affiliate && practice) {
-                const plan = MOCK_PLANS.find(p => p.id === affiliate.plan_id)
-                if (plan) {
-                    const coverage = calculateCoverage(affiliate, plan, practice)
-                    setResult(coverage)
-                    setLastAffiliateId(affiliate.id)
-                    setLastPracticeId(practice.id)
-                    console.log("Calculated Coverage:", coverage)
-                }
+        if (affiliate && practice) {
+            const plan = plans.find(p => p.id === affiliate.plan_id)
+                ?? await DataService.getPlan(affiliate.plan_id)
+            if (plan) {
+                const coverage = calculateCoverage(affiliate, plan, practice)
+                setResult(coverage)
             }
-            setIsCalculating(false)
-        }, 300)
+        }
+        setIsCalculating(false)
     }
 
-    const handleRegisterAudit = () => {
-        if (!result || !lastAffiliateId || !lastPracticeId) return
+    const handleRegisterAudit = async () => {
+        if (!result || !selectedAffiliateId || !selectedPracticeId) return
 
-        const affiliate = MOCK_AFFILIATES.find(a => a.id === lastAffiliateId)
-        const practice = MOCK_PRACTICES.find(p => p.id === lastPracticeId)
+        const affiliate = affiliates.find(a => String(a.id) === selectedAffiliateId)
+        const practice = practices.find(p => String(p.id) === selectedPracticeId)
         if (!affiliate || !practice) return
 
-        const plan = MOCK_PLANS.find(p => p.id === affiliate.plan_id)
+        const plan = plans.find(p => p.id === affiliate.plan_id)
         if (!plan) return
 
-        AuditService.create(affiliate, plan, practice, result)
-        setAuditSaved(true)
+        const auditRecord = await AuditService.create(affiliate, plan, practice, result)
+        if (auditRecord) {
+            setLastAuditRecord(auditRecord)
+            setAuditSaved(true)
+        }
     }
 
     return (
@@ -91,26 +105,42 @@ export default function CalculatorPage() {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">Calculadora de Cobertura</h1>
-                    <p className="text-muted-foreground">Simulador de reglas de negocio para {activeJurisdiction.name}</p>
+                    <p className="text-muted-foreground">Motor de reglas para {activeJurisdiction.name}</p>
                 </div>
+                <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">● Supabase</span>
             </div>
 
+            {loadingData ? (
+                <Card className="p-12 flex flex-col items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground">Cargando datos desde Supabase...</p>
+                </Card>
+            ) : affiliates.length === 0 && practices.length === 0 ? (
+                <Card className="p-12 flex flex-col items-center justify-center text-center">
+                    <Calculator className="h-10 w-10 text-muted-foreground mb-3" />
+                    <h3 className="font-medium text-foreground">Sin datos cargados</h3>
+                    <p className="text-sm text-muted-foreground max-w-md mt-2">
+                        No hay afiliados ni prácticas para {activeJurisdiction.name}.
+                        Cargue datos desde Prácticas y Pacientes.
+                    </p>
+                </Card>
+            ) : (
             <div className="grid md:grid-cols-2 gap-6">
                 {/* Input Form */}
                 <Card className="p-6 space-y-6">
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <label htmlFor="affiliate-select" className="text-sm font-medium">Afiliado</label>
+                            <label htmlFor="affiliate-select" className="text-sm font-medium">Afiliado ({affiliates.length})</label>
                             <select
                                 id="affiliate-select"
                                 aria-label="Seleccionar afiliado"
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 value={selectedAffiliateId}
                                 onChange={(e) => setSelectedAffiliateId(e.target.value)}
                             >
                                 <option value="">Seleccione un afiliado...</option>
-                                {filteredAffiliates.map(aff => (
-                                    <option key={aff.id} value={aff.id}>
+                                {affiliates.map(aff => (
+                                    <option key={aff.id} value={String(aff.id)}>
                                         {aff.full_name} - DNI: {aff.document_number}
                                     </option>
                                 ))}
@@ -118,18 +148,18 @@ export default function CalculatorPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <label htmlFor="practice-select" className="text-sm font-medium">Práctica Médica</label>
+                            <label htmlFor="practice-select" className="text-sm font-medium">Práctica ({practices.length})</label>
                             <select
                                 id="practice-select"
                                 aria-label="Seleccionar práctica médica"
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 value={selectedPracticeId}
                                 onChange={(e) => setSelectedPracticeId(e.target.value)}
                             >
                                 <option value="">Seleccione una práctica...</option>
-                                {filteredPractices.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.code} - {p.description} (${p.financial_value})
+                                {practices.map(p => (
+                                    <option key={p.id} value={String(p.id)}>
+                                        {p.code} - {p.description} (${p.financial_value.toLocaleString('es-AR')})
                                     </option>
                                 ))}
                             </select>
@@ -209,27 +239,18 @@ export default function CalculatorPage() {
                                     <>
                                         <div className="flex items-center justify-center gap-2 text-sm text-green-700 bg-green-50 rounded-md p-3">
                                             <ClipboardCheck className="h-4 w-4" />
-                                            Auditoría registrada correctamente
+                                            Auditoría registrada en Supabase
                                         </div>
-                                        <Button
-                                            variant="outline"
-                                            className="w-full"
-                                            onClick={() => {
-                                                if (!lastAffiliateId || !lastPracticeId) return
-                                                const aff = MOCK_AFFILIATES.find(a => a.id === lastAffiliateId)
-                                                const prc = MOCK_PRACTICES.find(p => p.id === lastPracticeId)
-                                                if (!aff || !prc) return
-                                                const pl = MOCK_PLANS.find(p => p.id === aff.plan_id)
-                                                if (!pl) return
-                                                const lastAudit = AuditService.getAll().find(
-                                                    a => a.affiliate_id === lastAffiliateId && a.practice_id === lastPracticeId
-                                                )
-                                                if (lastAudit) generateAuditPDF(lastAudit)
-                                            }}
-                                        >
-                                            <FileDown className="h-4 w-4 mr-2" />
-                                            Exportar PDF
-                                        </Button>
+                                        {lastAuditRecord && (
+                                            <Button
+                                                variant="outline"
+                                                className="w-full"
+                                                onClick={() => generateAuditPDF(lastAuditRecord)}
+                                            >
+                                                <FileDown className="h-4 w-4 mr-2" />
+                                                Exportar PDF
+                                            </Button>
+                                        )}
                                     </>
                                 ) : (
                                     <Button
@@ -245,6 +266,7 @@ export default function CalculatorPage() {
                     )}
                 </div>
             </div>
+            )}
         </div>
     )
 }

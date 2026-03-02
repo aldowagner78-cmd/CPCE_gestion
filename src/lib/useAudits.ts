@@ -1,16 +1,24 @@
-import { useSyncExternalStore, useCallback } from 'react'
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { AuditService } from '@/services/auditService'
 import { AuditRecord } from '@/types/database'
 
 /**
- * Hook reactivo para consumir el store de auditorías.
- * Se actualiza automáticamente cuando se crean o modifican auditorías.
+ * Hook reactivo para consumir auditorías desde Supabase.
+ * Carga datos al montar y se actualiza con el store reactivo.
  */
 export function useAudits(jurisdictionId?: number): AuditRecord[] {
+    const [loaded, setLoaded] = useState(false)
+
+    // Trigger initial fetch from Supabase
+    useEffect(() => {
+        AuditService.fetchAll(jurisdictionId).then(() => setLoaded(true))
+    }, [jurisdictionId])
+
+    // React to cache changes
     const allAudits = useSyncExternalStore(
         AuditService.subscribe,
         AuditService.getSnapshot,
-        AuditService.getSnapshot // Server snapshot (SSR)
+        AuditService.getSnapshot
     )
 
     if (jurisdictionId) {

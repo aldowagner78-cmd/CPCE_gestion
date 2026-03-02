@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useSyncExternalStore, useCallback } from 'react'
+import { useState, useMemo, useSyncExternalStore, useCallback, useEffect } from 'react'
 import { AgendaService, CalendarEvent, EventType, EventPriority, EventStatus } from '@/services/agendaService'
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Bell, X, Check, Trash2 } from 'lucide-react'
 
@@ -387,6 +387,8 @@ export default function AgendaPage() {
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [createDate, setCreateDate] = useState<Date | undefined>()
 
+    useEffect(() => { AgendaService.init() }, [])
+
     const events = useSyncExternalStore(
         AgendaService.subscribe,
         AgendaService.getSnapshot,
@@ -417,21 +419,21 @@ export default function AgendaPage() {
         setShowCreateModal(true)
     }
 
-    const handleCreateEvent = (eventData: Omit<CalendarEvent, 'id' | 'created_at' | 'reminder_sent'>) => {
-        AgendaService.create(eventData)
+    const handleCreateEvent = async (eventData: Omit<CalendarEvent, 'id' | 'created_at' | 'reminder_sent'>) => {
+        await AgendaService.create(eventData)
         setShowCreateModal(false)
     }
 
-    const handleStatusChange = (status: EventStatus) => {
+    const handleStatusChange = async (status: EventStatus) => {
         if (selectedEvent) {
-            AgendaService.updateStatus(selectedEvent.id, status)
+            await AgendaService.updateStatus(selectedEvent.id, status)
             setSelectedEvent(null)
         }
     }
 
-    const handleDeleteEvent = () => {
+    const handleDeleteEvent = async () => {
         if (selectedEvent && confirm('¿Eliminar este evento?')) {
-            AgendaService.delete(selectedEvent.id)
+            await AgendaService.delete(selectedEvent.id)
             setSelectedEvent(null)
         }
     }
