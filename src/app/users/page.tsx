@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Pagination, paginateArray } from '@/components/ui/pagination'
 import {
     Table, TableBody, TableCell, TableHead,
     TableHeader, TableRow
@@ -39,12 +40,15 @@ export default function UsersPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [roleFilter, setRoleFilter] = useState<string>('all')
     const [statusFilter, setStatusFilter] = useState<string>('all')
+    const [page, setPage] = useState(1)
+    const PAGE_SIZE = 15
 
     // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
     const [selectedUser, setSelectedUser] = useState<AuthUser | null>(null)
     const [saving, setSaving] = useState(false)
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
     // Form states
     const [formData, setFormData] = useState({
@@ -87,6 +91,11 @@ export default function UsersPage() {
 
         return matchesSearch && matchesRole && matchesStatus
     })
+
+    // Reset page when filters change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const _resetPage = useMemo(() => { setPage(1); return null }, [searchQuery, roleFilter, statusFilter])
+    const pagedUsersRows = paginateArray(filteredUsers, page, PAGE_SIZE)
 
     // Create user
     const handleCreate = async () => {
@@ -346,7 +355,7 @@ export default function UsersPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredUsers.map((user) => (
+                                {pagedUsersRows.map((user) => (
                                     <TableRow key={user.id}>
                                         <TableCell className="font-medium">
                                             <div className="flex items-center gap-2">
@@ -411,11 +420,7 @@ export default function UsersPage() {
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
                                                             className="text-red-600"
-                                                            onClick={() => {
-                                                                if (confirm('¿Eliminar este usuario permanentemente?')) {
-                                                                    userService.delete(user.id).then(loadUsers)
-                                                                }
-                                                            }}
+                                                            onClick={() => setDeleteConfirmId(user.id)}
                                                         >
                                                             <Trash2 className="h-4 w-4 mr-2" />
                                                             Eliminar
@@ -437,6 +442,13 @@ export default function UsersPage() {
                         </Table>
                     )}
                 </CardContent>
+                <Pagination
+                    page={page}
+                    totalItems={filteredUsers.length}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setPage}
+                    itemLabel="usuarios"
+                />
             </Card>
 
             {/* Edit Modal */}
@@ -497,6 +509,32 @@ export default function UsersPage() {
                         <Button onClick={handleUpdate} disabled={saving}>
                             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                             Guardar Cambios
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>¿Eliminar usuario?</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground py-2">
+                        Esta acción no se puede deshacer. El usuario será eliminado permanentemente.
+                    </p>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancelar</Button>
+                        <Button
+                            variant="danger"
+                            onClick={() => {
+                                if (deleteConfirmId) {
+                                    userService.delete(deleteConfirmId).then(loadUsers)
+                                    setDeleteConfirmId(null)
+                                }
+                            }}
+                        >
+                            Eliminar
                         </Button>
                     </DialogFooter>
                 </DialogContent>

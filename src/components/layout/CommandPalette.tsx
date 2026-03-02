@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { Permission } from '@/types/auth'
 import {
     Search, Home, Calculator, FileText, Users, MessageCircle,
     Bell, Calendar, Target, BookOpen, Shield, Database,
@@ -19,27 +20,28 @@ interface CommandItem {
     href: string
     keywords: string[]
     section: 'navegación' | 'administración' | 'acciones'
+    permission?: Permission  // si no tiene, es visible para todos
 }
 
 const ALL_COMMANDS: CommandItem[] = [
     { id: 'home', label: 'Inicio', description: 'Volver al dashboard principal', icon: Home, href: '/', keywords: ['inicio', 'home', 'dashboard', 'principal'], section: 'navegación' },
-    { id: 'calculator', label: 'Calculadora de Cobertura', description: 'Calcular cobertura de prácticas', icon: Calculator, href: '/calculator', keywords: ['calculadora', 'cobertura', 'calcular', 'practica'], section: 'navegación' },
-    { id: 'matcher', label: 'Homologador', description: 'Homologar nomencladores externos', icon: Target, href: '/matcher', keywords: ['homologador', 'homologar', 'matchear', 'nomenclador'], section: 'navegación' },
-    { id: 'audits', label: 'Auditorías', description: 'Ver y gestionar auditorías', icon: FileText, href: '/audits', keywords: ['auditorias', 'auditoria', 'revisar', 'aprobadas', 'rechazadas'], section: 'navegación' },
-    { id: 'pending', label: 'Pendientes', description: 'Auditorías pendientes de revisión', icon: FileCheck, href: '/pending', keywords: ['pendientes', 'pendiente', 'revisar', 'aprobar', 'rechazar'], section: 'navegación' },
-    { id: 'patients', label: 'Pacientes / Afiliados', description: 'Padrón de afiliados', icon: Users, href: '/patients', keywords: ['pacientes', 'afiliados', 'padron', 'dni', 'buscar afiliado'], section: 'navegación' },
-    { id: 'chat', label: 'Chat', description: 'Mensajería interna', icon: MessageCircle, href: '/chat', keywords: ['chat', 'mensaje', 'mensajes', 'comunicacion'], section: 'navegación' },
-    { id: 'alerts', label: 'Alertas Presupuestarias', description: 'Alertas y desvíos detectados', icon: Bell, href: '/alerts', keywords: ['alertas', 'alerta', 'desvio', 'presupuesto', 'critica'], section: 'navegación' },
-    { id: 'agenda', label: 'Agenda', description: 'Calendario y eventos', icon: Calendar, href: '/agenda', keywords: ['agenda', 'calendario', 'evento', 'eventos', 'reunion', 'turno'], section: 'navegación' },
-    { id: 'practices', label: 'Nomencladores', description: 'Gestión de prácticas y nomencladores', icon: BookOpen, href: '/practices', keywords: ['nomenclador', 'nomencladores', 'practicas', 'codigo', 'nbu'], section: 'navegación' },
-    { id: 'protocols', label: 'Protocolos', description: 'Protocolos médicos de referencia', icon: Shield, href: '/protocols', keywords: ['protocolo', 'protocolos', 'clinico', 'medico', 'guia'], section: 'navegación' },
+    { id: 'calculator', label: 'Calculadora de Cobertura', description: 'Calcular cobertura de prácticas', icon: Calculator, href: '/calculator', keywords: ['calculadora', 'cobertura', 'calcular', 'practica'], section: 'navegación', permission: 'calculator.use' },
+    { id: 'matcher', label: 'Homologador', description: 'Homologar nomencladores externos', icon: Target, href: '/matcher', keywords: ['homologador', 'homologar', 'matchear', 'nomenclador'], section: 'navegación', permission: 'matcher.use' },
+    { id: 'audits', label: 'Auditorías', description: 'Ver y gestionar auditorías', icon: FileText, href: '/audits', keywords: ['auditorias', 'auditoria', 'revisar', 'aprobadas', 'rechazadas'], section: 'navegación', permission: 'audits.view' },
+    { id: 'pending', label: 'Pendientes', description: 'Auditorías pendientes de revisión', icon: FileCheck, href: '/pending', keywords: ['pendientes', 'pendiente', 'revisar', 'aprobar', 'rechazar'], section: 'navegación', permission: 'pending.view' },
+    { id: 'patients', label: 'Pacientes / Afiliados', description: 'Padrón de afiliados', icon: Users, href: '/patients', keywords: ['pacientes', 'afiliados', 'padron', 'dni', 'buscar afiliado'], section: 'navegación', permission: 'patients.view' },
+    { id: 'chat', label: 'Chat', description: 'Mensajería interna', icon: MessageCircle, href: '/chat', keywords: ['chat', 'mensaje', 'mensajes', 'comunicacion'], section: 'navegación', permission: 'chat.direct_only' },
+    { id: 'alerts', label: 'Alertas Presupuestarias', description: 'Alertas y desvíos detectados', icon: Bell, href: '/alerts', keywords: ['alertas', 'alerta', 'desvio', 'presupuesto', 'critica'], section: 'navegación', permission: 'alerts.view' },
+    { id: 'agenda', label: 'Agenda', description: 'Calendario y eventos', icon: Calendar, href: '/agenda', keywords: ['agenda', 'calendario', 'evento', 'eventos', 'reunion', 'turno'], section: 'navegación', permission: 'agenda.view' },
+    { id: 'practices', label: 'Nomencladores', description: 'Gestión de prácticas y nomencladores', icon: BookOpen, href: '/practices', keywords: ['nomenclador', 'nomencladores', 'practicas', 'codigo', 'nbu'], section: 'navegación', permission: 'nomenclators.view' },
+    { id: 'protocols', label: 'Protocolos', description: 'Protocolos médicos de referencia', icon: Shield, href: '/protocols', keywords: ['protocolo', 'protocolos', 'clinico', 'medico', 'guia'], section: 'navegación', permission: 'protocols.view' },
     { id: 'help', label: 'Centro de Ayuda', description: 'Documentación y preguntas frecuentes', icon: HelpCircle, href: '/help', keywords: ['ayuda', 'help', 'faq', 'preguntas', 'como', 'documentacion', 'manual'], section: 'navegación' },
     // Administración
-    { id: 'external-nom', label: 'Nomencladores Externos', description: 'Gestionar nomencladores de terceros', icon: FileText, href: '/practices/external', keywords: ['nomenclador externo', 'externo', 'terceros', 'importar'], section: 'administración' },
-    { id: 'users', label: 'Usuarios', description: 'Gestión de usuarios del sistema', icon: Users, href: '/users', keywords: ['usuarios', 'usuario', 'crear usuario', 'roles', 'permisos'], section: 'administración' },
-    { id: 'values', label: 'Valores de Unidades', description: 'Configurar valores NBU, Galeno, UO', icon: CreditCard, href: '/settings/values', keywords: ['valores', 'nbu', 'galeno', 'uo', 'unidad', 'arancel'], section: 'administración' },
-    { id: 'backup', label: 'Backup', description: 'Exportar e importar datos', icon: Database, href: '/backup', keywords: ['backup', 'exportar', 'importar', 'respaldo', 'json'], section: 'administración' },
-    { id: 'settings', label: 'Configuración', description: 'Ajustes del sistema', icon: Settings, href: '/settings', keywords: ['configuracion', 'ajustes', 'config', 'preferencias'], section: 'administración' },
+    { id: 'external-nom', label: 'Nomencladores Externos', description: 'Gestionar nomencladores de terceros', icon: FileText, href: '/practices/external', keywords: ['nomenclador externo', 'externo', 'terceros', 'importar'], section: 'administración', permission: 'nomenclators.manage' },
+    { id: 'users', label: 'Usuarios', description: 'Gestión de usuarios del sistema', icon: Users, href: '/users', keywords: ['usuarios', 'usuario', 'crear usuario', 'roles', 'permisos'], section: 'administración', permission: 'users.manage' },
+    { id: 'values', label: 'Valores de Unidades', description: 'Configurar valores NBU, Galeno, UO', icon: CreditCard, href: '/settings/values', keywords: ['valores', 'nbu', 'galeno', 'uo', 'unidad', 'arancel'], section: 'administración', permission: 'config.values' },
+    { id: 'backup', label: 'Backup', description: 'Exportar e importar datos', icon: Database, href: '/backup', keywords: ['backup', 'exportar', 'importar', 'respaldo', 'json'], section: 'administración', permission: 'backup.export' },
+    { id: 'settings', label: 'Configuración', description: 'Ajustes del sistema', icon: Settings, href: '/settings', keywords: ['configuracion', 'ajustes', 'config', 'preferencias'], section: 'administración', permission: 'config.view' },
 ]
 
 function normalize(text: string): string {
@@ -55,12 +57,19 @@ export function CommandPalette() {
     const router = useRouter()
     const { hasPermission } = useAuth()
 
-    // Ctrl+K to open
+    // Ctrl+K to open/close
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                 e.preventDefault()
-                setOpen(prev => !prev)
+                setOpen(prev => {
+                    if (!prev) {
+                        // Reset state when opening
+                        setQuery('')
+                        setSelectedIndex(0)
+                    }
+                    return !prev
+                })
             }
             if (e.key === 'Escape') {
                 setOpen(false)
@@ -73,33 +82,34 @@ export function CommandPalette() {
     // Focus input when opened
     useEffect(() => {
         if (open) {
-            setQuery('')
-            setSelectedIndex(0)
             setTimeout(() => inputRef.current?.focus(), 50)
         }
     }, [open])
 
+    // Filter by permissions first, then by query
+    const permittedCommands = useMemo(() => {
+        return ALL_COMMANDS.filter(cmd => !cmd.permission || hasPermission(cmd.permission))
+    }, [hasPermission])
+
     const filtered = useMemo(() => {
-        if (!query.trim()) return ALL_COMMANDS
+        if (!query.trim()) return permittedCommands
         const q = normalize(query)
-        return ALL_COMMANDS.filter(cmd =>
+        return permittedCommands.filter(cmd =>
             normalize(cmd.label).includes(q) ||
             normalize(cmd.description).includes(q) ||
             cmd.keywords.some(k => normalize(k).includes(q))
         )
-    }, [query])
+    }, [query, permittedCommands])
 
-    // Group by section
-    const grouped = useMemo(() => {
-        const sections: Record<string, CommandItem[]> = {}
-        filtered.forEach(item => {
+    // Group by section, computing stable flat indices
+    const { grouped, flatList } = useMemo(() => {
+        const sections: Record<string, { item: CommandItem; flatIdx: number }[]> = {}
+        filtered.forEach((item, idx) => {
             if (!sections[item.section]) sections[item.section] = []
-            sections[item.section].push(item)
+            sections[item.section].push({ item, flatIdx: idx })
         })
-        return sections
+        return { grouped: sections, flatList: filtered }
     }, [filtered])
-
-    const flatList = useMemo(() => filtered, [filtered])
 
     const navigate = useCallback((item: CommandItem) => {
         setOpen(false)
@@ -136,8 +146,6 @@ export function CommandPalette() {
         'acciones': 'Acciones rápidas',
     }
 
-    let flatIndex = -1
-
     return (
         <div className="fixed inset-0 z-[100]">
             {/* Backdrop */}
@@ -173,39 +181,35 @@ export function CommandPalette() {
                                 No se encontraron resultados para &quot;{query}&quot;
                             </div>
                         ) : (
-                            Object.entries(grouped).map(([section, items]) => (
+                            Object.entries(grouped).map(([section, entries]) => (
                                 <div key={section}>
                                     <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                         {sectionLabels[section] || section}
                                     </div>
-                                    {items.map(item => {
-                                        flatIndex++
-                                        const idx = flatIndex
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                data-index={idx}
-                                                onClick={() => navigate(item)}
-                                                onMouseEnter={() => setSelectedIndex(idx)}
-                                                className={cn(
-                                                    "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors",
-                                                    idx === selectedIndex
-                                                        ? "bg-primary/10 text-primary"
-                                                        : "text-foreground hover:bg-muted"
-                                                )}
-                                            >
-                                                <item.icon className="h-4 w-4 shrink-0 opacity-60" />
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="text-sm font-medium block">{item.label}</span>
-                                                    <span className="text-xs text-muted-foreground truncate block">{item.description}</span>
-                                                </div>
-                                                <ArrowRight className={cn(
-                                                    "h-3 w-3 shrink-0 transition-opacity",
-                                                    idx === selectedIndex ? "opacity-100" : "opacity-0"
-                                                )} />
-                                            </button>
-                                        )
-                                    })}
+                                    {entries.map(({ item, flatIdx }) => (
+                                        <button
+                                            key={item.id}
+                                            data-index={flatIdx}
+                                            onClick={() => navigate(item)}
+                                            onMouseEnter={() => setSelectedIndex(flatIdx)}
+                                            className={cn(
+                                                "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors",
+                                                flatIdx === selectedIndex
+                                                    ? "bg-primary/10 text-primary"
+                                                    : "text-foreground hover:bg-muted"
+                                            )}
+                                        >
+                                            <item.icon className="h-4 w-4 shrink-0 opacity-60" />
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-sm font-medium block">{item.label}</span>
+                                                <span className="text-xs text-muted-foreground truncate block">{item.description}</span>
+                                            </div>
+                                            <ArrowRight className={cn(
+                                                "h-3 w-3 shrink-0 transition-opacity",
+                                                flatIdx === selectedIndex ? "opacity-100" : "opacity-0"
+                                            )} />
+                                        </button>
+                                    ))}
                                 </div>
                             ))
                         )}

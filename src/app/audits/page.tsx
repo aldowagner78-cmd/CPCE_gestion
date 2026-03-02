@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { useAudits, useAuditCounts } from "@/lib/useAudits"
+import { Pagination, paginateArray } from "@/components/ui/pagination"
 import { AuditService } from "@/services/auditService"
 import { AuditStatus } from "@/types/database"
 import { Card } from "@/components/ui/card"
@@ -36,6 +37,8 @@ export default function AuditsPage() {
     const counts = useAuditCounts(activeJurisdiction?.id)
     const [searchTerm, setSearchTerm] = useState("")
     const [filterStatus, setFilterStatus] = useState<AuditStatus | "all">("all")
+    const [page, setPage] = useState(1)
+    const PAGE_SIZE = 15
 
     if (!activeJurisdiction) {
         return <div className="p-8 text-center text-muted-foreground">Cargando...</div>
@@ -53,6 +56,11 @@ export default function AuditsPage() {
 
         return matchesSearch && matchesStatus
     })
+
+    // Reset page when filters change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const paged = useMemo(() => { setPage(1); return filtered }, [searchTerm, filterStatus, audits.length])
+    const pagedRows = paginateArray(paged, page, PAGE_SIZE)
 
     const handleStatusChange = (auditId: string | number, newStatus: AuditStatus) => {
         AuditService.updateStatus(auditId, newStatus)
@@ -147,7 +155,7 @@ export default function AuditsPage() {
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((audit) => {
+                                pagedRows.map((audit) => {
                                     const statusConf = STATUS_CONFIG[audit.status]
                                     const StatusIcon = statusConf.icon
                                     const dateStr = new Date(audit.created_at).toLocaleDateString("es-AR", {
@@ -225,9 +233,13 @@ export default function AuditsPage() {
                 </div>
             </Card>
 
-            <div className="text-xs text-muted-foreground text-center">
-                Mostrando {filtered.length} de {audits.length} auditorías
-            </div>
+            <Pagination
+                page={page}
+                totalItems={filtered.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+                itemLabel="auditorías"
+            />
         </div>
     )
 }

@@ -389,6 +389,7 @@ export default function AgendaPage() {
     const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [createDate, setCreateDate] = useState<Date | undefined>()
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
     useEffect(() => { AgendaService.init() }, [])
 
@@ -435,8 +436,9 @@ export default function AgendaPage() {
     }
 
     const handleDeleteEvent = async () => {
-        if (selectedEvent && confirm('¿Eliminar este evento?')) {
+        if (selectedEvent) {
             await AgendaService.delete(selectedEvent.id)
+            setShowDeleteConfirm(false)
             setSelectedEvent(null)
         }
     }
@@ -592,7 +594,7 @@ export default function AgendaPage() {
                     event={selectedEvent}
                     onClose={() => setSelectedEvent(null)}
                     onStatusChange={handleStatusChange}
-                    onDelete={handleDeleteEvent}
+                    onDelete={() => setShowDeleteConfirm(true)}
                 />
             )}
 
@@ -603,6 +605,32 @@ export default function AgendaPage() {
                     initialDate={createDate}
                     userId={user?.id}
                 />
+            )}
+
+            {/* Delete Confirmation Overlay */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-sm w-full p-6">
+                        <h3 className="text-lg font-bold dark:text-white">¿Eliminar este evento?</h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
+                            Esta acción no se puede deshacer.
+                        </p>
+                        <div className="flex gap-2 mt-6 justify-end">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="px-4 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-white"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDeleteEvent}
+                                className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600"
+                            >
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

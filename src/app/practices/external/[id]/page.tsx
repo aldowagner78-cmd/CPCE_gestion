@@ -9,6 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+} from '@/components/ui/dialog'
 import { Loader2, Search, ArrowLeft, Filter, FileSpreadsheet, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import { externalNomenclatorService, type ExternalPractice, type ExternalNomenclator } from '@/services/externalNomenclatorService'
@@ -37,6 +40,7 @@ export default function ExternalNomenclatorDetailPage() {
     const [homologationsCount, setHomologationsCount] = useState(0)
     const [homologationsSearch, setHomologationsSearch] = useState('')
     const [loadingHomologations, setLoadingHomologations] = useState(false)
+    const [deleteHomologationId, setDeleteHomologationId] = useState<string | null>(null)
 
     useEffect(() => {
         loadData()
@@ -102,9 +106,9 @@ export default function ExternalNomenclatorDetailPage() {
     }
 
     const handleDeleteHomologation = async (homologationId: string) => {
-        if (!confirm('¿Eliminar esta homologación?')) return
         try {
             await homologationService.deleteHomologation(homologationId)
+            setDeleteHomologationId(null)
             loadHomologations()
         } catch (error) {
             console.error('Error deleting homologation:', error)
@@ -339,7 +343,7 @@ export default function ExternalNomenclatorDetailPage() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => handleDeleteHomologation(homol.id)}
+                                                            onClick={() => setDeleteHomologationId(homol.id)}
                                                         >
                                                             <ArrowLeft className="h-4 w-4 rotate-180" />
                                                         </Button>
@@ -442,6 +446,22 @@ export default function ExternalNomenclatorDetailPage() {
                     </div>
                 </TabsContent>
             </Tabs>
+
+            {/* Delete Homologation Confirmation */}
+            <Dialog open={deleteHomologationId !== null} onOpenChange={() => setDeleteHomologationId(null)}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>¿Eliminar homologación?</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground py-2">
+                        Esta acción no se puede deshacer.
+                    </p>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteHomologationId(null)}>Cancelar</Button>
+                        <Button variant="danger" onClick={() => deleteHomologationId && handleDeleteHomologation(deleteHomologationId)}>Eliminar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

@@ -1,10 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Pagination, paginateArray } from "@/components/ui/pagination"
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import {
     Users, Search, Edit2, Trash2, Loader2,
@@ -42,10 +46,13 @@ export default function PatientsPage() {
     const [affiliates, setAffiliates] = useState<AffiliateRow[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
+    const [page, setPage] = useState(1)
+    const PAGE_SIZE = 15
     const [showEditor, setShowEditor] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [plans, setPlans] = useState<{ id: number; name: string }[]>([])
     const [saving, setSaving] = useState(false)
+    const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
     const [form, setForm] = useState({
         affiliate_number: '', full_name: '', document_number: '',
@@ -75,6 +82,11 @@ export default function PatientsPage() {
         const q = searchTerm.toLowerCase()
         return a.full_name.toLowerCase().includes(q) || a.document_number.includes(q) || (a.affiliate_number ?? '').toLowerCase().includes(q)
     })
+
+    // Reset page when search changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const _resetPage = useMemo(() => { setPage(1); return null }, [searchTerm])
+    const pagedRows = paginateArray(filtered, page, PAGE_SIZE)
 
     const resetForm = () => {
         setForm({ affiliate_number: '', full_name: '', document_number: '', birth_date: '', gender: '', relationship: 'Titular', plan_id: '', status: 'activo', start_date: new Date().toISOString().split('T')[0] })
@@ -108,8 +120,8 @@ export default function PatientsPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm('¿Eliminar este afiliado?')) return
         await supabase.from('affiliates').delete().eq('id', id)
+        setDeleteConfirm(null)
         await fetchData()
     }
 
@@ -192,7 +204,7 @@ export default function PatientsPage() {
                                 <th className="h-10 px-4 text-left font-medium text-muted-foreground">Acciones</th>
                             </tr></thead>
                             <tbody>
-                                {filtered.map(a => {
+                                {pagedRows.map(a => {
                                     const badge = STATUS_BADGE[a.status] ?? STATUS_BADGE.activo
                                     return (
                                         <tr key={a.id} className="border-b hover:bg-muted/40">
@@ -204,7 +216,7 @@ export default function PatientsPage() {
                                             <td className="p-3 text-xs">{a.start_date ? new Date(a.start_date).toLocaleDateString('es-AR') : '—'}</td>
                                             <td className="p-3"><div className="flex gap-1">
                                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleEdit(a)}><Edit2 className="h-3.5 w-3.5" /></Button>
-                                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => handleDelete(a.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => setDeleteConfirm(a.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                                             </div></td>
                                         </tr>
                                     )
@@ -214,7 +226,29 @@ export default function PatientsPage() {
                     </div>
                 )}
             </Card>
-            <div className="text-xs text-muted-foreground text-center">Mostrando {filtered.length} de {affiliates.length} afiliados</div>
+            <Pagination
+                page={page}
+                totalItems={filtered.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+                itemLabel="afiliados"
+            />
+
+            {/* Delete Confirmation */}
+            <Dialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>¿Eliminar afiliado?</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground py-2">
+                        Esta acción no se puede deshacer.
+                    </p>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
+                        <Button variant="danger" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>Eliminar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
