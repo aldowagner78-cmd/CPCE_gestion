@@ -151,3 +151,31 @@ Objetivo: interfaz moderna, profesional, intuitiva y totalmente interconectada, 
 - Mantener verde build + smoke.
 - Acordar guía de estilo UX (espaciados, densidad, jerarquía visual, microcopy).
 - Confirmar flujo principal por rol (qué hace cada uno en 3-5 pasos).
+
+## PRIORIDAD 1 ABSOLUTA (antes del rediseño general)
+
+### Inicio de app: Bienvenida + Modal de Autenticación
+
+Estado actual (diagnóstico):
+- Existe login visualmente cuidado, pero como **página completa** (`/login`), no modal sobre pantalla de bienvenida.
+- Existe recuperación de contraseña vía email (`resetPasswordForEmail`).
+- No existe flujo completo de credenciales para superuser/admin (reset forzado, cambio por usuario, políticas).
+
+Objetivo requerido:
+- Primera experiencia de app con **pantalla de bienvenida**.
+- **Modal de autenticación** como punto central de entrada (login/registro/recuperación).
+- UX moderna, profesional e intuitiva, consistente con el resto del sistema.
+
+### Gestión completa de usuarios y credenciales (Superuser)
+
+Debe incluir:
+1. Reset de contraseña de usuario por superuser/admin.
+2. Forzar cambio de contraseña en próximo login.
+3. Activar/desactivar usuario (ya existe; mantener y mejorar UX).
+4. Estado de credenciales (último acceso, usuario activo/inactivo, pendiente de reset).
+5. Flujos clásicos de seguridad: recuperar contraseña, cambiar contraseña, invalidar sesiones.
+
+### Restricción de ejecución
+- Esta prioridad se diseña primero.
+- **No se implementa código sin confirmación explícita previa del usuario**.
+- Luego de aprobar este bloque, se continúa con UI/UX integral del resto de módulos.
