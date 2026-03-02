@@ -115,3 +115,39 @@ Es técnicamente viable y queda como **fase posterior**:
 2. Hacer revisión integral por rol (sesión guiada módulo por módulo).
 3. Consolidar lista corta de ajustes UX de alto impacto.
 4. Recién después de eso, arrancar nuevos módulos (providers/support/authorizations).
+
+## Cierre de fase de pruebas (para evitar alargue)
+
+### Estado de avance estimado
+- Progreso actual de esta fase: **~85% completado**.
+- Falta real para cierre: **~15%** (1 a 2 sesiones de revisión guiada).
+
+### Criterio de salida (Definition of Done)
+Se da por concluida esta fase cuando se cumplan estas 4 condiciones:
+1. `next build` en verde.
+2. `npm run test:smoke` en verde.
+3. Checklist funcional por rol completada (superuser, admin, supervisor, auditor, administrativo, gerencia).
+4. Lista priorizada de hallazgos UX cerrada en:
+	- Críticos (bloqueantes): resueltos
+	- Medios/Bajos: backlog con prioridad
+
+### Regla de corte
+- Si las condiciones 1, 2 y 3 están cumplidas, **no** se extiende la fase por temas cosméticos.
+- Lo visual no bloqueante pasa a fase UI/UX.
+
+## Próxima fase inmediata: UI/UX integral (prioridad 1)
+
+Objetivo: interfaz moderna, profesional, intuitiva y totalmente interconectada, sin romper lógica existente.
+
+### Orden propuesto
+1. Definir arquitectura de navegación global (mapa de flujos entre módulos).
+2. Definir patrón único de pantalla (header, acciones, filtros, tabla, detalle, feedback).
+3. Definir sistema de ayuda contextual:
+	- tips inline
+	- tutorial guiado por rol (primer ingreso)
+4. Aplicar rediseño por tandas (primero módulos de uso diario: Dashboard, Calculator, Pending, Audits, Patients).
+
+### Dependencias previas mínimas (antes de rediseñar todo)
+- Mantener verde build + smoke.
+- Acordar guía de estilo UX (espaciados, densidad, jerarquía visual, microcopy).
+- Confirmar flujo principal por rol (qué hace cada uno en 3-5 pasos).
