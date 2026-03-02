@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Lock, Mail, AlertTriangle } from 'lucide-react'
 import Image from 'next/image'
 
-export default function LoginPage() {
+function LoginContent() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [fullName, setFullName] = useState('')
@@ -326,6 +327,14 @@ export default function LoginPage() {
                 </div>
             </div>
         </div>
+    )
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-muted-foreground">Cargando...</div>}>
+            <LoginContent />
+        </Suspense>
     )
 }
 

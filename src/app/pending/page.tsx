@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,7 @@ export default function PendingPage() {
 
     const supabase = getSupabaseClient()
 
-    const fetchPending = async () => {
+    const fetchPending = useCallback(async () => {
         if (!activeJurisdiction) return
         setLoading(true)
         const { data } = await supabase
@@ -33,9 +33,14 @@ export default function PendingPage() {
             .order('created_at', { ascending: false })
         setAudits((data ?? []) as PendingAudit[])
         setLoading(false)
-    }
+    }, [activeJurisdiction, supabase])
 
-    useEffect(() => { fetchPending() }, [activeJurisdiction])
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            void fetchPending()
+        }, 0)
+        return () => clearTimeout(timer)
+    }, [fetchPending])
 
     const handleAction = async (id: string, action: 'approved' | 'rejected') => {
         await supabase.from('audits').update({ status: action, reviewed_at: new Date().toISOString() }).eq('id', id)

@@ -35,6 +35,13 @@ Hacer una **revisión integral de usabilidad + permisos + datos reales** antes d
 2. Mantener `next build` como gate obligatorio antes de merge.
 3. Tratar `lint` como deuda gradual (no frenar feature delivery mientras build esté verde).
 
+#### Política de calidad de pruebas (regla obligatoria)
+- Las pruebas existen para detectar fallos reales, inconsistencias y regresiones.
+- Si una prueba falla, la acción por defecto es **corregir la app**, no “maquillar” la prueba.
+- Solo se modifica una prueba cuando está objetivamente mal especificada o desactualizada respecto a una regla de negocio aprobada.
+- Cualquier cambio en tests debe dejar explícito qué contrato valida y por qué cambió.
+- No se aceptan cambios que solo busquen “poner todo en verde” sin corregir la causa raíz en producto.
+
 ### Track B — Revisión funcional integral (manual guiada)
 Revisión por módulos críticos en este orden:
 1. Login + navegación + permisos visibles

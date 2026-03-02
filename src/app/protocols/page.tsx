@@ -93,7 +93,12 @@ export default function ProtocolsPage() {
         setLoading(false)
     }, [supabase])
 
-    useEffect(() => { fetchProtocols() }, [fetchProtocols])
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            void fetchProtocols()
+        }, 0)
+        return () => clearTimeout(timer)
+    }, [fetchProtocols])
 
     const filtered = protocols.filter(p => {
         if (!searchTerm.trim()) return true

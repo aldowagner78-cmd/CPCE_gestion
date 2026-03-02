@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { useAudits, useAuditCounts } from "@/lib/useAudits"
 import { Pagination, paginateArray } from "@/components/ui/pagination"
@@ -40,10 +40,6 @@ export default function AuditsPage() {
     const [page, setPage] = useState(1)
     const PAGE_SIZE = 15
 
-    if (!activeJurisdiction) {
-        return <div className="p-8 text-center text-muted-foreground">Cargando...</div>
-    }
-
     const filtered = audits.filter((audit) => {
         const matchesSearch =
             !searchTerm.trim() ||
@@ -57,13 +53,14 @@ export default function AuditsPage() {
         return matchesSearch && matchesStatus
     })
 
-    // Reset page when filters change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const paged = useMemo(() => { setPage(1); return filtered }, [searchTerm, filterStatus, audits.length])
-    const pagedRows = paginateArray(paged, page, PAGE_SIZE)
+    const pagedRows = paginateArray(filtered, page, PAGE_SIZE)
 
     const handleStatusChange = (auditId: string | number, newStatus: AuditStatus) => {
         AuditService.updateStatus(auditId, newStatus)
+    }
+
+    if (!activeJurisdiction) {
+        return <div className="p-8 text-center text-muted-foreground">Cargando...</div>
     }
 
     return (
@@ -87,7 +84,10 @@ export default function AuditsPage() {
                     return (
                         <button
                             key={key}
-                            onClick={() => setFilterStatus(filterStatus === key ? "all" : key)}
+                            onClick={() => {
+                                setFilterStatus(filterStatus === key ? "all" : key)
+                                setPage(1)
+                            }}
                             className={`border rounded-lg p-3 space-y-1 hover:shadow-sm transition-all text-left ${filterStatus === key ? "ring-2 ring-primary" : ""}`}
                         >
                             <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
@@ -110,11 +110,14 @@ export default function AuditsPage() {
                             placeholder="Buscar por afiliado, DNI, código de práctica..."
                             className="pl-9"
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value)
+                                setPage(1)
+                            }}
                         />
                     </div>
                     {filterStatus !== "all" && (
-                        <Button variant="outline" size="sm" onClick={() => setFilterStatus("all")} className="shrink-0">
+                        <Button variant="outline" size="sm" onClick={() => { setFilterStatus("all"); setPage(1) }} className="shrink-0">
                             <Filter className="h-4 w-4 mr-1" /> Limpiar filtro
                         </Button>
                     )}

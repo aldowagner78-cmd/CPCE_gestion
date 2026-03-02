@@ -6,7 +6,7 @@ import { Header } from './Header';
 import { CommandPalette } from './CommandPalette';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,11 +18,6 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
     // Rutas públicas que no requieren layout de dashboard
     const isPublicPage = pathname?.startsWith('/login');
-    const [isMounted, setIsMounted] = useState(false);
-
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
 
     // Protección de rutas: Si no es pública y no hay usuario, redirigir
     useEffect(() => {
@@ -45,9 +40,6 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         }
         return isDarkMode ? mainBgColors.camera2Dark : mainBgColors.camera2Light;
     };
-
-    // Evitar hidratación incorrecta
-    if (!isMounted) return null;
 
     // Si es página pública, renderizar solo contenido (sin layout)
     if (isPublicPage) {

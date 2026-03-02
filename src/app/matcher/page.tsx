@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Link2, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, Link2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { externalNomenclatorService } from '@/services/externalNomenclatorService'
 import { homologationService } from '@/services/homologationService'
 
@@ -25,11 +25,7 @@ export default function MatcherPage() {
     const [nomenclators, setNomenclators] = useState<NomenclatorWithStats[]>([])
     const [loading, setLoading] = useState(true)
 
-    useEffect(() => {
-        loadNomenclators()
-    }, [])
-
-    const loadNomenclators = async () => {
+    const loadNomenclators = useCallback(async () => {
         try {
             const noms = await externalNomenclatorService.getNomenclators()
             
@@ -75,7 +71,14 @@ export default function MatcherPage() {
             console.error('Error loading nomenclators:', error)
             setLoading(false)
         }
-    }
+    }, [])
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            void loadNomenclators()
+        }, 0)
+        return () => clearTimeout(timer)
+    }, [loadNomenclators])
 
     const handleHomologate = (nomenclatorId: number) => {
         router.push(`/practices/external/${nomenclatorId}/homologate`)
