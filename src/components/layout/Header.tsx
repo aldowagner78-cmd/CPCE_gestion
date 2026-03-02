@@ -4,7 +4,7 @@ import { JurisdictionToggle } from "./JurisdictionToggle"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { useAuth } from "@/contexts/AuthContext"
 import { useActiveAlerts } from "@/lib/useAlerts"
-import { Bell, Moon, Sun, Home, ChevronRight, MessageCircle } from "lucide-react"
+import { Bell, Moon, Sun, Home, ChevronRight, MessageCircle, HelpCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -93,6 +93,13 @@ export function Header() {
                 >
                     {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
+
+                {/* Ayuda */}
+                <Link href="/help">
+                    <Button variant="ghost" size="icon" className="text-slate-600 dark:text-slate-300 relative" title="Centro de Ayuda">
+                        <HelpCircle className="h-5 w-5" />
+                    </Button>
+                </Link>
 
                 {/* Chat */}
                 <Link href="/chat">

@@ -3,10 +3,7 @@
 import {
     Calculator,
     FileText,
-    Settings,
-    ShieldCheck,
     Users,
-    Bell,
     Database,
     Calendar,
     Menu,
@@ -14,15 +11,16 @@ import {
     CreditCard,
     Target,
     LogOut,
-    Home,
     FileCheck,
     BookOpen,
     Shield,
-    HelpCircle,
     Search,
     LayoutGrid,
     ChevronDown,
     ChevronRight,
+    Wrench,
+    ClipboardCheck,
+    ShieldCheck,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -30,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
-import { useActiveAlerts } from '@/lib/useAlerts';
+
 import { Permission, ROLE_LABELS } from '@/types/auth';
 import Image from 'next/image';
 
@@ -39,46 +37,45 @@ interface MenuItem {
     label: string;
     href: string;
     permission?: Permission;
-    useDynamicBadge?: boolean;
 }
 
 // Items principales (siempre visibles)
 const mainItems: MenuItem[] = [
-    { icon: Home, label: 'Inicio', href: '/' },
-    { icon: Calculator, label: 'Calculadora', href: '/calculator', permission: 'calculator.use' },
-    { icon: FileText, label: 'Auditorías', href: '/audits', permission: 'audits.view' },
-    { icon: FileCheck, label: 'Pendientes', href: '/pending', permission: 'pending.view' },
-    { icon: Users, label: 'Pacientes', href: '/patients', permission: 'patients.view' },
-    { icon: Bell, label: 'Alertas', href: '/alerts', permission: 'alerts.view', useDynamicBadge: true },
-    { icon: Calendar, label: 'Agenda', href: '/agenda', permission: 'agenda.view' },
     { icon: LayoutGrid, label: 'Módulos', href: '/modules' },
+    { icon: Calendar, label: 'Agenda', href: '/agenda', permission: 'agenda.view' },
+    { icon: Users, label: 'Pacientes', href: '/patients', permission: 'patients.view' },
 ];
 
-// Items secundarios (colapsables bajo "Más herramientas")
-const moreItems: MenuItem[] = [
+// Herramientas (colapsable)
+const toolItems: MenuItem[] = [
+    { icon: Calculator, label: 'Calculadora', href: '/calculator', permission: 'calculator.use' },
     { icon: Target, label: 'Homologador', href: '/matcher', permission: 'matcher.use' },
     { icon: BookOpen, label: 'Nomencladores', href: '/practices', permission: 'nomenclators.view' },
     { icon: Shield, label: 'Protocolos', href: '/protocols', permission: 'protocols.view' },
-    { icon: HelpCircle, label: 'Ayuda', href: '/help' },
 ];
 
-// Items de administración
+// Auditoría (colapsable)
+const auditItems: MenuItem[] = [
+    { icon: FileText, label: 'Realizadas', href: '/audits', permission: 'audits.view' },
+    { icon: FileCheck, label: 'Pendientes', href: '/pending', permission: 'pending.view' },
+];
+
+// Items de administración (colapsable, por rol)
 const adminItems: MenuItem[] = [
     { icon: FileText, label: 'Nomencladores Ext.', href: '/practices/external', permission: 'nomenclators.manage' },
     { icon: Users, label: 'Usuarios', href: '/users', permission: 'users.manage' },
     { icon: CreditCard, label: 'Valores', href: '/settings/values', permission: 'config.values' },
     { icon: Database, label: 'Backup', href: '/backup', permission: 'backup.export' },
-    { icon: Settings, label: 'Configuración', href: '/settings', permission: 'config.view' },
 ];
 
 export function Sidebar() {
     const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
-    const [moreOpen, setMoreOpen] = useState(false);
+    const [toolsOpen, setToolsOpen] = useState(false);
+    const [auditOpen, setAuditOpen] = useState(false);
     const [adminOpen, setAdminOpen] = useState(false);
     const { user, signOut, hasPermission, loading } = useAuth();
     const { activeJurisdiction, isDarkMode } = useJurisdiction();
-    const activeAlerts = useActiveAlerts(activeJurisdiction?.id);
 
     // Colores dinámicos según jurisdicción
     const sidebarColors = {
@@ -153,13 +150,10 @@ export function Sidebar() {
 
                     <div className="my-2 border-t border-border mx-4" />
 
-                    {/* Items principales */}
+                    {/* Items principales: Módulos, Agenda, Pacientes */}
                     {mainItems.map((item) => {
                         if (item.permission && !hasPermission(item.permission)) return null;
-
-                        const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-                        const badgeCount = item.useDynamicBadge ? activeAlerts.length : 0;
-                        
+                        const isActive = pathname.startsWith(item.href);
                         return (
                             <Link
                                 key={item.href}
@@ -175,27 +169,23 @@ export function Sidebar() {
                                     isActive ? "text-primary" : "text-slate-600 dark:text-slate-400 group-hover:text-foreground"
                                 )} />
                                 <span className="flex-1">{item.label}</span>
-                                {item.useDynamicBadge && badgeCount > 0 && (
-                                    <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-200 rounded-full">
-                                        {badgeCount}
-                                    </span>
-                                )}
                             </Link>
                         );
                     })}
 
-                    {/* Más herramientas (colapsable) */}
-                    {moreItems.some((item) => !item.permission || hasPermission(item.permission)) && (
+                    {/* Herramientas (colapsable) */}
+                    {toolItems.some((item) => !item.permission || hasPermission(item.permission)) && (
                         <>
                             <button
-                                onClick={() => setMoreOpen(!moreOpen)}
+                                onClick={() => setToolsOpen(!toolsOpen)}
                                 className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 w-full text-muted-foreground hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
                             >
-                                {moreOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                <span className="text-xs font-bold uppercase tracking-widest">Más herramientas</span>
+                                {toolsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                <Wrench size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">Herramientas</span>
                             </button>
 
-                            {moreOpen && moreItems.map((item) => {
+                            {toolsOpen && toolItems.map((item) => {
                                 if (item.permission && !hasPermission(item.permission)) return null;
                                 const isActive = pathname.startsWith(item.href);
                                 return (
@@ -219,39 +209,70 @@ export function Sidebar() {
                         </>
                     )}
 
-                    {!loading && (
+                    {/* Auditoría (colapsable) */}
+                    {auditItems.some((item) => !item.permission || hasPermission(item.permission)) && (
                         <>
-                            {/* Solo mostrar sección admin si hay al menos un item visible */}
-                            {adminItems.some((item) => !item.permission || hasPermission(item.permission)) && (
-                                <>
-                                    <div className="my-4 border-t border-border mx-4" />
-                                    <button
-                                        onClick={() => setAdminOpen(!adminOpen)}
-                                        className="flex items-center justify-between w-full px-4 py-2 text-xs font-bold text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
-                                    >
-                                        <span>Administración</span>
-                                        {adminOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                    </button>
-                                </>
-                            )}
+                            <button
+                                onClick={() => setAuditOpen(!auditOpen)}
+                                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 w-full text-muted-foreground hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                            >
+                                {auditOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                <ClipboardCheck size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">Auditoría</span>
+                            </button>
 
-                            {adminOpen && adminItems.map((item) => {
+                            {auditOpen && auditItems.map((item) => {
                                 if (item.permission && !hasPermission(item.permission)) return null;
-
                                 const isActive = pathname.startsWith(item.href);
                                 return (
                                     <Link
                                         key={item.href}
                                         href={item.href}
                                         className={cn(
-                                            "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
+                                            "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ml-2",
                                             isActive
-                                                ? "bg-primary/10 text-primary border-l-2 border-primary pl-[14px]"
-                                                : "text-muted-foreground hover:bg-muted hover:text-foreground pl-4"
+                                                ? "bg-primary/20 text-primary shadow-sm"
+                                                : "text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
                                         )}
                                     >
-                                        <item.icon size={20} className={cn(
-                                            isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                                        <item.icon size={18} className={cn(
+                                            isActive ? "text-primary" : "text-slate-600 dark:text-slate-400 group-hover:text-foreground"
+                                        )} />
+                                        <span>{item.label}</span>
+                                    </Link>
+                                );
+                            })}
+                        </>
+                    )}
+
+                    {/* Administración (colapsable, por rol) */}
+                    {!loading && adminItems.some((item) => !item.permission || hasPermission(item.permission)) && (
+                        <>
+                            <button
+                                onClick={() => setAdminOpen(!adminOpen)}
+                                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 w-full text-muted-foreground hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                            >
+                                {adminOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                <ShieldCheck size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">Administración</span>
+                            </button>
+
+                            {adminOpen && adminItems.map((item) => {
+                                if (item.permission && !hasPermission(item.permission)) return null;
+                                const isActive = pathname.startsWith(item.href);
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={cn(
+                                            "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ml-2",
+                                            isActive
+                                                ? "bg-primary/20 text-primary shadow-sm"
+                                                : "text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                                        )}
+                                    >
+                                        <item.icon size={18} className={cn(
+                                            isActive ? "text-primary" : "text-slate-600 dark:text-slate-400 group-hover:text-foreground"
                                         )} />
                                         <span>{item.label}</span>
                                     </Link>
