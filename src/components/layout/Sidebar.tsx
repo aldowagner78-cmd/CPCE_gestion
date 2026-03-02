@@ -75,6 +75,7 @@ export function Sidebar() {
     const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
+    const [adminOpen, setAdminOpen] = useState(false);
     const { user, signOut, hasPermission, loading } = useAuth();
     const { activeJurisdiction, isDarkMode } = useJurisdiction();
     const activeAlerts = useActiveAlerts(activeJurisdiction?.id);
@@ -224,13 +225,17 @@ export function Sidebar() {
                             {adminItems.some((item) => !item.permission || hasPermission(item.permission)) && (
                                 <>
                                     <div className="my-4 border-t border-border mx-4" />
-                                    <div className="px-4 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                                        Administración
-                                    </div>
+                                    <button
+                                        onClick={() => setAdminOpen(!adminOpen)}
+                                        className="flex items-center justify-between w-full px-4 py-2 text-xs font-bold text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
+                                    >
+                                        <span>Administración</span>
+                                        {adminOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                    </button>
                                 </>
                             )}
 
-                            {adminItems.map((item) => {
+                            {adminOpen && adminItems.map((item) => {
                                 if (item.permission && !hasPermission(item.permission)) return null;
 
                                 const isActive = pathname.startsWith(item.href);
