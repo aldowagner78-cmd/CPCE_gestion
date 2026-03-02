@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useSyncExternalStore, useCallback, useEffect } from 'react'
 import { AgendaService, CalendarEvent, EventType, EventPriority, EventStatus } from '@/services/agendaService'
+import { useAuth } from '@/contexts/AuthContext'
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Bell, X, Check, Trash2 } from 'lucide-react'
 
 // ── Helpers ──
@@ -184,10 +185,11 @@ function EventDetailModal({
     )
 }
 
-function CreateEventModal({ onClose, onSubmit, initialDate }: {
+function CreateEventModal({ onClose, onSubmit, initialDate, userId }: {
     onClose: () => void
     onSubmit: (event: Omit<CalendarEvent, 'id' | 'created_at' | 'reminder_sent'>) => void
     initialDate?: Date
+    userId?: string
 }) {
     const [form, setForm] = useState({
         title: '',
@@ -227,7 +229,7 @@ function CreateEventModal({ onClose, onSubmit, initialDate }: {
             status: 'pendiente',
             attendees: form.attendees ? form.attendees.split(',').map((e) => e.trim()) : [],
             reminder_minutes: form.reminder_minutes,
-            created_by: 'current-user',
+            created_by: userId || 'unknown',
         })
     }
 
@@ -382,6 +384,7 @@ function CreateEventModal({ onClose, onSubmit, initialDate }: {
 // ── Main Page ──
 
 export default function AgendaPage() {
+    const { user } = useAuth()
     const [currentDate, setCurrentDate] = useState(new Date())
     const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
     const [showCreateModal, setShowCreateModal] = useState(false)
@@ -598,6 +601,7 @@ export default function AgendaPage() {
                     onClose={() => setShowCreateModal(false)}
                     onSubmit={handleCreateEvent}
                     initialDate={createDate}
+                    userId={user?.id}
                 />
             )}
         </div>

@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { CommandPalette } from './CommandPalette';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { useEffect, useState } from 'react';
@@ -68,6 +69,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     // Layout principal
     return (
         <div className={cn("flex min-h-screen", getMainBg())}>
+            {/* Command Palette global (Ctrl+K) */}
+            <CommandPalette />
+
             {/* Sidebar global */}
             <div className="hidden md:block w-64 fixed inset-y-0 z-50">
                 <Sidebar />

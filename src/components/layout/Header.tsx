@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useActiveAlerts } from "@/lib/useAlerts"
 import { Search, Bell, Settings, Moon, Sun, Home, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -80,19 +79,18 @@ export function Header() {
                 </h1>
             </div>
 
-            {/* Center: Search Bar */}
+            {/* Center: Search Bar — abre Command Palette con Ctrl+K */}
             <div className="flex-1 max-w-xl mx-8 hidden md:block">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="text"
-                        placeholder="Buscar pacientes, códigos, protocolos..."
-                        className="w-full pl-10 bg-white/80 dark:bg-slate-800/80 border-slate-300 dark:border-slate-600 focus-visible:ring-primary rounded-full"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded border">
-                        ctrl+k
+                <button
+                    onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                    className="w-full flex items-center gap-3 px-4 py-2 bg-white/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-600 rounded-full text-sm text-muted-foreground hover:border-primary/50 hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                    <Search className="h-4 w-4" />
+                    <span className="flex-1 text-left">Buscar módulos, acciones...</span>
+                    <span className="text-xs bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded border font-mono">
+                        Ctrl+K
                     </span>
-                </div>
+                </button>
             </div>
 
             {/* Right: Actions & Avatar */}

@@ -116,6 +116,7 @@ function UserListItem({ user, onClick }: { user: User; onClick: () => void }) {
                 <span className="text-sm font-medium dark:text-white">{user.full_name}</span>
                 <span className="text-xs text-slate-500 block">{user.role}</span>
             </div>
+            <span className="text-xs text-blue-500 opacity-0 group-hover:opacity-100">Chat →</span>
         </div>
     )
 }
@@ -154,6 +155,45 @@ export default function ChatPage() {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSendMessage()
+        }
+    }
+
+    // Iniciar chat directo con un usuario
+    const handleStartDM = async (targetUser: User) => {
+        if (!currentUser) return
+
+        // Buscar si ya existe una conversación directa con este usuario
+        const existingDM = conversations.find(c =>
+            c.type === 'direct' && c.name?.includes(targetUser.full_name)
+        )
+
+        if (existingDM) {
+            setActiveConversation(existingDM)
+            setShowUserList(false)
+            return
+        }
+
+        // Crear nueva conversación directa
+        try {
+            const supabase = (await import('@/lib/supabase/client')).createClient()
+            const { data, error } = await supabase
+                .from('conversations')
+                .insert({
+                    name: `${currentUser.full_name} ↔ ${targetUser.full_name}`,
+                    type: 'direct',
+                    description: 'Mensaje directo',
+                    is_private: true,
+                    created_by: currentUser.id,
+                })
+                .select()
+                .single()
+
+            if (!error && data) {
+                setActiveConversation(data as Conversation)
+                setShowUserList(false)
+            }
+        } catch (err) {
+            console.error('Error creating DM:', err)
         }
     }
 
@@ -258,8 +298,8 @@ export default function ChatPage() {
                         filteredUsers.length === 0 ? (
                             <p className="p-4 text-center text-slate-500 text-sm">Sin usuarios</p>
                         ) : (
-                            filteredUsers.map((user) => (
-                                <UserListItem key={user.id} user={user} onClick={() => { }} />
+                            filteredUsers.map((u) => (
+                                <UserListItem key={u.id} user={u} onClick={() => handleStartDM(u)} />
                             ))
                         )
                     )}
