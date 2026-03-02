@@ -95,24 +95,7 @@ export default function WelcomePage() {
                             : 'opacity-0 translate-y-8 absolute pointer-events-none'
                     }`}
                 >
-                    {/* Compact header */}
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 p-1.5 bg-white/95 rounded-full shadow-lg flex items-center justify-center">
-                            <Image
-                                src="/logo.png"
-                                alt="Logo CPCE"
-                                width={28}
-                                height={28}
-                                className="object-contain"
-                            />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-white leading-tight">CPCE Salud</h2>
-                            <p className="text-blue-200 text-[10px] uppercase tracking-widest">Acceso al sistema</p>
-                        </div>
-                    </div>
-
-                    {/* Auth Modal */}
+                    {/* Auth Modal (logo integrated in card header) */}
                     <AuthModal
                         onLoginSuccess={() => {
                             router.push('/')

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useRememberedCredentials } from '@/hooks/useRememberedCredentials'
 import { Lock, Mail, AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 type AuthModalMode = 'login' | 'forgot'
 
@@ -130,8 +131,26 @@ export function AuthModal({
 
     return (
         <div className="w-full max-w-md">
-            <Card className="shadow-xl border-0 bg-white/95 backdrop-blur-sm">
-                <CardHeader className="pb-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+            <Card className="shadow-xl border-0 bg-white/95 backdrop-blur-sm overflow-hidden">
+                {/* Integrated branded header */}
+                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-6 py-5">
+                    <div className="flex items-center justify-center gap-3">
+                        <div className="w-10 h-10 p-1.5 bg-white rounded-full shadow-md flex items-center justify-center flex-shrink-0">
+                            <Image
+                                src="/logo.png"
+                                alt="Logo CPCE"
+                                width={28}
+                                height={28}
+                                className="object-contain"
+                            />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-white leading-tight">CPCE Salud</h2>
+                            <p className="text-blue-200 text-[10px] uppercase tracking-widest">Sistema de gestión</p>
+                        </div>
+                    </div>
+                </div>
+                <CardHeader className="pb-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50 pt-4">
                     <CardTitle className="text-xl text-center text-gray-800">
                         {mode === 'login' && 'Iniciar Sesión'}
                         {mode === 'forgot' && 'Recuperar Contraseña'}
