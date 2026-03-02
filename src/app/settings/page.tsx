@@ -8,20 +8,24 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
     Settings, User, Shield, Palette, Bell, Database,
-    Moon, Sun, Monitor, Check, ChevronRight
+    Moon, Sun, Monitor, Check, ChevronRight, Lock
 } from "lucide-react"
 import Link from "next/link"
+import { SuperuserCredentialPanel } from "@/components/auth/SuperuserCredentialPanel"
 
 type ThemeOption = 'light' | 'dark' | 'system'
 
 export default function SettingsPage() {
-    const { user } = useAuth()
+    const { user, hasPermission } = useAuth()
     const { activeJurisdiction, isDarkMode, toggleDarkMode } = useJurisdiction()
     const [activeSection, setActiveSection] = useState<string>('perfil')
+
+    const isAdmin = user && (user.role === 'superuser' || user.role === 'admin')
 
     const sections = [
         { id: 'perfil', label: 'Mi Perfil', icon: User, description: 'Información personal y preferencias' },
         { id: 'apariencia', label: 'Apariencia', icon: Palette, description: 'Tema visual y personalización' },
+        ...(isAdmin ? [{ id: 'credenciales', label: 'Gestión de Credenciales', icon: Lock, description: 'Administrar usuarios y contraseñas' }] : []),
         { id: 'accesos', label: 'Accesos rápidos', icon: ChevronRight, description: 'Links de administración' },
     ]
 
@@ -165,6 +169,10 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         </Card>
+                    )}
+
+                    {activeSection === 'credenciales' && (
+                        <SuperuserCredentialPanel />
                     )}
 
                     {activeSection === 'accesos' && (

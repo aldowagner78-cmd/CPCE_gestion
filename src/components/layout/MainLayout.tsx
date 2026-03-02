@@ -17,12 +17,12 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     const { activeJurisdiction, isDarkMode } = useJurisdiction();
 
     // Rutas públicas que no requieren layout de dashboard
-    const isPublicPage = pathname?.startsWith('/login');
+    const isPublicPage = pathname?.startsWith('/login') || pathname?.startsWith('/welcome');
 
-    // Protección de rutas: Si no es pública y no hay usuario, redirigir
+    // Protección de rutas: Si no es pública y no hay usuario, redirigir a welcome
     useEffect(() => {
         if (!loading && !user && !isPublicPage) {
-            router.push('/login');
+            router.push('/welcome');
         }
     }, [user, loading, isPublicPage, router]);
 
