@@ -8,7 +8,6 @@ import { useAudits } from "@/lib/useAudits"
 import { useActiveAlerts } from "@/lib/useAlerts"
 import { useDashboardStats } from "@/hooks/useDashboardStats"
 import { KPICards } from "@/components/dashboard/KPICards"
-import { ModuleGrid } from "@/components/dashboard/ModuleGrid"
 import { ROLE_LABELS } from "@/types/auth"
 import Link from "next/link"
 import {
@@ -21,7 +20,6 @@ import {
   Bell,
   Info,
   AlertCircle,
-  Megaphone,
 } from "lucide-react"
 
 const STATUS_BADGE: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -182,15 +180,6 @@ export default function WelcomePage() {
             )}
           </Card>
         )}
-      </div>
-
-      {/* ─── Grid de Módulos ─── */}
-      <div>
-        <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-          <Megaphone className="w-4 h-4" />
-          Módulos Disponibles
-        </h2>
-        <ModuleGrid />
       </div>
     </div>
   )

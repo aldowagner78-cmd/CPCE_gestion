@@ -6,7 +6,6 @@ import {
     Settings,
     ShieldCheck,
     Users,
-    MessageCircle,
     Bell,
     Database,
     Calendar,
@@ -21,6 +20,9 @@ import {
     Shield,
     HelpCircle,
     Search,
+    LayoutGrid,
+    ChevronDown,
+    ChevronRight,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -40,20 +42,23 @@ interface MenuItem {
     useDynamicBadge?: boolean;
 }
 
-// Todos los items del menú con su permiso requerido
-const menuItems: MenuItem[] = [
+// Items principales (siempre visibles)
+const mainItems: MenuItem[] = [
     { icon: Home, label: 'Inicio', href: '/' },
     { icon: Calculator, label: 'Calculadora', href: '/calculator', permission: 'calculator.use' },
-    { icon: Target, label: 'Homologador', href: '/matcher', permission: 'matcher.use' },
     { icon: FileText, label: 'Auditorías', href: '/audits', permission: 'audits.view' },
     { icon: FileCheck, label: 'Pendientes', href: '/pending', permission: 'pending.view' },
     { icon: Users, label: 'Pacientes', href: '/patients', permission: 'patients.view' },
-    { icon: MessageCircle, label: 'Chat', href: '/chat', permission: 'chat.direct_only' },
     { icon: Bell, label: 'Alertas', href: '/alerts', permission: 'alerts.view', useDynamicBadge: true },
     { icon: Calendar, label: 'Agenda', href: '/agenda', permission: 'agenda.view' },
+    { icon: LayoutGrid, label: 'Módulos', href: '/modules' },
+];
+
+// Items secundarios (colapsables bajo "Más herramientas")
+const moreItems: MenuItem[] = [
+    { icon: Target, label: 'Homologador', href: '/matcher', permission: 'matcher.use' },
     { icon: BookOpen, label: 'Nomencladores', href: '/practices', permission: 'nomenclators.view' },
     { icon: Shield, label: 'Protocolos', href: '/protocols', permission: 'protocols.view' },
-    { icon: Search, label: 'Buscador', href: '/buscador', permission: 'nomenclators.view' },
     { icon: HelpCircle, label: 'Ayuda', href: '/help' },
 ];
 
@@ -69,6 +74,7 @@ const adminItems: MenuItem[] = [
 export function Sidebar() {
     const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
+    const [moreOpen, setMoreOpen] = useState(false);
     const { user, signOut, hasPermission, loading } = useAuth();
     const { activeJurisdiction, isDarkMode } = useJurisdiction();
     const activeAlerts = useActiveAlerts(activeJurisdiction?.id);
@@ -128,8 +134,26 @@ export function Sidebar() {
                 </div>
 
                 <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-                    {menuItems.map((item) => {
-                        // Filtrar por permiso (Home siempre visible, superuser ve todo)
+                    {/* Buscador como primer item */}
+                    <Link
+                        href="/buscador"
+                        className={cn(
+                            "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
+                            pathname === '/buscador'
+                                ? "bg-primary/20 text-primary shadow-sm"
+                                : "text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                        )}
+                    >
+                        <Search size={20} className={cn(
+                            pathname === '/buscador' ? "text-primary" : "text-slate-600 dark:text-slate-400 group-hover:text-foreground"
+                        )} />
+                        <span className="flex-1">Buscador</span>
+                    </Link>
+
+                    <div className="my-2 border-t border-border mx-4" />
+
+                    {/* Items principales */}
+                    {mainItems.map((item) => {
                         if (item.permission && !hasPermission(item.permission)) return null;
 
                         const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -158,6 +182,41 @@ export function Sidebar() {
                             </Link>
                         );
                     })}
+
+                    {/* Más herramientas (colapsable) */}
+                    {moreItems.some((item) => !item.permission || hasPermission(item.permission)) && (
+                        <>
+                            <button
+                                onClick={() => setMoreOpen(!moreOpen)}
+                                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 w-full text-muted-foreground hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                            >
+                                {moreOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                <span className="text-xs font-bold uppercase tracking-widest">Más herramientas</span>
+                            </button>
+
+                            {moreOpen && moreItems.map((item) => {
+                                if (item.permission && !hasPermission(item.permission)) return null;
+                                const isActive = pathname.startsWith(item.href);
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={cn(
+                                            "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ml-2",
+                                            isActive
+                                                ? "bg-primary/20 text-primary shadow-sm"
+                                                : "text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                                        )}
+                                    >
+                                        <item.icon size={18} className={cn(
+                                            isActive ? "text-primary" : "text-slate-600 dark:text-slate-400 group-hover:text-foreground"
+                                        )} />
+                                        <span>{item.label}</span>
+                                    </Link>
+                                );
+                            })}
+                        </>
+                    )}
 
                     {!loading && (
                         <>

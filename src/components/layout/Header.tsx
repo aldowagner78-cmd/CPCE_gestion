@@ -4,7 +4,7 @@ import { JurisdictionToggle } from "./JurisdictionToggle"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { useAuth } from "@/contexts/AuthContext"
 import { useActiveAlerts } from "@/lib/useAlerts"
-import { Search, Bell, Settings, Moon, Sun, Home, ChevronRight } from "lucide-react"
+import { Bell, Moon, Sun, Home, ChevronRight, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -28,6 +28,7 @@ const pageTitles: Record<string, string> = {
     '/matcher': 'Homologador',
     '/backup': 'Backup',
     '/protocols': 'Protocolos',
+    '/modules': 'Módulos Disponibles',
 }
 
 export function Header() {
@@ -79,22 +80,8 @@ export function Header() {
                 </h1>
             </div>
 
-            {/* Center: Search Bar — abre Command Palette con Ctrl+K */}
-            <div className="flex-1 max-w-xl mx-8 hidden md:block">
-                <button
-                    onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-                    className="w-full flex items-center gap-3 px-4 py-2 bg-white/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-600 rounded-full text-sm text-muted-foreground hover:border-primary/50 hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                    <Search className="h-4 w-4" />
-                    <span className="flex-1 text-left">Buscar módulos, acciones...</span>
-                    <span className="text-xs bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded border font-mono">
-                        Ctrl+K
-                    </span>
-                </button>
-            </div>
-
             {/* Right: Actions & Avatar */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
                 <JurisdictionToggle />
 
                 <Button
@@ -107,10 +94,14 @@ export function Header() {
                     {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
 
-                <Button variant="ghost" size="icon" className="text-slate-600 dark:text-slate-300">
-                    <Settings className="h-5 w-5" />
-                </Button>
+                {/* Chat */}
+                <Link href="/chat">
+                    <Button variant="ghost" size="icon" className="text-slate-600 dark:text-slate-300 relative" title="Chat interno">
+                        <MessageCircle className="h-5 w-5" />
+                    </Button>
+                </Link>
 
+                {/* Alertas */}
                 <Link href="/alerts">
                     <Button variant="ghost" size="icon" className="text-slate-600 dark:text-slate-300 relative">
                         <Bell className="h-5 w-5" />
@@ -125,9 +116,11 @@ export function Header() {
                 </Link>
 
                 {/* Avatar con iniciales del usuario */}
-                <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border border-primary/20" title={user?.full_name || 'Usuario'}>
-                    {user?.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
-                </div>
+                <Link href="/settings">
+                    <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border border-primary/20 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all" title={user?.full_name || 'Usuario'}>
+                        {user?.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+                    </div>
+                </Link>
             </div>
         </header>
     )
