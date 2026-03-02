@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { Loader2 } from 'lucide-react'
 import Image from 'next/image'
@@ -10,6 +10,7 @@ import Image from 'next/image'
 export default function WelcomePage() {
     const router = useRouter()
     const { user, loading } = useAuth()
+    const [phase, setPhase] = useState<'splash' | 'auth'>('splash')
 
     // Redirect if already logged in
     useEffect(() => {
@@ -18,92 +19,109 @@ export default function WelcomePage() {
         }
     }, [user, loading, router])
 
+    // Splash → Auth transition after 2.5 seconds
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setPhase('auth')
+        }, 2500)
+        return () => clearTimeout(timer)
+    }, [])
+
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-100">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <div className="h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700">
+                <Loader2 className="h-8 w-8 animate-spin text-white" />
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-100 p-4">
-            {/* Background decorative elements */}
-            <div className="absolute top-0 left-0 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl -z-10" />
-            <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl -z-10" />
+        <div className="h-screen overflow-hidden relative flex items-center justify-center">
+            {/* Animated Background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 transition-all duration-1000" />
+            <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-400/20 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-400/20 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute top-[30%] right-[20%] w-[300px] h-[300px] bg-indigo-300/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
 
-            <div className="w-full max-w-4xl flex flex-col items-center gap-12">
-                {/* Welcome Section */}
-                <div className="text-center space-y-6 max-w-2xl">
+            {/* Content Container - centered, no scroll */}
+            <div className="relative z-10 w-full max-w-md px-4 flex flex-col items-center">
+
+                {/* SPLASH PHASE: Logo + Title + Message */}
+                <div
+                    className={`flex flex-col items-center text-center transition-all duration-700 ease-in-out ${
+                        phase === 'splash'
+                            ? 'opacity-100 translate-y-0'
+                            : 'opacity-0 -translate-y-8 absolute pointer-events-none'
+                    }`}
+                >
                     {/* Logo */}
-                    <div className="flex justify-center">
-                        <div className="relative w-24 h-24 p-3 bg-white rounded-full shadow-lg flex items-center justify-center ring-2 ring-blue-100">
-                            <Image
-                                src="/logo.png"
-                                alt="Logo CPCE"
-                                width={80}
-                                height={80}
-                                className="object-contain"
-                                priority
-                            />
-                        </div>
+                    <div className="w-28 h-28 p-4 bg-white/95 rounded-full shadow-2xl flex items-center justify-center ring-4 ring-white/30 mb-8">
+                        <Image
+                            src="/logo.png"
+                            alt="Logo CPCE"
+                            width={88}
+                            height={88}
+                            className="object-contain"
+                            priority
+                        />
                     </div>
 
-                    {/* Title & Subtitle */}
-                    <div className="space-y-2">
-                        <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-900 to-indigo-900 bg-clip-text text-transparent">
-                            CPCE Salud
-                        </h1>
-                        <p className="text-lg font-semibold text-blue-600 uppercase tracking-widest">
-                            Consejo Profesional de Ciencias Económicas
-                        </p>
-                    </div>
+                    {/* Title */}
+                    <h1 className="text-5xl font-bold text-white tracking-tight mb-3">
+                        CPCE Salud
+                    </h1>
+                    <p className="text-blue-200 text-sm font-semibold uppercase tracking-[0.25em] mb-8">
+                        Consejo Profesional de Ciencias Económicas
+                    </p>
 
-                    {/* Welcome Message */}
-                    <div className="space-y-4 text-gray-700">
-                        <p className="text-xl font-light leading-relaxed">
-                            Bienvenido al sistema integral de gestión de auditorías y cobertura de servicios de salud.
-                        </p>
-                        <p className="text-base text-gray-600 leading-relaxed">
-                            Accede a tu cuenta para gestionar pacientes, auditorías, agendas, alertas y mucho más.
-                            Un sistema moderno, seguro y diseñado para profesionales como vos.
-                        </p>
-                    </div>
+                    {/* Welcome message */}
+                    <p className="text-white/80 text-lg font-light leading-relaxed max-w-sm">
+                        Sistema integral de gestión de auditorías y cobertura de servicios de salud
+                    </p>
 
-                    {/* Features Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10 pb-8">
-                        <div className="p-4 bg-white/60 backdrop-blur-sm rounded-lg border border-blue-100 hover:border-blue-300 transition-colors">
-                            <div className="text-2xl mb-2">📋</div>
-                            <h3 className="font-semibold text-gray-900 text-sm mb-1">Auditorías</h3>
-                            <p className="text-xs text-gray-600">Gestiona casos y auditorías de cobertura</p>
-                        </div>
-                        <div className="p-4 bg-white/60 backdrop-blur-sm rounded-lg border border-blue-100 hover:border-blue-300 transition-colors">
-                            <div className="text-2xl mb-2">👥</div>
-                            <h3 className="font-semibold text-gray-900 text-sm mb-1">Pacientes</h3>
-                            <p className="text-xs text-gray-600">Administra registros y datos de pacientes</p>
-                        </div>
-                        <div className="p-4 bg-white/60 backdrop-blur-sm rounded-lg border border-blue-100 hover:border-blue-300 transition-colors">
-                            <div className="text-2xl mb-2">⏰</div>
-                            <h3 className="font-semibold text-gray-900 text-sm mb-1">Agenda</h3>
-                            <p className="text-xs text-gray-600">Planifica consultas y reuniones</p>
-                        </div>
+                    {/* Loading dots */}
+                    <div className="flex gap-2 mt-10">
+                        <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                        <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                        <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
                     </div>
                 </div>
 
-                {/* Auth Modal - Centered */}
-                <div className="w-full max-w-md">
+                {/* AUTH PHASE: Small logo + Auth Modal */}
+                <div
+                    className={`w-full flex flex-col items-center transition-all duration-700 ease-in-out ${
+                        phase === 'auth'
+                            ? 'opacity-100 translate-y-0'
+                            : 'opacity-0 translate-y-8 absolute pointer-events-none'
+                    }`}
+                >
+                    {/* Compact header */}
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 p-1.5 bg-white/95 rounded-full shadow-lg flex items-center justify-center">
+                            <Image
+                                src="/logo.png"
+                                alt="Logo CPCE"
+                                width={28}
+                                height={28}
+                                className="object-contain"
+                            />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-white leading-tight">CPCE Salud</h2>
+                            <p className="text-blue-200 text-[10px] uppercase tracking-widest">Acceso al sistema</p>
+                        </div>
+                    </div>
+
+                    {/* Auth Modal */}
                     <AuthModal
                         onLoginSuccess={() => {
                             router.push('/')
                         }}
                     />
-                </div>
 
-                {/* Footer */}
-                <div className="text-center text-sm text-gray-500 mt-8 border-t border-gray-200 pt-6 w-full">
-                    <p>© 2024 CPCE Salud. Todos los derechos reservados.</p>
-                    <p className="text-xs mt-2">
-                        Este sistema es de acceso restringido. Para solicitar acceso, contacte a administración.
+                    {/* Footer */}
+                    <p className="text-blue-200/60 text-xs mt-6 text-center">
+                        © 2024 CPCE Salud · Acceso restringido
                     </p>
                 </div>
             </div>
