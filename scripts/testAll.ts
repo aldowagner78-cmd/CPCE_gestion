@@ -3,6 +3,16 @@ import { calculateCoverage } from '../src/lib/coverageEngine';
 import { AuditService } from '../src/services/auditService';
 import { AlertService } from '../src/services/alertService';
 import { MOCK_AFFILIATES, MOCK_PLANS, MOCK_PRACTICES } from '../src/lib/mockData';
+import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+
+dotenv.config({ path: '.env.local' });
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = (supabaseUrl && supabaseAnonKey)
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
 
 const colors = {
     reset: "\x1b[0m",
@@ -25,6 +35,71 @@ function logTest(group: string, id: string, name: string, success: boolean, erro
         console.log(`${colors.red}[FAIL] ${group}.${id} — ${name}${colors.reset}`);
         if (error) console.log(`${colors.yellow}       Error: ${error}${colors.reset}`);
     }
+}
+
+async function getDbFixture() {
+    if (!supabase) {
+        return null;
+    }
+
+    const { data: affiliate, error: affiliateError } = await supabase
+        .from('affiliates')
+        .select('id, full_name, document_number, birth_date, plan_id, jurisdiction_id, start_date, created_at')
+        .limit(1)
+        .maybeSingle();
+
+    if (affiliateError || !affiliate) {
+        return null;
+    }
+
+    const { data: plan, error: planError } = await supabase
+        .from('plans')
+        .select('id, name, jurisdiction_id, coverage_percent, waiting_period_months, created_at')
+        .eq('id', affiliate.plan_id)
+        .maybeSingle();
+
+    if (planError || !plan) {
+        return null;
+    }
+
+    const { data: practiceRow, error: practiceError } = await supabase
+        .from('practices')
+        .select('id, code, name, category, fixed_value, jurisdiction_id, created_at')
+        .eq('jurisdiction_id', affiliate.jurisdiction_id)
+        .limit(1)
+        .maybeSingle();
+
+    if (practiceError || !practiceRow) {
+        return null;
+    }
+
+    const practice = {
+        id: practiceRow.id,
+        code: practiceRow.code,
+        description: practiceRow.name,
+        category: practiceRow.category,
+        financial_value: practiceRow.fixed_value ?? 1000,
+        jurisdiction_id: practiceRow.jurisdiction_id,
+        created_at: practiceRow.created_at,
+    };
+
+    const normalizedPlan = {
+        id: plan.id,
+        name: plan.name,
+        jurisdiction_id: plan.jurisdiction_id,
+        rules: {
+            coverage_percent: plan.coverage_percent ?? 80,
+            waiting_period_months: plan.waiting_period_months ?? 0,
+        },
+        created_at: plan.created_at,
+    };
+
+    const normalizedAffiliate = {
+        ...affiliate,
+        birth_date: affiliate.birth_date ?? '1990-01-01',
+    };
+
+    return { affiliate: normalizedAffiliate, plan: normalizedPlan, practice };
 }
 
 function runGroup2() {
@@ -82,13 +157,16 @@ function runGroup2() {
     }
 }
 
-function runGroup3() {
+async function runGroup3() {
     console.log(`\n${colors.bold}--- GRUPO 3: SERVICIO DE AUDITORÍAS ---${colors.reset}`);
 
-    // Setup
-    const affiliate = MOCK_AFFILIATES[0];
-    const plan = MOCK_PLANS[0];
-    const practice = MOCK_PRACTICES[0];
+    const fixture = await getDbFixture();
+    if (!fixture) {
+        logTest('T3', '0', 'No se pudo cargar fixture de Supabase', false);
+        return;
+    }
+
+    const { affiliate, plan, practice } = fixture;
     const resultDetails = {
         covered: true,
         percentage: 100,
@@ -99,55 +177,51 @@ function runGroup3() {
     };
 
     // T3.1 Create Approved
-    const audit1 = AuditService.create(affiliate, plan, practice, resultDetails);
-    logTest('T3', '1', 'Crear auditoría aprobada', audit1.status === 'approved');
+    const audit1 = await AuditService.create(affiliate as any, plan as any, practice as any, resultDetails);
+    logTest('T3', '1', 'Crear auditoría aprobada', audit1?.status === 'approved');
 
     // T3.2 Create Rejected
     const resultRejected = { ...resultDetails, covered: false };
-    const audit2 = AuditService.create(affiliate, plan, practice, resultRejected);
-    logTest('T3', '2', 'Crear auditoría rechazada', audit2.status === 'rejected');
+    const audit2 = await AuditService.create(affiliate as any, plan as any, practice as any, resultRejected);
+    logTest('T3', '2', 'Crear auditoría rechazada', audit2?.status === 'rejected');
 
     // T3.3 Create Auth Required
     const resultAuth = { ...resultDetails, authorizationRequired: true };
-    const audit3 = AuditService.create(affiliate, plan, practice, resultAuth);
-    logTest('T3', '3', 'Crear auditoría req. auth', audit3.status === 'requires_auth');
+    const audit3 = await AuditService.create(affiliate as any, plan as any, practice as any, resultAuth);
+    logTest('T3', '3', 'Crear auditoría req. auth', audit3?.status === 'requires_auth');
 
     // T3.5 Update Status
-    const updated = AuditService.updateStatus(audit3.id, 'approved', 'Revisado OK');
+    let updated = null;
+    if (audit3?.id) {
+        updated = await AuditService.updateStatus(audit3.id, 'approved', 'Revisado OK');
+    }
     logTest('T3', '5', 'Actualizar estado', updated?.status === 'approved' && updated?.notes === 'Revisado OK');
 
     // T3.6 Get All & Filter
+    await AuditService.fetchAll();
     const all = AuditService.getAll();
     const juris1 = AuditService.getAll(1);
     // We created 3 audits for affiliate 1 (Jurisdiction 1).
     logTest('T3', '6', 'Get All & Filter', all.length >= 3 && juris1.length >= 3);
 }
 
-function runGroup4() {
+async function runGroup4() {
     console.log(`\n${colors.bold}--- GRUPO 4: SERVICIO DE ALERTAS ---${colors.reset}`);
 
-    // Reset stores ideally, but they are module level.
-    // T4.1 Empty
-    // Trying to clear alerts if possible or just check current state.
-    // Since we just created audits in Group 3, alerts might have triggered automatically (T4.8).
+    const fixture = await getDbFixture();
+    if (!fixture) {
+        logTest('T4', '0', 'No se pudo cargar fixture de Supabase', false);
+        return;
+    }
 
-    const alerts = AlertService.getAll();
-    // In Group 3 we created 3 audits for the same affiliate. 
-    // Rule 1 is > 4 consults/month. We have 3. 
-    // Let's create 2 more to trigger Rule 1.
-
-    const affiliate = MOCK_AFFILIATES[0];
-    const plan = MOCK_PLANS[0];
-    const practice = MOCK_PRACTICES[0]; // Category Consultas
+    const { affiliate, plan, practice } = fixture;
+    await AuditService.fetchAll();
     const result = { covered: true, percentage: 100, coveredAmount: 1000, copay: 0, authorizationRequired: false, messages: [] };
 
-    // We need > 4 approved audits.
-    // From Group 3, we have 1 approved audit (T3.1).
-    // So we need 4 more approved audits.
-    AuditService.create(affiliate, plan, practice, result); // 2nd
-    AuditService.create(affiliate, plan, practice, result); // 3rd
-    AuditService.create(affiliate, plan, practice, result); // 4th
-    AuditService.create(affiliate, plan, practice, result); // 5th
+    await AuditService.create(affiliate as any, plan as any, practice as any, result);
+    await AuditService.create(affiliate as any, plan as any, practice as any, result);
+    await AuditService.create(affiliate as any, plan as any, practice as any, result);
+    await AuditService.create(affiliate as any, plan as any, practice as any, result);
 
     // T4.8 & T4.2 -> Should trigger alert
     // Wait a tick or calling evaluate manually to be sure, though Service calls it automatically.
@@ -162,10 +236,10 @@ function runGroup4() {
     // T4.3 Monto Acumulado
     // Rule 2: > 500k in 3 months.
     // Let's create a huge audit.
-    const practiceExpensive = { ...MOCK_PRACTICES[0], id: 999, financial_value: 600000, category: 'Alta Complejidad' };
+    const practiceExpensive = { ...practice, financial_value: 600000, category: 'Alta Complejidad' };
     const resultExpensive = { ...result, coveredAmount: 600000 };
 
-    AuditService.create(affiliate, plan, practiceExpensive, resultExpensive);
+    await AuditService.create(affiliate as any, plan as any, practiceExpensive as any, resultExpensive);
     AlertService.evaluate();
 
     const alertsExpensive = AlertService.getAll();
@@ -174,14 +248,21 @@ function runGroup4() {
 }
 
 // MAIN
-console.log("Iniciando Suite de Pruebas Automatizadas CPCE...");
-runGroup2();
-runGroup3();
-runGroup4();
+async function main() {
+    console.log("Iniciando Suite de Pruebas Automatizadas CPCE...");
+    runGroup2();
+    await runGroup3();
+    await runGroup4();
 
-console.log(`\n${colors.bold}RESUMEN:${colors.reset}`);
-console.log(`Total: ${passCount + failCount}`);
-console.log(`${colors.green}PASS: ${passCount}${colors.reset}`);
-console.log(`${colors.red}FAIL: ${failCount}${colors.reset}`);
+    console.log(`\n${colors.bold}RESUMEN:${colors.reset}`);
+    console.log(`Total: ${passCount + failCount}`);
+    console.log(`${colors.green}PASS: ${passCount}${colors.reset}`);
+    console.log(`${colors.red}FAIL: ${failCount}${colors.reset}`);
 
-if (failCount > 0) process.exit(1);
+    if (failCount > 0) process.exit(1);
+}
+
+main().catch((error) => {
+    console.error('Error ejecutando testAll:', error);
+    process.exit(1);
+});
