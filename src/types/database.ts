@@ -60,8 +60,66 @@ export type Affiliate = {
 export type UserProfile = {
     id: string
     full_name?: string
-    role: 'admin' | 'auditor' | 'affiliate' | 'supervisor' | 'superuser'
+    role: 'admin' | 'auditor' | 'affiliate' | 'supervisor' | 'superuser' | 'administrativo' | 'gerencia'
     jurisdiction_id?: number
+    is_superuser?: boolean
+    created_at: string
+}
+
+// ── Roles y Permisos ──
+
+export type Role = {
+    id: number
+    name: string
+    display_name: string
+    description?: string
+    is_system: boolean
+    created_at: string
+}
+
+export type DbPermission = {
+    id: number
+    module: string
+    action: string
+    description?: string
+}
+
+export type UserRoleAssignment = {
+    id: number
+    user_id: string
+    role_id: number
+    assigned_by?: string
+    assigned_at: string
+    role?: Role              // joined
+}
+
+// ── Recaudación ──
+
+export type PlanRevenue = {
+    id: number
+    plan_id: number
+    period: string           // YYYY-MM-DD (primer día del mes)
+    amount: number
+    affiliate_count?: number
+    jurisdiction_id: number
+    notes?: string
+    created_by?: string
+    created_at: string
+    plan_name?: string       // joined
+}
+
+// ── Anuncios ──
+
+export type Announcement = {
+    id: string
+    title: string
+    body?: string
+    priority: 'low' | 'normal' | 'high' | 'urgent'
+    is_active: boolean
+    target_roles: string[]
+    jurisdiction_id?: number
+    author_id?: string
+    expires_at?: string
     created_at: string
 }
 

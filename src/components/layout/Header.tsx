@@ -2,8 +2,9 @@
 
 import { JurisdictionToggle } from "./JurisdictionToggle"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
+import { useAuth } from "@/contexts/AuthContext"
 import { useActiveAlerts } from "@/lib/useAlerts"
-import { Search, Bell, Settings, Moon, Sun } from "lucide-react"
+import { Search, Bell, Settings, Moon, Sun, Home, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { usePathname } from "next/navigation"
@@ -11,23 +12,32 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 const pageTitles: Record<string, string> = {
-    '/': 'Dashboard',
+    '/': 'Inicio',
     '/calculator': 'Calculadora de Cobertura',
     '/practices': 'Nomencladores',
+    '/practices/external': 'Nomencladores Externos',
     '/patients': 'Pacientes',
     '/audits': 'Auditorías',
     '/alerts': 'Alertas Presupuestarias',
     '/help': 'Centro de Ayuda',
     '/settings': 'Configuración',
+    '/settings/values': 'Valores de Unidades',
     '/pending': 'Pendientes',
     '/users': 'Usuarios',
+    '/chat': 'Chat',
+    '/agenda': 'Agenda',
+    '/matcher': 'Homologador',
+    '/backup': 'Backup',
+    '/protocols': 'Protocolos',
 }
 
 export function Header() {
     const { activeJurisdiction, isDarkMode, toggleDarkMode } = useJurisdiction()
+    const { user } = useAuth()
     const pathname = usePathname()
     const pageTitle = pageTitles[pathname] || 'CPCE Salud'
     const activeAlerts = useActiveAlerts(activeJurisdiction?.id)
+    const isHome = pathname === '/'
 
     // Colores dinámicos para header (mismo que sidebar)
     const headerColors = {
@@ -46,12 +56,25 @@ export function Header() {
 
     return (
         <header className={cn("sticky top-0 z-30 flex h-16 items-center justify-between border-b shadow-sm px-6", getHeaderBg())}>
-            {/* Left: Page Title */}
-            <div className="flex items-center gap-4">
+            {/* Left: Home + Breadcrumb */}
+            <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" className="md:hidden">
                     <span className="sr-only">Menu</span>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                 </Button>
+
+                {!isHome && (
+                    <Link href="/">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary" title="Volver al inicio">
+                            <Home className="h-5 w-5" />
+                        </Button>
+                    </Link>
+                )}
+
+                {!isHome && (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                )}
+
                 <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-200">
                     {pageTitle}
                 </h1>
@@ -103,9 +126,9 @@ export function Header() {
                     </Button>
                 </Link>
 
-                {/* Solo avatar, sin texto */}
-                <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border border-primary/20">
-                    SA
+                {/* Avatar con iniciales del usuario */}
+                <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border border-primary/20" title={user?.full_name || 'Usuario'}>
+                    {user?.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                 </div>
             </div>
         </header>

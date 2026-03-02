@@ -3,16 +3,15 @@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
-import { useAuditCounts, useAudits } from "@/lib/useAudits"
-import { useActiveAlerts, useAlertCounts } from "@/lib/useAlerts"
+import { useAuth } from "@/contexts/AuthContext"
+import { useAudits } from "@/lib/useAudits"
+import { useActiveAlerts } from "@/lib/useAlerts"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
+import { KPICards } from "@/components/dashboard/KPICards"
+import { ModuleGrid } from "@/components/dashboard/ModuleGrid"
+import { ROLE_LABELS } from "@/types/auth"
 import Link from "next/link"
 import {
-  Plus,
-  Calculator,
-  FileCheck,
-  FileX,
-  FileClock,
-  AlertCircle,
   FileText,
   CheckCircle,
   XCircle,
@@ -21,6 +20,8 @@ import {
   ShieldCheck,
   Bell,
   Info,
+  AlertCircle,
+  Megaphone,
 } from "lucide-react"
 
 const STATUS_BADGE: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -31,13 +32,15 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: React.E
   requires_auth: { label: "Req. Auth", color: "bg-purple-100 text-purple-700", icon: ShieldCheck },
 }
 
-export default function DashboardPage() {
+export default function WelcomePage() {
   const { activeJurisdiction } = useJurisdiction()
-  const counts = useAuditCounts(activeJurisdiction?.id)
+  const { user, hasPermission } = useAuth()
+  const stats = useDashboardStats(activeJurisdiction?.id)
   const audits = useAudits(activeJurisdiction?.id)
   const recentAudits = audits.slice(0, 5)
-  const alertCounts = useAlertCounts(activeJurisdiction?.id)
   const activeAlerts = useActiveAlerts(activeJurisdiction?.id).slice(0, 3)
+
+  const showRevenue = hasPermission('revenue.view')
 
   const SEVERITY_ICON: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
     critical: { icon: AlertCircle, color: "text-red-600", bg: "bg-red-100" },
@@ -45,207 +48,152 @@ export default function DashboardPage() {
     info: { icon: Info, color: "text-blue-600", bg: "bg-blue-100" },
   }
 
+  // Saludo contextual
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Buenos días'
+    if (hour < 18) return 'Buenas tardes'
+    return 'Buenas noches'
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-6">
-
-        {/* Left Column: Audit Status */}
-        <Card className="flex-1 p-6 space-y-6">
-          <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-            <ClockIcon className="w-4 h-4" />
-            Estado de Auditorías
-          </h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            <StatusPill
-              label="Aprobadas"
-              count={counts.approved}
-              color="bg-status-approved text-status-approved-fg"
-              icon={FileCheck}
-            />
-            <StatusPill
-              label="Rechazadas"
-              count={counts.rejected}
-              color="bg-status-rejected text-status-rejected-fg"
-              icon={FileX}
-            />
-            <StatusPill
-              label="Parciales"
-              count={counts.partial}
-              color="bg-status-partial text-status-partial-fg"
-              icon={AlertCircle}
-            />
-            <StatusPill
-              label="Pendientes"
-              count={counts.pending + counts.requires_auth}
-              color="bg-status-pending text-status-pending-fg"
-              icon={FileClock}
-            />
-          </div>
-        </Card>
-
-        {/* Right Column: Quick Actions */}
-        <Card className="flex-1 p-6 space-y-6">
-          <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-            <ZapIcon className="w-4 h-4" />
-            Acciones Rápidas
-          </h2>
-
-          <div className="space-y-3">
-            <Link href="/patients">
-              <Button className="w-full justify-start h-12 text-base font-medium bg-secondary text-secondary-foreground hover:bg-secondary/90 border border-indigo-200">
-                <UserPlusIcon className="mr-2 h-5 w-5 text-indigo-600" />
-                Nuevo Paciente
-              </Button>
-            </Link>
-
-            <Link href="/calculator">
-              <Button className="w-full justify-start h-12 text-base font-medium bg-action-orange text-white hover:bg-orange-600">
-                <Plus className="mr-2 h-5 w-5" />
-                Nueva Auditoría
-              </Button>
-            </Link>
-
-            <Link href="/calculator">
-              <Button variant="outline" className="w-full justify-start h-12 text-base font-medium border-dashed">
-                <Calculator className="mr-2 h-5 w-5 text-muted-foreground" />
-                Calculadora
-              </Button>
-            </Link>
-          </div>
-        </Card>
+      {/* ─── Encabezado de Bienvenida ─── */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            {getGreeting()}, {user?.full_name?.split(' ')[0] || 'Usuario'}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {ROLE_LABELS[user?.role || 'auditor']} · {activeJurisdiction?.name || 'CPCE Salud'}
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
       </div>
 
-      {/* Middle Section: Alerts Widget */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-            <Bell className="w-4 h-4" />
-            Alertas Presupuestarias
-            {alertCounts.total > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
-                {alertCounts.total}
-              </span>
-            )}
-          </h2>
-          <Link href="/alerts">
-            <Button variant="ghost" className="text-xs text-muted-foreground h-auto p-0 hover:bg-transparent hover:underline">Ver todas</Button>
-          </Link>
-        </div>
+      {/* ─── KPIs ─── */}
+      <KPICards stats={stats} showRevenue={showRevenue} />
 
-        {activeAlerts.length === 0 ? (
-          <div className="flex items-center gap-3 text-sm text-muted-foreground py-4">
-            <div className="bg-green-100 p-2 rounded-full">
-              <CheckCircle className="h-4 w-4 text-green-500" />
+      {/* ─── Fila: Alertas + Últimas Auditorías ─── */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Alertas */}
+        {hasPermission('alerts.view') && (
+          <Card className="lg:w-1/3 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Bell className="w-4 h-4" />
+                Alertas
+                {activeAlerts.length > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
+                    {activeAlerts.length}
+                  </span>
+                )}
+              </h2>
+              <Link href="/alerts">
+                <Button variant="ghost" className="text-xs text-muted-foreground h-auto p-0 hover:bg-transparent hover:underline">Ver todas</Button>
+              </Link>
             </div>
-            <span>Sin alertas activas. El sistema evaluará automáticamente al registrar auditorías.</span>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {activeAlerts.map((alert) => {
-              const sev = SEVERITY_ICON[alert.severity] ?? SEVERITY_ICON.info
-              const SevIcon = sev.icon
-              return (
-                <div key={alert.id} className={`flex items-start gap-3 p-3 rounded-lg border ${alert.severity === 'critical' ? 'border-red-200 bg-red-50/50' : alert.severity === 'warning' ? 'border-amber-200 bg-amber-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
-                  <div className={`p-1.5 rounded-full ${sev.bg} shrink-0`}>
-                    <SevIcon className={`h-3.5 w-3.5 ${sev.color}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground">{alert.rule_name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{alert.description}</p>
-                  </div>
+
+            {activeAlerts.length === 0 ? (
+              <div className="flex items-center gap-3 text-sm text-muted-foreground py-4">
+                <div className="bg-green-100 dark:bg-green-950/50 p-2 rounded-full">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </Card>
-
-      {/* Bottom Section: Recent Audits */}
-      <Card className="relative p-6 min-h-64">
-        <div className="flex w-full justify-between items-center mb-4">
-          <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-            <HistoryIcon className="w-4 h-4" />
-            Últimas Auditorías
-          </h2>
-          <Link href="/audits">
-            <Button variant="ghost" className="text-xs text-muted-foreground h-auto p-0 hover:bg-transparent hover:underline">Ver todas</Button>
-          </Link>
-        </div>
-
-        {recentAudits.length === 0 ? (
-          <div className="flex flex-col justify-center items-center text-center py-12 space-y-2">
-            <div className="bg-gray-100 p-4 rounded-full inline-block">
-              <FileText className="h-8 w-8 text-gray-400" />
-            </div>
-            <h3 className="text-sm font-semibold text-gray-900">Sin auditorías</h3>
-            <p className="text-sm text-muted-foreground">Las auditorías recientes aparecerán aquí</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="pb-2 font-medium">Afiliado</th>
-                  <th className="pb-2 font-medium">Práctica</th>
-                  <th className="pb-2 font-medium">Cobertura</th>
-                  <th className="pb-2 font-medium">Estado</th>
-                  <th className="pb-2 font-medium">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentAudits.map((a) => {
-                  const badge = STATUS_BADGE[a.status] ?? STATUS_BADGE.pending
-                  const BadgeIcon = badge.icon
+                <span>Sin alertas activas</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activeAlerts.map((alert) => {
+                  const sev = SEVERITY_ICON[alert.severity] ?? SEVERITY_ICON.info
+                  const SevIcon = sev.icon
                   return (
-                    <tr key={a.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
-                      <td className="py-2.5">{a.affiliate_name}</td>
-                      <td className="py-2.5">{a.practice_code}</td>
-                      <td className="py-2.5 font-medium">{a.coverage_percent}%</td>
-                      <td className="py-2.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                          <BadgeIcon className="w-3 h-3" />
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-muted-foreground">{new Date(a.created_at).toLocaleDateString("es-AR")}</td>
-                    </tr>
+                    <div key={alert.id} className={`flex items-start gap-3 p-3 rounded-lg border ${alert.severity === 'critical' ? 'border-red-200 bg-red-50/50 dark:bg-red-950/20' : alert.severity === 'warning' ? 'border-amber-200 bg-amber-50/50 dark:bg-amber-950/20' : 'border-blue-200 bg-blue-50/50 dark:bg-blue-950/20'}`}>
+                      <div className={`p-1.5 rounded-full ${sev.bg} shrink-0`}>
+                        <SevIcon className={`h-3.5 w-3.5 ${sev.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground">{alert.rule_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{alert.description}</p>
+                      </div>
+                    </div>
                   )
                 })}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            )}
+          </Card>
         )}
-      </Card>
+
+        {/* Últimas Auditorías */}
+        {hasPermission('audits.view') && (
+          <Card className="flex-1 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <HistoryIcon className="w-4 h-4" />
+                Últimas Auditorías
+              </h2>
+              <Link href="/audits">
+                <Button variant="ghost" className="text-xs text-muted-foreground h-auto p-0 hover:bg-transparent hover:underline">Ver todas</Button>
+              </Link>
+            </div>
+
+            {recentAudits.length === 0 ? (
+              <div className="flex flex-col justify-center items-center text-center py-8 space-y-2">
+                <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-full">
+                  <FileText className="h-8 w-8 text-gray-400" />
+                </div>
+                <p className="text-sm text-muted-foreground">Las auditorías recientes aparecerán aquí</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="pb-2 font-medium">Afiliado</th>
+                      <th className="pb-2 font-medium">Práctica</th>
+                      <th className="pb-2 font-medium">Cobertura</th>
+                      <th className="pb-2 font-medium">Estado</th>
+                      <th className="pb-2 font-medium">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentAudits.map((a) => {
+                      const badge = STATUS_BADGE[a.status] ?? STATUS_BADGE.pending
+                      const BadgeIcon = badge.icon
+                      return (
+                        <tr key={a.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
+                          <td className="py-2.5">{a.affiliate_name}</td>
+                          <td className="py-2.5">{a.practice_code}</td>
+                          <td className="py-2.5 font-medium">{a.coverage_percent}%</td>
+                          <td className="py-2.5">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
+                              <BadgeIcon className="w-3 h-3" />
+                              {badge.label}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-muted-foreground">{new Date(a.created_at).toLocaleDateString("es-AR")}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {/* ─── Grid de Módulos ─── */}
+      <div>
+        <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+          <Megaphone className="w-4 h-4" />
+          Módulos Disponibles
+        </h2>
+        <ModuleGrid />
+      </div>
     </div>
   )
-}
-
-function StatusPill({ label, count, color, icon: Icon }: { label: string, count: number, color: string, icon: any }) {
-  return (
-    <div className="border rounded-lg p-3 space-y-3 hover:shadow-sm transition-shadow">
-      <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
-        <Icon className="w-3 h-3 mr-1" />
-        {label}
-      </div>
-      <div className="text-2xl font-bold text-gray-900">
-        {count}
-      </div>
-    </div>
-  )
-}
-
-// Simple icons for locally defined usage
-function ClockIcon({ className }: { className?: string }) {
-  return <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-}
-
-function ZapIcon({ className }: { className?: string }) {
-  return <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-}
-
-function UserPlusIcon({ className }: { className?: string }) {
-  return <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" /></svg>
 }
 
 function HistoryIcon({ className }: { className?: string }) {

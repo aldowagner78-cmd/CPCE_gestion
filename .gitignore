@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# legacy app binaries (proprietary)
+/App CPCE/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

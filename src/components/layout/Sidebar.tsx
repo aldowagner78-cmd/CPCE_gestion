@@ -14,7 +14,11 @@ import {
     X,
     CreditCard,
     Target,
-    LogOut
+    LogOut,
+    Home,
+    FileCheck,
+    BookOpen,
+    Shield,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -23,24 +27,38 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { useActiveAlerts } from '@/lib/useAlerts';
+import { Permission, ROLE_LABELS } from '@/types/auth';
 import Image from 'next/image';
 
-const menuItems = [
-    { icon: Calculator, label: 'Calculadora', href: '/calculator' },
-    { icon: Target, label: 'Homologador', href: '/matcher' },
-    { icon: FileText, label: 'Auditorías', href: '/audits' },
-    { icon: MessageCircle, label: 'Chat Consultas', href: '/chat' },
-    { icon: Bell, label: 'Alertas', href: '/alerts', useDynamicBadge: true },
-    { icon: Calendar, label: 'Agenda', href: '/agenda' },
-    { icon: FileText, label: 'Nomencladores', href: '/practices' },
-    { icon: Database, label: 'Backup', href: '/backup' },
+interface MenuItem {
+    icon: React.ElementType;
+    label: string;
+    href: string;
+    permission?: Permission;
+    useDynamicBadge?: boolean;
+}
+
+// Todos los items del menú con su permiso requerido
+const menuItems: MenuItem[] = [
+    { icon: Home, label: 'Inicio', href: '/' },
+    { icon: Calculator, label: 'Calculadora', href: '/calculator', permission: 'calculator.use' },
+    { icon: Target, label: 'Homologador', href: '/matcher', permission: 'matcher.use' },
+    { icon: FileText, label: 'Auditorías', href: '/audits', permission: 'audits.view' },
+    { icon: FileCheck, label: 'Pendientes', href: '/pending', permission: 'pending.view' },
+    { icon: Users, label: 'Pacientes', href: '/patients', permission: 'patients.view' },
+    { icon: MessageCircle, label: 'Chat', href: '/chat', permission: 'chat.direct_only' },
+    { icon: Bell, label: 'Alertas', href: '/alerts', permission: 'alerts.view', useDynamicBadge: true },
+    { icon: Calendar, label: 'Agenda', href: '/agenda', permission: 'agenda.view' },
+    { icon: BookOpen, label: 'Nomencladores', href: '/practices', permission: 'nomenclators.view' },
+    { icon: Shield, label: 'Protocolos', href: '/protocols', permission: 'protocols.view' },
 ];
 
-// Admin items
-const adminItems = [
-    { icon: FileText, label: 'Nomencladores Externos', href: '/practices/external', permission: 'nomenclators.view' },
+// Items de administración
+const adminItems: MenuItem[] = [
+    { icon: FileText, label: 'Nomencladores Ext.', href: '/practices/external', permission: 'nomenclators.manage' },
     { icon: Users, label: 'Usuarios', href: '/users', permission: 'users.manage' },
-    { icon: CreditCard, label: 'Valores', href: '/settings/values', permission: 'config.view' },
+    { icon: CreditCard, label: 'Valores', href: '/settings/values', permission: 'config.values' },
+    { icon: Database, label: 'Backup', href: '/backup', permission: 'backup.export' },
     { icon: Settings, label: 'Configuración', href: '/settings', permission: 'config.view' },
 ];
 
@@ -80,10 +98,10 @@ export function Sidebar() {
                 getSidebarBg(),
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                {/* Header del Sidebar con Branding Oficial */}
+                {/* Header del Sidebar con Branding Oficial — Logo clickable como Home */}
                 <div className="p-6 pb-2">
-                    <div className="flex flex-col items-center text-center">
-                        <div className="relative w-16 h-16 bg-white rounded-xl shadow-md p-2 flex items-center justify-center mb-3">
+                    <Link href="/" className="flex flex-col items-center text-center group">
+                        <div className="relative w-16 h-16 bg-white rounded-xl shadow-md p-2 flex items-center justify-center mb-3 group-hover:shadow-lg transition-shadow">
                             <Image
                                 src="/logo.png"
                                 alt="CPCE Logo"
@@ -92,13 +110,13 @@ export function Sidebar() {
                                 className="object-contain"
                             />
                         </div>
-                        <h1 className="text-xl font-bold text-foreground">
+                        <h1 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
                             CPCE Salud
                         </h1>
                         <p className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wider font-medium">
                             Gestión Integral
                         </p>
-                    </div>
+                    </Link>
                 </div>
 
                 <div className="px-6 py-2">
@@ -107,7 +125,10 @@ export function Sidebar() {
 
                 <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
                     {menuItems.map((item) => {
-                        const isActive = pathname.startsWith(item.href);
+                        // Filtrar por permiso (Home siempre visible, superuser ve todo)
+                        if (item.permission && !hasPermission(item.permission)) return null;
+
+                        const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
                         const badgeCount = item.useDynamicBadge ? activeAlerts.length : 0;
                         
                         return (
@@ -136,14 +157,18 @@ export function Sidebar() {
 
                     {!loading && (
                         <>
-                            <div className="my-4 border-t border-border mx-4" />
-                            <div className="px-4 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                                Administración
-                            </div>
+                            {/* Solo mostrar sección admin si hay al menos un item visible */}
+                            {adminItems.some((item) => !item.permission || hasPermission(item.permission)) && (
+                                <>
+                                    <div className="my-4 border-t border-border mx-4" />
+                                    <div className="px-4 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                                        Administración
+                                    </div>
+                                </>
+                            )}
 
                             {adminItems.map((item) => {
-                                // Show if has permission or hardcoded logic for simplicity
-                                if (item.permission && !hasPermission(item.permission as any)) return null;
+                                if (item.permission && !hasPermission(item.permission)) return null;
 
                                 const isActive = pathname.startsWith(item.href);
                                 return (
@@ -178,7 +203,7 @@ export function Sidebar() {
                                 {user?.full_name || 'Usuario'}
                             </p>
                             <p className="text-xs text-muted-foreground capitalize">
-                                {user?.role || 'Invitado'}
+                                {ROLE_LABELS[user?.role || 'auditor'] || user?.role || 'Invitado'}
                             </p>
                         </div>
                     </div>

@@ -3,7 +3,7 @@
  */
 
 // Roles disponibles en el sistema
-export type UserRole = 'superuser' | 'admin' | 'supervisor' | 'auditor' | 'administrativo'
+export type UserRole = 'superuser' | 'admin' | 'supervisor' | 'auditor' | 'administrativo' | 'gerencia'
 
 // Usuario autenticado
 export interface AuthUser {
@@ -22,6 +22,7 @@ export type Permission =
     | 'dashboard.view'
     | 'calculator.use'
     | 'nomenclators.view'
+    | 'nomenclators.manage'
     | 'audits.view'
     | 'audits.create'
     | 'audits.approve'
@@ -31,28 +32,42 @@ export type Permission =
     | 'chat.direct_only'
     | 'agenda.view'
     | 'agenda.create'
+    | 'patients.view'
+    | 'patients.manage'
     | 'config.values'
     | 'config.view'
     | 'users.manage'
     | 'backup.export'
+    | 'matcher.use'
+    | 'pending.view'
+    | 'protocols.view'
+    | 'stats.view'
+    | 'revenue.view'
+    | 'revenue.manage'
 
-// Matriz de permisos por rol
+// Matriz de permisos por rol (fallback local — la fuente de verdad está en Supabase)
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     superuser: [
-        'dashboard.view', 'calculator.use', 'nomenclators.view',
+        'dashboard.view', 'calculator.use', 'nomenclators.view', 'nomenclators.manage',
         'audits.view', 'audits.create', 'audits.approve',
         'alerts.view', 'alerts.resolve',
         'chat.all_channels',
         'agenda.view', 'agenda.create',
-        'config.values', 'config.view', 'users.manage', 'backup.export'
+        'patients.view', 'patients.manage',
+        'config.values', 'config.view', 'users.manage', 'backup.export',
+        'matcher.use', 'pending.view', 'protocols.view',
+        'stats.view', 'revenue.view', 'revenue.manage'
     ],
     admin: [
-        'dashboard.view', 'calculator.use', 'nomenclators.view',
+        'dashboard.view', 'calculator.use', 'nomenclators.view', 'nomenclators.manage',
         'audits.view', 'audits.create', 'audits.approve',
         'alerts.view', 'alerts.resolve',
         'chat.all_channels',
         'agenda.view', 'agenda.create',
-        'config.values', 'config.view', 'backup.export'
+        'patients.view', 'patients.manage',
+        'config.values', 'config.view', 'backup.export',
+        'matcher.use', 'pending.view', 'protocols.view',
+        'stats.view', 'revenue.view', 'revenue.manage'
     ],
     supervisor: [
         'dashboard.view', 'calculator.use', 'nomenclators.view',
@@ -60,19 +75,34 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
         'alerts.view', 'alerts.resolve',
         'chat.all_channels',
         'agenda.view', 'agenda.create',
-        'config.values', 'backup.export'
+        'patients.view',
+        'config.values', 'backup.export',
+        'matcher.use', 'pending.view', 'protocols.view',
+        'stats.view', 'revenue.view'
     ],
     auditor: [
         'dashboard.view', 'calculator.use', 'nomenclators.view',
         'audits.view', 'audits.create',
         'alerts.view',
         'chat.direct_only',
-        'agenda.view'
+        'agenda.view',
+        'patients.view',
+        'matcher.use', 'pending.view', 'protocols.view'
     ],
     administrativo: [
         'dashboard.view', 'calculator.use', 'nomenclators.view',
         'chat.direct_only',
-        'agenda.view'
+        'agenda.view', 'agenda.create',
+        'patients.view', 'patients.manage',
+        'pending.view'
+    ],
+    gerencia: [
+        'dashboard.view',
+        'stats.view', 'revenue.view',
+        'alerts.view',
+        'audits.view',
+        'nomenclators.view',
+        'patients.view'
     ]
 }
 
@@ -93,8 +123,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
     superuser: 'Superusuario',
     admin: 'Administrador',
     supervisor: 'Supervisor',
-    auditor: 'Auditor',
-    administrativo: 'Administrativo'
+    auditor: 'Auditor Médico',
+    administrativo: 'Administrativo',
+    gerencia: 'Gerencia'
 }
 
 // Colores por rol (para badges)
@@ -103,5 +134,6 @@ export const ROLE_COLORS: Record<UserRole, string> = {
     admin: 'bg-blue-100 text-blue-800',
     supervisor: 'bg-emerald-100 text-emerald-800',
     auditor: 'bg-amber-100 text-amber-800',
-    administrativo: 'bg-slate-100 text-slate-800'
+    administrativo: 'bg-slate-100 text-slate-800',
+    gerencia: 'bg-indigo-100 text-indigo-800'
 }

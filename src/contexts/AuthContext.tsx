@@ -2,12 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { AuthUser, UserRole, Permission, userHasPermission } from '@/types/auth'
+import { AuthUser, UserRole, Permission, userHasPermission, ROLE_PERMISSIONS } from '@/types/auth'
+import { getUserPermissions } from '@/services/roleService'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 interface AuthContextType {
     user: AuthUser | null
     loading: boolean
+    permissions: Permission[]
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>
     signOut: () => Promise<void>
     hasPermission: (permission: Permission) => boolean
@@ -18,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null)
     const [loading, setLoading] = useState(true)
+    const [permissions, setPermissions] = useState<Permission[]>([])
     const supabase = createClient()
 
     // BYPASS PARA DESARROLLO: Si falla fetch (porque no existe tabla/columna)
@@ -72,8 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (session?.user) {
                     const profile = await fetchUserProfile(session.user)
                     setUser(profile)
+                    if (profile) {
+                        loadPermissions(profile)
+                    }
                 } else {
                     setUser(null)
+                    setPermissions([])
                 }
             } catch (error) {
                 console.error('Auth init error:', error)
@@ -91,8 +98,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (event === 'SIGNED_IN' && session?.user) {
                     const profile = await fetchUserProfile(session.user)
                     setUser(profile)
+                    if (profile) {
+                        loadPermissions(profile)
+                    }
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null)
+                    setPermissions([])
                 }
             }
         )
@@ -117,19 +128,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    // Carga permisos desde DB (con fallback local)
+    const loadPermissions = async (profile: AuthUser) => {
+        if (profile.is_superuser) {
+            // Superuser tiene todos los permisos
+            setPermissions(Object.values(ROLE_PERMISSIONS).flat().filter((v, i, a) => a.indexOf(v) === i))
+            return
+        }
+        try {
+            const perms = await getUserPermissions(profile.id, profile.role)
+            setPermissions(perms.length > 0 ? perms : ROLE_PERMISSIONS[profile.role] || [])
+        } catch {
+            setPermissions(ROLE_PERMISSIONS[profile.role] || [])
+        }
+    }
+
     const signOut = async () => {
         await supabase.auth.signOut()
         setUser(null)
+        setPermissions([])
     }
 
     const hasPermissionFn = (permission: Permission): boolean => {
-        return userHasPermission(user, permission)
+        if (!user) return false
+        if (user.is_superuser) return true
+        return permissions.includes(permission)
     }
 
     return (
         <AuthContext.Provider value={{
             user,
             loading,
+            permissions,
             signIn,
             signOut,
             hasPermission: hasPermissionFn,
