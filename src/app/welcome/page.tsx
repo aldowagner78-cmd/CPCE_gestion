@@ -37,11 +37,21 @@ export default function WelcomePage() {
 
     return (
         <div className="h-screen overflow-hidden relative flex items-center justify-center">
-            {/* Animated Background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 transition-all duration-1000" />
-            <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-400/20 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-400/20 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute top-[30%] right-[20%] w-[300px] h-[300px] bg-indigo-300/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
+            {/* Animated Background - dims when auth modal appears */}
+            <div className={`absolute inset-0 transition-all duration-1000 ${
+                phase === 'splash'
+                    ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700'
+                    : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900'
+            }`} />
+            <div className={`absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full blur-3xl transition-opacity duration-1000 ${
+                phase === 'splash' ? 'bg-blue-400/20 animate-pulse' : 'bg-blue-400/5'
+            }`} />
+            <div className={`absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl transition-opacity duration-1000 ${
+                phase === 'splash' ? 'bg-purple-400/20 animate-pulse' : 'bg-purple-400/5'
+            }`} />
+            <div className={`absolute top-[30%] right-[20%] w-[300px] h-[300px] rounded-full blur-2xl transition-opacity duration-1000 ${
+                phase === 'splash' ? 'bg-indigo-300/10 animate-pulse' : 'bg-indigo-300/5'
+            }`} style={{ animationDelay: '1s' }} />
 
             {/* Content Container - centered, no scroll */}
             <div className="relative z-10 w-full max-w-md px-4 flex flex-col items-center">
