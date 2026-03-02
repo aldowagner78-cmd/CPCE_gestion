@@ -20,6 +20,7 @@ import {
     BookOpen,
     Shield,
     HelpCircle,
+    Search,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -52,6 +53,7 @@ const menuItems: MenuItem[] = [
     { icon: Calendar, label: 'Agenda', href: '/agenda', permission: 'agenda.view' },
     { icon: BookOpen, label: 'Nomencladores', href: '/practices', permission: 'nomenclators.view' },
     { icon: Shield, label: 'Protocolos', href: '/protocols', permission: 'protocols.view' },
+    { icon: Search, label: 'Buscador', href: '/buscador', permission: 'nomenclators.view' },
     { icon: HelpCircle, label: 'Ayuda', href: '/help' },
 ];
 
