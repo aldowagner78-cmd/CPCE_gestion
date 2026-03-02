@@ -9,9 +9,10 @@
     "lint": "eslint",
     "test:coverage": "npx tsx scripts/testCoverage.ts",
     "test:all": "npx tsx scripts/testAll.ts",
+    "test:roles": "npx tsx scripts/testRoleAccess.ts",
     "test:final": "npx tsx scripts/finalCheck.ts",
     "test:supabase": "npx tsx scripts/testSupabase.ts",
-    "test:smoke": "npm run test:coverage && npm run test:all && npm run test:final && npm run test:supabase"
+    "test:smoke": "npm run test:coverage && npm run test:all && npm run test:roles && npm run test:final && npm run test:supabase"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.13",

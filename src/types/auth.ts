@@ -65,7 +65,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
         'chat.all_channels',
         'agenda.view', 'agenda.create',
         'patients.view', 'patients.manage',
-        'config.values', 'config.view', 'backup.export',
+        'config.values', 'config.view', 'users.manage', 'backup.export',
         'matcher.use', 'pending.view', 'protocols.view',
         'stats.view', 'revenue.view', 'revenue.manage'
     ],

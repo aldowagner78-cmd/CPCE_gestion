@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { AuthUser, UserRole, Permission, userHasPermission, ROLE_PERMISSIONS } from '@/types/auth'
+import { AuthUser, UserRole, Permission, ROLE_PERMISSIONS } from '@/types/auth'
 import { getUserPermissions } from '@/services/roleService'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
@@ -16,6 +16,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const DEV_AUTH_BYPASS = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null)
@@ -23,8 +24,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [permissions, setPermissions] = useState<Permission[]>([])
     const supabase = createClient()
 
-    // BYPASS PARA DESARROLLO: Si falla fetch (porque no existe tabla/columna)
-    // o si el usuario no tiene rol asignado, lo hacemos superuser temporalmente.
     const fetchUserProfile = async (authUser: SupabaseUser): Promise<AuthUser | null> => {
         try {
             const { data, error } = await supabase
@@ -33,20 +32,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .eq('email', authUser.email)
                 .single()
 
-            // Si hay error (ej: columna no existe) o no hay data, 
-            // creamos un perfil temporal de superusuario
+            // Fallback de desarrollo explícito (solo si se habilita por env var)
             if (error || !data || !data.role) {
-                console.warn('⚠️ DEV MODE: Usando perfil temporal de Superusuario (Bypass)')
-                return {
-                    id: authUser.id,
-                    email: authUser.email!,
-                    full_name: authUser.user_metadata.full_name || 'Usuario (Dev)',
-                    role: 'superuser',          // Forzamos superuser
-                    is_superuser: true,         // Forzamos superuser
-                    jurisdiction_id: 1,
-                    is_active: true,
-                    avatar_url: authUser.user_metadata.avatar_url
+                if (DEV_AUTH_BYPASS) {
+                    console.warn('⚠️ DEV AUTH BYPASS habilitado: perfil temporal de superusuario')
+                    return {
+                        id: authUser.id,
+                        email: authUser.email!,
+                        full_name: authUser.user_metadata.full_name || 'Usuario (Dev)',
+                        role: 'superuser',
+                        is_superuser: true,
+                        jurisdiction_id: 1,
+                        is_active: true,
+                        avatar_url: authUser.user_metadata.avatar_url
+                    }
                 }
+
+                console.error('Perfil de usuario no encontrado o sin rol. Acceso denegado.')
+                return null
             }
 
             // Normal flow
