@@ -22,6 +22,7 @@ import {
     ShieldCheck,
     FilePlus2,
     Clock,
+    BarChart3,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -61,6 +62,7 @@ const auditItems: MenuItem[] = [
     { icon: Clock, label: 'Pendientes', href: '/audits/requests', permission: 'audits.view' },
     { icon: FileCheck, label: 'Realizadas', href: '/audits', permission: 'audits.view' },
     { icon: CreditCard, label: 'Facturación', href: '/audits/post', permission: 'audits.view' },
+    { icon: BarChart3, label: 'Reportes', href: '/audits/reports', permission: 'audits.view' },
 ];
 
 // Items de administración (colapsable, por rol)
