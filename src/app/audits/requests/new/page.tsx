@@ -24,6 +24,8 @@ import type {
     ExpedientType, ExpedientDocumentType, ExpedientPriority,
     Affiliate, Practice, Plan,
 } from '@/types/database';
+import { compressImage, formatBytes, validateFileSize } from '@/lib/imageCompressor';
+import type { CompressResult } from '@/lib/imageCompressor';
 
 const supabase = createClient();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +69,9 @@ interface ConsumptionItem {
 interface PendingFile {
     file: File;
     documentType: ExpedientDocumentType;
+    originalSize: number;
+    wasCompressed: boolean;
+    savingsPercent: number;
 }
 
 // ── Configuración de tipos de expediente ──
@@ -140,6 +145,7 @@ export default function NewExpedientPage() {
     const [notes, setNotes] = useState('');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [docType, setDocType] = useState<ExpedientDocumentType>('orden_medica');
+    const [compressing, setCompressing] = useState(false);
 
     // ── Estado: Motor de reglas ──
     const [rulesEvaluated, setRulesEvaluated] = useState(false);
@@ -357,13 +363,38 @@ export default function NewExpedientPage() {
     // ═  ARCHIVOS
     // ═══════════════════════════════════════════
 
-    const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files) return;
-        setFiles(prev => [
-            ...prev,
-            ...Array.from(e.target.files!).map(f => ({ file: f, documentType: docType })),
-        ]);
+    const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const rawFiles = Array.from(e.target.files);
         e.target.value = '';
+
+        // Validar tamaño antes de comprimir
+        for (const f of rawFiles) {
+            const check = validateFileSize(f);
+            if (!check.valid) {
+                setError(check.message || 'Archivo demasiado grande');
+                return;
+            }
+        }
+
+        setCompressing(true);
+        setError('');
+        try {
+            const results: CompressResult[] = await Promise.all(
+                rawFiles.map(f => compressImage(f))
+            );
+            const newFiles: PendingFile[] = results.map(r => ({
+                file: r.file,
+                documentType: docType,
+                originalSize: r.originalSize,
+                wasCompressed: r.wasCompressed,
+                savingsPercent: r.savingsPercent,
+            }));
+            setFiles(prev => [...prev, ...newFiles]);
+        } catch {
+            setError('Error procesando archivos');
+        }
+        setCompressing(false);
     };
 
     // ═══════════════════════════════════════════
@@ -982,9 +1013,15 @@ export default function NewExpedientPage() {
                             <input type="file" className="hidden" onChange={handleFileAdd}
                                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple />
                         </label>
-                        {files.length > 0 && (
+                        {compressing && (
+                            <span className="text-xs text-muted-foreground animate-pulse flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Comprimiendo...
+                            </span>
+                        )}
+                        {files.length > 0 && !compressing && (
                             <span className="text-xs text-muted-foreground">
-                                <Paperclip className="h-3 w-3 inline mr-0.5" />{files.length} archivo(s)
+                                <Paperclip className="h-3 w-3 inline mr-0.5" />
+                                {files.length} archivo(s) · {formatBytes(files.reduce((s, f) => s + f.file.size, 0))}
                             </span>
                         )}
                     </div>
@@ -1007,6 +1044,10 @@ export default function NewExpedientPage() {
                                 <span key={i} className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
                                     <span className="text-muted-foreground">[{DOC_TYPES.find(d => d.value === f.documentType)?.label}]</span>
                                     {f.file.name.length > 20 ? f.file.name.slice(0, 18) + '…' : f.file.name}
+                                    <span className="text-muted-foreground/60">{formatBytes(f.file.size)}</span>
+                                    {f.wasCompressed && (
+                                        <span className="text-green-600 font-medium" title={`Original: ${formatBytes(f.originalSize)}`}>-{f.savingsPercent}%</span>
+                                    )}
                                     <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}>
                                         <X className="h-3 w-3" />
                                     </button>
