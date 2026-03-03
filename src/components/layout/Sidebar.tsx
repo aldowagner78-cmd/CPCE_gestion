@@ -23,6 +23,7 @@ import {
     FilePlus2,
     Clock,
     BarChart3,
+    History,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -47,6 +48,7 @@ const mainItems: MenuItem[] = [
     { icon: LayoutGrid, label: 'Módulos', href: '/modules' },
     { icon: Calendar, label: 'Agenda', href: '/agenda', permission: 'agenda.view' },
     { icon: Users, label: 'Pacientes', href: '/patients', permission: 'patients.view' },
+    { icon: History, label: 'Historial', href: '/history', permission: 'patients.view' },
 ];
 
 // Herramientas (colapsable)

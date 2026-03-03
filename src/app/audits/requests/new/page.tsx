@@ -18,7 +18,7 @@ import {
     BarChart3, Smile, Calendar, Phone, Mail,
     MapPin, FileText, AlertTriangle,
     Zap, ShieldAlert, Eye, Loader2,
-    MessageSquare,
+    MessageSquare, Filter, Clock,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -65,6 +65,22 @@ interface ConsumptionItem {
     practiceName: string;
     count: number;
     lastDate: string;
+}
+
+interface DetailedConsumption {
+    id: string;
+    date: string;
+    practiceCode: string;
+    practiceName: string;
+    practiceId: number;
+    status: string;
+    coveredAmount: number;
+    copayAmount: number;
+    expedientNumber: string;
+    auditorName: string;
+    providerName: string;
+    quantity: number;
+    source: 'expedient' | 'audit' | 'request';
 }
 
 interface PendingFile {
@@ -132,8 +148,13 @@ export default function NewExpedientPage() {
 
     // ── Estado: Consumos del afiliado ──
     const [consumptions, setConsumptions] = useState<ConsumptionItem[]>([]);
+    const [detailedConsumptions, setDetailedConsumptions] = useState<DetailedConsumption[]>([]);
     const [showConsumptions, setShowConsumptions] = useState(false);
     const [loadingConsumptions, setLoadingConsumptions] = useState(false);
+    const [consumptionTab, setConsumptionTab] = useState<'same' | 'all'>('all');
+    const [consumptionDateFrom, setConsumptionDateFrom] = useState('');
+    const [consumptionDateTo, setConsumptionDateTo] = useState('');
+    const [showConsumptionFilters, setShowConsumptionFilters] = useState(false);
 
     // ── Estado: Prácticas (múltiples) ──
     const [pracSearch, setPracSearch] = useState('');
@@ -144,6 +165,10 @@ export default function NewExpedientPage() {
     // ── Estado: Extras ──
     const [priority, setPriority] = useState<ExpedientPriority>('normal');
     const [diagnosis, setDiagnosis] = useState('');
+    const [diagnosisCode, setDiagnosisCode] = useState('');
+    const [diagSearch, setDiagSearch] = useState('');
+    const [diagResults, setDiagResults] = useState<{ id: number; code: string; name: string; chapter: string }[]>([]);
+    const [searchingDiag, setSearchingDiag] = useState(false);
     const [notes, setNotes] = useState('');
     const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string }[]>([]);
     const [files, setFiles] = useState<PendingFile[]>([]);
@@ -216,6 +241,24 @@ export default function NewExpedientPage() {
         return () => clearTimeout(t);
     }, [pracSearch, searchPracs]);
 
+    // Debounce CIE-10
+    useEffect(() => {
+        if (diagSearch.length < 2) { setDiagResults([]); return; }
+        const t = setTimeout(async () => {
+            setSearchingDiag(true);
+            try {
+                const { data } = await db('diseases')
+                    .select('id, code, name, chapter')
+                    .or(`code.ilike.%${diagSearch}%,name.ilike.%${diagSearch}%`)
+                    .order('code')
+                    .limit(15);
+                setDiagResults((data || []) as { id: number; code: string; name: string; chapter: string }[]);
+            } catch { setDiagResults([]); }
+            setSearchingDiag(false);
+        }, 300);
+        return () => clearTimeout(t);
+    }, [diagSearch]);
+
     // ── Seleccionar / deseleccionar afiliado ──
 
     const selectAffiliate = useCallback(async (a: Affiliate) => {
@@ -245,10 +288,14 @@ export default function NewExpedientPage() {
         setAffSearch('');
         setShowConsumptions(false);
         setConsumptions([]);
+        setDetailedConsumptions([]);
         setPlanName('');
         setAffiliatePlan(null);
         setRulesEvaluated(false);
         setRulesResult(null);
+        setConsumptionTab('all');
+        setConsumptionDateFrom('');
+        setConsumptionDateTo('');
     }, []);
 
     // ═══════════════════════════════════════════
@@ -259,72 +306,80 @@ export default function NewExpedientPage() {
         if (!affiliate) return;
         setLoadingConsumptions(true);
         try {
-            const [auditsRes, requestsRes, expRes] = await Promise.all([
-                supabase.from('audits')
-                    .select('practice_id, created_at')
-                    .eq('affiliate_id', String(affiliate.id))
-                    .order('created_at', { ascending: false }).limit(200),
-                supabase.from('audit_requests')
-                    .select('practice_id, created_at, practice_quantity')
-                    .eq('affiliate_id', String(affiliate.id))
-                    .order('created_at', { ascending: false }).limit(200),
-                db('expedients')
-                    .select('id, created_at')
-                    .eq('affiliate_id', String(affiliate.id))
-                    .order('created_at', { ascending: false }).limit(50),
-            ]);
+            // Obtener expedientes con sus prácticas detalladas
+            const { data: exps } = await db('expedients')
+                .select('id, expedient_number, created_at, status, resolved_by')
+                .eq('affiliate_id', String(affiliate.id))
+                .order('created_at', { ascending: false })
+                .limit(100);
 
-            // Buscar prácticas de expedientes
-            const expIds = ((expRes.data || []) as Array<{ id: string }>).map(e => e.id);
+            const expList = (exps || []) as Record<string, unknown>[];
+            const expIds = expList.map(e => e.id as string);
+
             let expPractices: Record<string, unknown>[] = [];
             if (expIds.length > 0) {
                 const { data } = await db('expedient_practices')
-                    .select('practice_id, quantity, created_at')
-                    .in('expedient_id', expIds)
-                    .in('status', ['autorizada', 'autorizada_parcial', 'pendiente', 'en_revision']);
+                    .select('id, expedient_id, practice_id, quantity, status, covered_amount, copay_amount, created_at')
+                    .in('expedient_id', expIds);
                 expPractices = (data || []) as Record<string, unknown>[];
             }
 
-            const allRecords = [
-                ...(auditsRes.data || []),
-                ...(requestsRes.data || []),
-                ...expPractices,
-            ];
-            const practiceIds = [...new Set(
-                allRecords.map((r: Record<string, unknown>) => r.practice_id).filter(Boolean)
-            )];
-
-            if (practiceIds.length === 0) {
-                setConsumptions([]);
-                setShowConsumptions(true);
-                setLoadingConsumptions(false);
-                return;
+            // Obtener prácticas (nombres/códigos)
+            const allPracticeIds = [...new Set(expPractices.map(ep => ep.practice_id).filter(Boolean))];
+            let practiceMap = new Map<unknown, Record<string, unknown>>();
+            if (allPracticeIds.length > 0) {
+                const { data: practices } = await supabase.from('practices').select('id, code, name').in('id', allPracticeIds);
+                practiceMap = new Map((practices || []).map((p: Record<string, unknown>) => [p.id, p]));
             }
 
-            const { data: practices } = await supabase
-                .from('practices').select('id, code, name').in('id', practiceIds);
-            const practiceMap = new Map(
-                (practices || []).map((p: Record<string, unknown>) => [p.id, p])
-            );
+            // Obtener nombres de auditores
+            const auditorIds = [...new Set(expList.map(e => e.resolved_by).filter(Boolean))];
+            let auditorMap = new Map<unknown, string>();
+            if (auditorIds.length > 0) {
+                const { data: users } = await db('users').select('id, full_name').in('id', auditorIds);
+                auditorMap = new Map((users || []).map((u: Record<string, unknown>) => [u.id, u.full_name as string]));
+            }
 
+            // Mapear expedientes por ID
+            const expMap = new Map(expList.map(e => [e.id, e]));
+
+            // Construir detalle
+            const detailed: DetailedConsumption[] = expPractices.map(ep => {
+                const exp = expMap.get(ep.expedient_id) || {};
+                const prac = practiceMap.get(ep.practice_id) || {};
+                return {
+                    id: (ep.id as string) || String(Math.random()),
+                    date: (ep.created_at || (exp as Record<string, unknown>).created_at || '') as string,
+                    practiceCode: (prac.code as string) || '',
+                    practiceName: (prac.name as string) || 'Práctica',
+                    practiceId: (ep.practice_id as number) || 0,
+                    status: (ep.status as string) || (exp as Record<string, unknown>).status as string || 'pendiente',
+                    coveredAmount: (ep.covered_amount as number) || 0,
+                    copayAmount: (ep.copay_amount as number) || 0,
+                    expedientNumber: ((exp as Record<string, unknown>).expedient_number as string) || '',
+                    auditorName: auditorMap.get((exp as Record<string, unknown>).resolved_by) || '',
+                    providerName: '',
+                    quantity: (ep.quantity as number) || 1,
+                    source: 'expedient' as const,
+                };
+            });
+
+            setDetailedConsumptions(detailed.sort((a, b) => (b.date || '').localeCompare(a.date || '')));
+
+            // También agrupar para resumen
             const grouped: Record<number, ConsumptionItem> = {};
-            for (const r of allRecords) {
-                const rec = r as Record<string, unknown>;
-                const pid = rec.practice_id as number;
-                if (!pid) continue;
-                if (!grouped[pid]) {
-                    const pInfo = practiceMap.get(pid) as Record<string, unknown> | undefined;
-                    grouped[pid] = {
-                        practiceCode: (pInfo?.code as string) || String(pid),
-                        practiceName: (pInfo?.name as string) || 'Práctica',
+            for (const d of detailed) {
+                if (!grouped[d.practiceId]) {
+                    grouped[d.practiceId] = {
+                        practiceCode: d.practiceCode,
+                        practiceName: d.practiceName,
                         count: 0,
                         lastDate: '',
                     };
                 }
-                grouped[pid].count += ((rec.practice_quantity as number) || (rec.quantity as number) || 1);
-                const date = rec.created_at as string;
-                if (!grouped[pid].lastDate || date > grouped[pid].lastDate) {
-                    grouped[pid].lastDate = date;
+                grouped[d.practiceId].count += d.quantity;
+                if (!grouped[d.practiceId].lastDate || d.date > grouped[d.practiceId].lastDate) {
+                    grouped[d.practiceId].lastDate = d.date;
                 }
             }
 
@@ -332,6 +387,7 @@ export default function NewExpedientPage() {
             setShowConsumptions(true);
         } catch {
             setConsumptions([]);
+            setDetailedConsumptions([]);
         }
         setLoadingConsumptions(false);
     }, [affiliate]);
@@ -503,6 +559,7 @@ export default function NewExpedientPage() {
                 affiliate_plan_id: affiliate.plan_id,
                 family_member_relation: affiliate.relationship,
                 request_notes: allNotes || undefined,
+                diagnosis_code: diagnosisCode || undefined,
                 diagnosis_description: diagnosis || undefined,
                 requires_control_desk: finalRulesResult?.requires_control_desk || false,
                 rules_result: finalRulesResult?.overall,
@@ -548,6 +605,7 @@ export default function NewExpedientPage() {
 
     const resetForm = () => {
         setAffiliate(null); setPracticeItems([]); setFiles([]); setNotes(''); setDiagnosis('');
+        setDiagnosisCode(''); setDiagSearch(''); setDiagResults([]);
         setPriority('normal'); setSubmitted(false); setSubmittedExpNumber('');
         setAutoApprovedCodes([]); setAffSearch(''); setPracSearch('');
         setShowConsumptions(false); setConsumptions([]); setPlanName('');
@@ -804,7 +862,7 @@ export default function NewExpedientPage() {
                         </div>
 
                         {/* Condiciones especiales */}
-                        {(specialConds.length > 0 || affiliate.special_pharmacy || (affiliate.copay_debt && affiliate.copay_debt > 0)) && (
+                        {(specialConds.length > 0 || affiliate.special_pharmacy || Number(affiliate.copay_debt) > 0) && (
                             <div className="px-4 pb-3 flex flex-wrap gap-1.5">
                                 {specialConds.map(sc => (
                                     <span key={sc} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">⚠️ {sc}</span>
@@ -812,8 +870,8 @@ export default function NewExpedientPage() {
                                 {affiliate.special_pharmacy && (
                                     <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-medium">💊 Farmacia especial</span>
                                 )}
-                                {affiliate.copay_debt && affiliate.copay_debt > 0 && (
-                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">💰 Deuda coseguro: ${affiliate.copay_debt.toLocaleString()}</span>
+                                {Number(affiliate.copay_debt) > 0 && (
+                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">💰 Deuda coseguro: ${affiliate.copay_debt!.toLocaleString()}</span>
                                 )}
                                 {affiliate.frozen_quota && (
                                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">❄️ Cuota congelada</span>
@@ -847,31 +905,136 @@ export default function NewExpedientPage() {
                             >
                                 <span className="flex items-center gap-2 font-medium">
                                     <BarChart3 className="h-4 w-4" /> Consumos del afiliado
+                                    {detailedConsumptions.length > 0 && (
+                                        <span className="text-xs text-muted-foreground font-normal">({detailedConsumptions.length} registros)</span>
+                                    )}
                                 </span>
                                 {loadingConsumptions ? (
                                     <span className="text-xs text-muted-foreground animate-pulse">Cargando...</span>
                                 ) : showConsumptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                             {showConsumptions && (
-                                <div className="px-4 pb-3">
-                                    {consumptions.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground py-2">Sin consumos registrados.</p>
-                                    ) : (
-                                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                                            {consumptions.map(c => (
-                                                <div key={c.practiceCode} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2.5 py-1.5">
-                                                    <span>
-                                                        <span className="font-mono font-medium">{c.practiceCode}</span>
-                                                        <span className="ml-1.5">{c.practiceName}</span>
-                                                    </span>
-                                                    <span className="text-muted-foreground ml-2 shrink-0">
-                                                        ×{c.count}
-                                                        {c.lastDate && ` · últ. ${new Date(c.lastDate).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })}`}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                <div className="px-4 pb-3 space-y-2">
+                                    {/* Tabs */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex gap-1 bg-muted/40 rounded-lg p-0.5 flex-1">
+                                            <button
+                                                onClick={() => setConsumptionTab('same')}
+                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                                    consumptionTab === 'same' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                Misma práctica
+                                            </button>
+                                            <button
+                                                onClick={() => setConsumptionTab('all')}
+                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                                    consumptionTab === 'all' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                Todos los consumos
+                                            </button>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowConsumptionFilters(prev => !prev)}
+                                            className={`p-1.5 rounded-md border text-xs ${showConsumptionFilters ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                                            title="Filtros"
+                                        >
+                                            <Filter className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {/* Filtros */}
+                                    {showConsumptionFilters && (
+                                        <div className="flex gap-2 items-center flex-wrap bg-muted/20 rounded-lg p-2">
+                                            <label className="text-xs text-muted-foreground">Desde:</label>
+                                            <input type="date" value={consumptionDateFrom} onChange={e => setConsumptionDateFrom(e.target.value)}
+                                                className="border rounded px-2 py-1 text-xs bg-background" />
+                                            <label className="text-xs text-muted-foreground">Hasta:</label>
+                                            <input type="date" value={consumptionDateTo} onChange={e => setConsumptionDateTo(e.target.value)}
+                                                className="border rounded px-2 py-1 text-xs bg-background" />
+                                            {(consumptionDateFrom || consumptionDateTo) && (
+                                                <button onClick={() => { setConsumptionDateFrom(''); setConsumptionDateTo(''); }}
+                                                    className="text-xs text-red-500 hover:text-red-700">Limpiar</button>
+                                            )}
                                         </div>
                                     )}
+
+                                    {/* Contenido según tab */}
+                                    {(() => {
+                                        const currentPracticeIds = practiceItems.map(pi => pi.practice.id);
+                                        let filtered = consumptionTab === 'same'
+                                            ? detailedConsumptions.filter(d => currentPracticeIds.includes(d.practiceId))
+                                            : detailedConsumptions;
+
+                                        if (consumptionDateFrom) filtered = filtered.filter(d => d.date >= consumptionDateFrom);
+                                        if (consumptionDateTo) filtered = filtered.filter(d => d.date <= consumptionDateTo + 'T23:59:59');
+
+                                        if (consumptionTab === 'same' && currentPracticeIds.length === 0) {
+                                            return <p className="text-xs text-muted-foreground py-2">Agregá prácticas al expediente para ver consumos de la misma práctica.</p>;
+                                        }
+
+                                        if (filtered.length === 0) {
+                                            return <p className="text-xs text-muted-foreground py-2">Sin consumos registrados{consumptionTab === 'same' ? ' para estas prácticas' : ''}.</p>;
+                                        }
+
+                                        return (
+                                            <div className="space-y-1 max-h-52 overflow-y-auto">
+                                                {filtered.map(c => {
+                                                    const statusColors: Record<string, string> = {
+                                                        autorizada: 'bg-green-100 text-green-700',
+                                                        autorizada_parcial: 'bg-yellow-100 text-yellow-700',
+                                                        denegada: 'bg-red-100 text-red-700',
+                                                        pendiente: 'bg-blue-100 text-blue-700',
+                                                        en_revision: 'bg-purple-100 text-purple-700',
+                                                    };
+                                                    return (
+                                                        <div key={c.id} className="flex items-center gap-2 text-xs bg-muted/30 rounded px-2.5 py-2 hover:bg-muted/50 transition-colors">
+                                                            <div className="flex items-center gap-1 text-muted-foreground shrink-0 w-20">
+                                                                <Clock className="h-3 w-3" />
+                                                                {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <span className="font-mono font-medium">{c.practiceCode}</span>
+                                                                <span className="ml-1 truncate">{c.practiceName}</span>
+                                                                {c.quantity > 1 && <span className="text-muted-foreground"> ×{c.quantity}</span>}
+                                                            </div>
+                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
+                                                                {c.status.replace(/_/g, ' ')}
+                                                            </span>
+                                                            {c.coveredAmount > 0 && (
+                                                                <span className="text-green-700 font-mono shrink-0" title="Monto cubierto">
+                                                                    ${c.coveredAmount.toLocaleString()}
+                                                                </span>
+                                                            )}
+                                                            {c.copayAmount > 0 && (
+                                                                <span className="text-orange-600 font-mono shrink-0" title="Coseguro">
+                                                                    cos.${c.copayAmount.toLocaleString()}
+                                                                </span>
+                                                            )}
+                                                            {c.expedientNumber && (
+                                                                <span className="text-muted-foreground font-mono shrink-0" title="Nro. expediente">
+                                                                    #{c.expedientNumber}
+                                                                </span>
+                                                            )}
+                                                            {c.auditorName && (
+                                                                <span className="text-muted-foreground shrink-0 truncate max-w-[80px]" title={`Auditor: ${c.auditorName}`}>
+                                                                    👤 {c.auditorName.split(' ')[0]}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t">
+                                                    <span>{filtered.length} registro(s)</span>
+                                                    <span>
+                                                        Cob. total: ${filtered.reduce((s, c) => s + c.coveredAmount, 0).toLocaleString()}
+                                                        {' · '}Coseg. total: ${filtered.reduce((s, c) => s + c.copayAmount, 0).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>
@@ -1024,16 +1187,62 @@ export default function NewExpedientPage() {
                     </div>
                 </div>
 
-                {/* Diagnóstico */}
-                <div>
+                {/* Diagnóstico CIE-10 */}
+                <div className="relative">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1 block">
-                        Diagnóstico presuntivo
+                        Diagnóstico presuntivo <span className="normal-case text-muted-foreground/60">(opcional · CIE-10)</span>
                     </label>
-                    <Input
-                        placeholder="Ej: Fractura de fémur, Diabetes tipo 2, Control de rutina..."
-                        value={diagnosis}
-                        onChange={e => setDiagnosis(e.target.value)}
-                    />
+                    {diagnosis ? (
+                        <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-muted/30">
+                            <Stethoscope className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <span className="font-mono font-semibold text-sm">{diagnosisCode}</span>
+                                <span className="ml-2 text-sm">{diagnosis}</span>
+                            </div>
+                            <button onClick={() => { setDiagnosis(''); setDiagnosisCode(''); setDiagSearch(''); }}
+                                className="text-muted-foreground hover:text-foreground p-1">
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Buscar diagnóstico CIE-10 (ej: diabetes, J45, fractura...)"
+                                    value={diagSearch}
+                                    onChange={e => setDiagSearch(e.target.value)}
+                                    className="pl-9"
+                                />
+                            </div>
+                            {searchingDiag && (
+                                <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando diagnósticos...</p>
+                            )}
+                            {diagResults.length > 0 && (
+                                <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-56 overflow-y-auto">
+                                    {diagResults.map(d => (
+                                        <button
+                                            key={d.id}
+                                            onClick={() => {
+                                                setDiagnosisCode(d.code);
+                                                setDiagnosis(d.name);
+                                                setDiagSearch('');
+                                                setDiagResults([]);
+                                            }}
+                                            className="w-full px-3 py-2.5 text-left text-sm border-b last:border-0 hover:bg-muted/50 flex items-center gap-2"
+                                        >
+                                            <span className="font-mono font-semibold text-primary shrink-0">{d.code}</span>
+                                            <span className="flex-1 min-w-0 truncate">{d.name}</span>
+                                            <span className="text-xs text-muted-foreground shrink-0">Cap. {d.chapter}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {diagSearch.length >= 2 && !searchingDiag && diagResults.length === 0 && (
+                                <p className="text-xs text-muted-foreground mt-1">No se encontraron diagnósticos para &quot;{diagSearch}&quot;</p>
+                            )}
+                        </>
+                    )}
                 </div>
 
                 {/* Comunicación — estilo chat */}
@@ -1193,7 +1402,7 @@ export default function NewExpedientPage() {
                         <div><span className="text-muted-foreground">Plan:</span> <span className="font-medium">{planName}</span></div>
                         <div><span className="text-muted-foreground">Estado:</span> <span className="font-medium">{affiliate.status}</span></div>
                         {diagnosis && (
-                            <div className="col-span-2"><span className="text-muted-foreground">Diagnóstico:</span> <span className="font-medium">{diagnosis}</span></div>
+                            <div className="col-span-2"><span className="text-muted-foreground">Diagnóstico:</span> <span className="font-mono font-medium">{diagnosisCode}</span> <span className="font-medium">{diagnosis}</span></div>
                         )}
                     </div>
 
@@ -1235,14 +1444,27 @@ export default function NewExpedientPage() {
             {/* ══════════════════════════════════════ */}
             <div className="space-y-2">
                 {!showPreview && (
-                    <Button
-                        onClick={() => setShowPreview(true)}
-                        disabled={!canSubmit}
-                        variant="outline"
-                        className="w-full h-11 text-base border-2"
-                    >
-                        <Eye className="h-4 w-4 mr-2" /> Previsualizar antes de enviar
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => setShowPreview(true)}
+                            disabled={!canSubmit}
+                            variant="outline"
+                            className="flex-1 h-11 text-base border-2"
+                        >
+                            <Eye className="h-4 w-4 mr-2" /> Previsualizar
+                        </Button>
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={!canSubmit}
+                            className="flex-1 h-11 text-base bg-primary hover:bg-primary/90 font-semibold shadow-md"
+                        >
+                            {submitting ? (
+                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
+                            ) : (
+                                <><Send className="h-4 w-4 mr-2" /> Enviar directo</>
+                            )}
+                        </Button>
+                    </div>
                 )}
 
                 {showPreview && (
