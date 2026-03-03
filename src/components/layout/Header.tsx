@@ -1,10 +1,9 @@
 "use client"
 
-import { JurisdictionToggle } from "./JurisdictionToggle"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { useAuth } from "@/contexts/AuthContext"
 import { useActiveAlerts } from "@/lib/useAlerts"
-import { Bell, Moon, Sun, Home, ChevronRight, MessageCircle, HelpCircle } from "lucide-react"
+import { Bell, Moon, Sun, Home, ChevronRight, MessageCircle, HelpCircle, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -35,7 +34,7 @@ const pageTitles: Record<string, string> = {
 
 export function Header() {
     const { activeJurisdiction, isDarkMode, toggleDarkMode } = useJurisdiction()
-    const { user } = useAuth()
+    const { user, signOut } = useAuth()
     const pathname = usePathname()
     const pageTitle = pageTitles[pathname] || 'CPCE Salud'
     const activeAlerts = useActiveAlerts(activeJurisdiction?.id)
@@ -84,8 +83,6 @@ export function Header() {
 
             {/* Right: Actions & Avatar */}
             <div className="flex items-center gap-2">
-                <JurisdictionToggle />
-
                 <Button
                     variant="ghost"
                     size="icon"
@@ -130,6 +127,17 @@ export function Header() {
                         {user?.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                     </div>
                 </Link>
+
+                {/* Cerrar sesión */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => signOut()}
+                    className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
+                    title="Cerrar sesión"
+                >
+                    <LogOut className="h-4.5 w-4.5" />
+                </Button>
             </div>
         </header>
     )

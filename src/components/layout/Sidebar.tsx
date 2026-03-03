@@ -10,7 +10,6 @@ import {
     X,
     CreditCard,
     Target,
-    LogOut,
     FileCheck,
     BookOpen,
     Shield,
@@ -30,8 +29,9 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
+import { JurisdictionToggle } from './JurisdictionToggle';
 
-import { Permission, ROLE_LABELS } from '@/types/auth';
+import { Permission } from '@/types/auth';
 import Image from 'next/image';
 
 interface MenuItem {
@@ -76,7 +76,7 @@ export function Sidebar() {
     const [toolsOpen, setToolsOpen] = useState(false);
     const [auditOpen, setAuditOpen] = useState(true);
     const [adminOpen, setAdminOpen] = useState(false);
-    const { user, signOut, hasPermission, loading } = useAuth();
+    const { user, hasPermission, loading } = useAuth();
     const { activeJurisdiction, isDarkMode } = useJurisdiction();
 
     // Colores dinámicos según jurisdicción
@@ -127,6 +127,11 @@ export function Sidebar() {
                             Gestión Integral
                         </p>
                     </Link>
+
+                    {/* Selector de Cámara */}
+                    <div className="mt-3">
+                        <JurisdictionToggle />
+                    </div>
                 </div>
 
                 <div className="px-6 py-2">
@@ -303,30 +308,6 @@ export function Sidebar() {
                         </>
                     )}
                 </nav>
-
-                <div className="p-4 border-t border-border bg-muted/30">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0 border border-primary/20">
-                            {user?.full_name?.[0]?.toUpperCase() || 'U'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate text-foreground" title={user?.full_name || 'Usuario'}>
-                                {user?.full_name || 'Usuario'}
-                            </p>
-                            <p className="text-xs text-muted-foreground capitalize">
-                                {ROLE_LABELS[user?.role || 'auditor'] || user?.role || 'Invitado'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => signOut()}
-                        className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/30 dark:text-red-400 rounded-md transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800"
-                    >
-                        <LogOut size={16} />
-                        Cerrar Sesión
-                    </button>
-                </div>
             </div>
 
             {isOpen && (
