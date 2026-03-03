@@ -1,6 +1,6 @@
 /**
  * Tipos de base de datos generados para Supabase
- * CPCE Salud
+ * CPCE Salud - Actualizado con tablas de auditoría
  */
 
 export type Json =
@@ -489,6 +489,203 @@ export interface Database {
                     is_edited?: boolean
                     is_deleted?: boolean
                     created_at?: string
+                }
+            }
+            audit_requests: {
+                Row: {
+                    id: string
+                    request_number: string
+                    type: string
+                    priority: string
+                    affiliate_id: string
+                    affiliate_plan_id: number | null
+                    family_member_relation: string | null
+                    practice_id: number
+                    practice_quantity: number
+                    provider_id: number | null
+                    requesting_doctor_id: number | null
+                    disease_id: number | null
+                    diagnosis_code: string | null
+                    diagnosis_description: string | null
+                    coverage_percent: number | null
+                    covered_amount: number | null
+                    copay_amount: number | null
+                    practice_value: number | null
+                    status: string
+                    authorization_id: number | null
+                    authorization_code: string | null
+                    authorization_expiry: string | null
+                    hospitalization_id: number | null
+                    estimated_days: number | null
+                    request_notes: string | null
+                    resolution_notes: string | null
+                    created_by: string
+                    resolved_by: string | null
+                    resolved_at: string | null
+                    jurisdiction_id: number
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    request_number?: string
+                    type: string
+                    priority?: string
+                    affiliate_id: string
+                    affiliate_plan_id?: number | null
+                    family_member_relation?: string | null
+                    practice_id: number
+                    practice_quantity?: number
+                    provider_id?: number | null
+                    requesting_doctor_id?: number | null
+                    disease_id?: number | null
+                    diagnosis_code?: string | null
+                    diagnosis_description?: string | null
+                    coverage_percent?: number | null
+                    covered_amount?: number | null
+                    copay_amount?: number | null
+                    practice_value?: number | null
+                    status?: string
+                    authorization_id?: number | null
+                    authorization_code?: string | null
+                    authorization_expiry?: string | null
+                    hospitalization_id?: number | null
+                    estimated_days?: number | null
+                    request_notes?: string | null
+                    resolution_notes?: string | null
+                    created_by: string
+                    resolved_by?: string | null
+                    resolved_at?: string | null
+                    jurisdiction_id: number
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    request_number?: string
+                    type?: string
+                    priority?: string
+                    affiliate_id?: string
+                    affiliate_plan_id?: number | null
+                    family_member_relation?: string | null
+                    practice_id?: number
+                    practice_quantity?: number
+                    provider_id?: number | null
+                    requesting_doctor_id?: number | null
+                    disease_id?: number | null
+                    diagnosis_code?: string | null
+                    diagnosis_description?: string | null
+                    coverage_percent?: number | null
+                    covered_amount?: number | null
+                    copay_amount?: number | null
+                    practice_value?: number | null
+                    status?: string
+                    authorization_id?: number | null
+                    authorization_code?: string | null
+                    authorization_expiry?: string | null
+                    hospitalization_id?: number | null
+                    estimated_days?: number | null
+                    request_notes?: string | null
+                    resolution_notes?: string | null
+                    created_by?: string
+                    resolved_by?: string | null
+                    resolved_at?: string | null
+                    jurisdiction_id?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            audit_request_notes: {
+                Row: {
+                    id: string
+                    request_id: string
+                    author_id: string
+                    content: string
+                    note_type: string
+                    status_from: string | null
+                    status_to: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    request_id: string
+                    author_id: string
+                    content: string
+                    note_type?: string
+                    status_from?: string | null
+                    status_to?: string | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    request_id?: string
+                    author_id?: string
+                    content?: string
+                    note_type?: string
+                    status_from?: string | null
+                    status_to?: string | null
+                    created_at?: string
+                }
+            }
+            audit_request_attachments: {
+                Row: {
+                    id: string
+                    request_id: string
+                    file_name: string
+                    file_type: string | null
+                    file_size: number | null
+                    storage_path: string
+                    document_type: string
+                    uploaded_by: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    request_id: string
+                    file_name: string
+                    file_type?: string | null
+                    file_size?: number | null
+                    storage_path: string
+                    document_type?: string
+                    uploaded_by: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    request_id?: string
+                    file_name?: string
+                    file_type?: string | null
+                    file_size?: number | null
+                    storage_path?: string
+                    document_type?: string
+                    uploaded_by?: string
+                    created_at?: string
+                }
+            }
+            audit_request_log: {
+                Row: {
+                    id: number
+                    request_id: string
+                    action: string
+                    details: Json
+                    performed_by: string
+                    performed_at: string
+                }
+                Insert: {
+                    id?: number
+                    request_id: string
+                    action: string
+                    details?: Json
+                    performed_by: string
+                    performed_at?: string
+                }
+                Update: {
+                    id?: number
+                    request_id?: string
+                    action?: string
+                    details?: Json
+                    performed_by?: string
+                    performed_at?: string
                 }
             }
         }

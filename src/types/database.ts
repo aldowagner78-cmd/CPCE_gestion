@@ -487,3 +487,109 @@ export type Alert = {
     created_at: string
     reviewed_at?: string
 }
+
+// ── Solicitudes de Auditoría ──
+
+export type AuditRequestType = 'ambulatoria' | 'bioquimica' | 'internacion'
+export type AuditRequestStatus = 'pendiente' | 'en_revision' | 'autorizada' | 'denegada' | 'observada' | 'anulada' | 'vencida'
+export type AuditRequestPriority = 'normal' | 'urgente'
+
+export type AuditRequest = {
+    id: string
+    request_number: string
+    type: AuditRequestType
+    priority: AuditRequestPriority
+    
+    // Afiliado
+    affiliate_id: string
+    affiliate_plan_id?: number
+    family_member_relation?: string
+    
+    // Práctica
+    practice_id: number
+    practice_quantity: number
+    
+    // Prestador
+    provider_id?: number
+    requesting_doctor_id?: number
+    
+    // Diagnóstico (cargado por auditor)
+    disease_id?: number
+    diagnosis_code?: string
+    diagnosis_description?: string
+    
+    // Cobertura calculada
+    coverage_percent?: number
+    covered_amount?: number
+    copay_amount?: number
+    practice_value?: number
+    
+    // Estado
+    status: AuditRequestStatus
+    
+    // Autorización
+    authorization_id?: number
+    authorization_code?: string
+    authorization_expiry?: string
+    
+    // Internación
+    hospitalization_id?: number
+    estimated_days?: number
+    
+    // Notas
+    request_notes?: string
+    resolution_notes?: string
+    
+    // Trazabilidad
+    created_by: string
+    resolved_by?: string
+    resolved_at?: string
+    jurisdiction_id: number
+    created_at: string
+    updated_at: string
+    
+    // Relaciones expandidas (joins)
+    affiliate?: Affiliate
+    practice?: Practice
+    plan?: Plan
+    provider?: Provider
+    requesting_doctor?: Provider
+    disease?: Disease
+    creator?: { full_name: string; role: string }
+    resolver?: { full_name: string; role: string }
+}
+
+export type AuditRequestNote = {
+    id: string
+    request_id: string
+    author_id: string
+    content: string
+    note_type: 'interna' | 'para_afiliado' | 'sistema' | 'resolucion'
+    status_from?: string
+    status_to?: string
+    created_at: string
+    author?: { full_name: string; role: string }
+}
+
+export type AuditRequestAttachment = {
+    id: string
+    request_id: string
+    file_name: string
+    file_type?: string
+    file_size?: number
+    storage_path: string
+    document_type: 'orden_medica' | 'receta' | 'estudio' | 'informe' | 'consentimiento' | 'factura' | 'otro'
+    uploaded_by: string
+    created_at: string
+    uploader?: { full_name: string }
+}
+
+export type AuditRequestLog = {
+    id: number
+    request_id: string
+    action: string
+    details: Record<string, unknown>
+    performed_by: string
+    performed_at: string
+    performer?: { full_name: string }
+}

@@ -29,6 +29,8 @@ const pageTitles: Record<string, string> = {
     '/backup': 'Backup',
     '/protocols': 'Protocolos',
     '/modules': 'Módulos Disponibles',
+    '/audits/requests': 'Solicitudes de Auditoría',
+    '/audits/requests/new': 'Nueva Solicitud',
 }
 
 export function Header() {

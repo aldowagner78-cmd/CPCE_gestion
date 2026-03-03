@@ -56,8 +56,8 @@ const toolItems: MenuItem[] = [
 
 // Auditoría (colapsable)
 const auditItems: MenuItem[] = [
-    { icon: FileText, label: 'Realizadas', href: '/audits', permission: 'audits.view' },
-    { icon: FileCheck, label: 'Pendientes', href: '/pending', permission: 'pending.view' },
+    { icon: FileText, label: 'Solicitudes', href: '/audits/requests', permission: 'audits.view' },
+    { icon: FileCheck, label: 'Realizadas', href: '/audits', permission: 'audits.view' },
 ];
 
 // Items de administración (colapsable, por rol)

@@ -20,8 +20,11 @@ import {
     FileText,
     Filter,
     FileDown,
+    ClipboardList,
+    Plus,
 } from "lucide-react"
 import { generateAuditPDF } from "@/lib/auditPDF"
+import Link from "next/link"
 
 const STATUS_CONFIG: Record<AuditStatus, { label: string; color: string; icon: React.ElementType }> = {
     approved: { label: "Aprobada", color: "bg-green-100 text-green-700", icon: CheckCircle },
@@ -66,13 +69,29 @@ export default function AuditsPage() {
     return (
         <div className="space-y-6 container mx-auto max-w-6xl pt-6">
             {/* Header */}
-            <div className="flex items-center gap-3">
-                <div className="bg-indigo-100 p-2 rounded-lg">
-                    <Activity className="h-6 w-6 text-indigo-600" />
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="bg-indigo-100 p-2 rounded-lg">
+                        <Activity className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Auditorías</h1>
+                        <p className="text-muted-foreground">Registro y seguimiento — {activeJurisdiction.name}</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Auditorías</h1>
-                    <p className="text-muted-foreground">Registro y seguimiento — {activeJurisdiction.name}</p>
+                <div className="flex gap-2">
+                    <Link href="/audits/requests">
+                        <Button variant="outline" size="sm">
+                            <ClipboardList className="h-4 w-4 mr-1" />
+                            Solicitudes
+                        </Button>
+                    </Link>
+                    <Link href="/audits/requests/new">
+                        <Button size="sm">
+                            <Plus className="h-4 w-4 mr-1" />
+                            Nueva Solicitud
+                        </Button>
+                    </Link>
                 </div>
             </div>
 
