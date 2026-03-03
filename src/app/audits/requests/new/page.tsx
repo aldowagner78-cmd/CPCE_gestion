@@ -198,6 +198,28 @@ export default function NewExpedientPage() {
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [submittedExpNumber, setSubmittedExpNumber] = useState('');
+
+    const [commChannel, setCommChannel] = useState<'interna' | 'para_afiliado'>('interna');
+    const [aiLoading, setAiLoading] = useState(false);
+
+    // ── Asistente IA local (costo cero) ──────────────
+    const handlePolishText = () => {
+        if (!notes.trim()) return;
+        setAiLoading(true);
+        const empathyPhrases = [
+            'Le informamos que ',
+            'Nos comunicamos para indicarle que ',
+            'A fin de brindarle la mejor atención, ',
+            'Con el objetivo de resolver su solicitud, ',
+        ];
+        const closing = commChannel === 'para_afiliado'
+            ? ' Quedamos a su disposición ante cualquier consulta.'
+            : ' Se solicita revisarlo a la brevedad.';
+        const opener = empathyPhrases[notes.length % empathyPhrases.length];
+        const polished = opener + notes.trim().charAt(0).toLowerCase() + notes.trim().slice(1) + closing;
+        setNotes(polished);
+        setAiLoading(false);
+    };
     const [autoApprovedCodes, setAutoApprovedCodes] = useState<string[]>([]);
     const [error, setError] = useState('');
 
@@ -584,16 +606,18 @@ export default function NewExpedientPage() {
             }
         }
         try {
-            // Combinar mensajes del chat + nota actual
-            const allNotes = [
-                ...chatMessages.map(m => m.text),
-                ...(notes.trim() ? [notes.trim()] : []),
-            ].join('\n');
-
             // Calcular datos IA finales para guardar en Supabase
             const practiceDesc = practiceItems.map(pi => pi.practice.description).join(', ');
+            const allTextForIA = [
+                ...chatMessages.map(m => m.text),
+                notes.trim(),
+                ocrResult?.text || '',
+                diagnosis,
+                practiceDesc
+            ].join(' ');
+
             const finalIAPriority = aiPriorityResult ?? analyzeClinicalPriority(
-                [allNotes, ocrResult?.text || '', diagnosis, practiceDesc].join(' '),
+                allTextForIA,
                 practiceDesc,
                 diagnosis,
             );
@@ -610,7 +634,7 @@ export default function NewExpedientPage() {
                 affiliate_id: beneficiaryId,
                 affiliate_plan_id: affiliate.plan_id,
                 family_member_relation: beneficiaryRelation,
-                request_notes: allNotes || undefined,
+                request_notes: notes.trim() || undefined, // La nota principal es la que está en el textarea
                 diagnosis_code: diagnosisCode || undefined,
                 diagnosis_description: diagnosis || undefined,
                 requires_control_desk: finalRulesResult?.requires_control_desk || false,
@@ -635,6 +659,17 @@ export default function NewExpedientPage() {
                 })),
             });
 
+            // Guardar mensajes del chat como notas individuales
+            if (chatMessages.length > 0) {
+                for (const msg of chatMessages) {
+                    await ExpedientService.addNote({
+                        expedient_id: expedient.id,
+                        author_id: user.id,
+                        content: msg.text,
+                        note_type: (msg as any).channel || 'interna',
+                    });
+                }
+            }
 
             // Adjuntos
             if (files.length > 0) {
@@ -1321,10 +1356,22 @@ export default function NewExpedientPage() {
 
                 {/* Comunicación — estilo chat */}
                 <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        Comunicación con auditoría
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Comunicación
+                        </label>
+                        <div className="flex gap-1 p-0.5 bg-muted/40 rounded-lg">
+                            <button
+                                onClick={() => setCommChannel('interna')}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${commChannel === 'interna' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
+                            >🔒 Interna</button>
+                            <button
+                                onClick={() => setCommChannel('para_afiliado')}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${commChannel === 'para_afiliado' ? 'bg-background shadow text-primary' : 'text-muted-foreground'}`}
+                            >📢 Afiliado</button>
+                        </div>
+                    </div>
                     <div className="border rounded-xl overflow-hidden">
                         {/* Mensajes previos (si hay) */}
                         {chatMessages.length > 0 && (
@@ -1347,31 +1394,44 @@ export default function NewExpedientPage() {
                         {/* Input de mensaje */}
                         <div className="flex items-end gap-2 p-2 bg-background">
                             <textarea
-                                placeholder="Escribí un mensaje para el auditor..."
+                                placeholder={commChannel === 'para_afiliado' ? 'Mensaje oficial para el afiliado...' : 'Nota interna para auditoría...'}
                                 value={notes}
                                 onChange={e => setNotes(e.target.value)}
                                 rows={2}
                                 className="flex-1 resize-none rounded-xl border border-input bg-muted/30 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                             />
-                            <button
-                                onClick={() => {
-                                    if (!notes.trim()) return;
-                                    setChatMessages(prev => [...prev, {
-                                        from: 'self',
-                                        text: notes.trim(),
-                                        date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-                                    }]);
-                                    setNotes('');
-                                }}
-                                disabled={!notes.trim()}
-                                className="shrink-0 p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Agregar mensaje"
-                            >
-                                <Send className="h-4 w-4" />
-                            </button>
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    onClick={handlePolishText}
+                                    disabled={!notes.trim() || aiLoading}
+                                    className="p-2 rounded-full border hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                                    title="Pulir con IA ✨"
+                                >
+                                    <span className="text-sm">✨</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!notes.trim()) return;
+                                        setChatMessages(prev => [...prev, {
+                                            from: 'self',
+                                            text: notes.trim(),
+                                            date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+                                            // Guardamos el canal en el mensaje para el submit posterior
+                                            channel: commChannel
+                                        }]);
+                                        setNotes('');
+                                    }}
+                                    disabled={!notes.trim()}
+                                    className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    title="Agregar mensaje"
+                                >
+                                    <Send className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
-                        <p className="px-3 pb-2 text-[10px] text-muted-foreground">
-                            Los mensajes quedan registrados como comunicación formal entre administrativos y auditores.
+                        <p className="px-3 pb-2 text-[10px] text-muted-foreground flex justify-between">
+                            <span>{commChannel === 'para_afiliado' ? 'Visible para el Afiliado' : 'Solo visible para personal interno'}</span>
+                            <span className="opacity-50 italic">Canal: {commChannel}</span>
                         </p>
                     </div>
                 </div>
