@@ -72,7 +72,7 @@ export function Sidebar() {
     const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [toolsOpen, setToolsOpen] = useState(false);
-    const [auditOpen, setAuditOpen] = useState(false);
+    const [auditOpen, setAuditOpen] = useState(true);
     const [adminOpen, setAdminOpen] = useState(false);
     const { user, signOut, hasPermission, loading } = useAuth();
     const { activeJurisdiction, isDarkMode } = useJurisdiction();
