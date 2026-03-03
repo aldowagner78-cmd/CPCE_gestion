@@ -5,21 +5,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
-import { AuditRequestService } from '@/services/auditRequestService';
+import { ExpedientService } from '@/services/expedientService';
+import { RulesEngine } from '@/services/rulesEngine';
+import type { PracticeRuleResult, ExpedientRuleResult } from '@/services/rulesEngine';
 import { createClient } from '@/lib/supabase';
 import {
     Search, Upload, AlertCircle, CheckCircle,
     Stethoscope, FlaskConical, Building2,
     ArrowLeft, Paperclip, X, Send, Trash2,
     ChevronDown, ChevronUp, User,
-    ShieldCheck, Package, DollarSign, Lock,
+    ShieldCheck, Package, DollarSign,
     BarChart3, Smile, Calendar, Phone, Mail,
     MapPin, FileText, AlertTriangle,
+    Zap, ShieldAlert, Eye, Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { AuditRequestType, Affiliate, Practice, AuditRequestAttachment } from '@/types/database';
+import type {
+    ExpedientType, ExpedientDocumentType, ExpedientPriority,
+    Affiliate, Practice, Plan,
+} from '@/types/database';
 
 const supabase = createClient();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: string): any => supabase.from(table as any);
 
 // ── Helpers ──
 
@@ -43,11 +51,10 @@ function formatSpecialConditions(sc: unknown): string[] {
 
 // ── Types locales ──
 
-type ExtendedRequestType = AuditRequestType | 'odontologica' | 'programas_especiales' | 'elementos' | 'reintegros';
-
 interface PracticeItem {
     practice: Practice;
     quantity: number;
+    ruleResult?: PracticeRuleResult;
 }
 
 interface ConsumptionItem {
@@ -59,47 +66,55 @@ interface ConsumptionItem {
 
 interface PendingFile {
     file: File;
-    documentType: AuditRequestAttachment['document_type'];
+    documentType: ExpedientDocumentType;
 }
 
-// ── Configuración de tipos de solicitud ──
+// ── Configuración de tipos de expediente ──
 
-const REQUEST_TYPES: {
-    value: ExtendedRequestType;
+const EXPEDIENT_TYPES: {
+    value: ExpedientType;
     label: string;
     short: string;
     icon: React.ElementType;
     cls: string;
-    enabled: boolean;
 }[] = [
-    { value: 'ambulatoria',          label: 'Ambulatoria',       short: 'Amb',  icon: Stethoscope, cls: 'text-blue-700 bg-blue-50 border-blue-300',       enabled: true },
-    { value: 'bioquimica',           label: 'Bioquímica',        short: 'Bio',  icon: FlaskConical, cls: 'text-emerald-700 bg-emerald-50 border-emerald-300', enabled: true },
-    { value: 'internacion',          label: 'Internación',       short: 'Int',  icon: Building2,    cls: 'text-purple-700 bg-purple-50 border-purple-300',   enabled: true },
-    { value: 'odontologica',         label: 'Odontológica',      short: 'Odo',  icon: Smile,        cls: 'text-pink-700 bg-pink-50 border-pink-300',         enabled: false },
-    { value: 'programas_especiales', label: 'Prog. Especiales',  short: 'Prog', icon: ShieldCheck,  cls: 'text-amber-700 bg-amber-50 border-amber-300',      enabled: false },
-    { value: 'elementos',            label: 'Elementos',         short: 'Elem', icon: Package,      cls: 'text-cyan-700 bg-cyan-50 border-cyan-300',         enabled: false },
-    { value: 'reintegros',           label: 'Reintegros',        short: 'Rein', icon: DollarSign,   cls: 'text-orange-700 bg-orange-50 border-orange-300',    enabled: false },
+    { value: 'ambulatoria',          label: 'Ambulatoria',       short: 'Amb',  icon: Stethoscope,  cls: 'text-blue-700 bg-blue-50 border-blue-300' },
+    { value: 'bioquimica',           label: 'Bioquímica',        short: 'Bio',  icon: FlaskConical, cls: 'text-emerald-700 bg-emerald-50 border-emerald-300' },
+    { value: 'internacion',          label: 'Internación',       short: 'Int',  icon: Building2,    cls: 'text-purple-700 bg-purple-50 border-purple-300' },
+    { value: 'odontologica',         label: 'Odontológica',      short: 'Odo',  icon: Smile,        cls: 'text-pink-700 bg-pink-50 border-pink-300' },
+    { value: 'programas_especiales', label: 'Prog. Especiales',  short: 'Prog', icon: ShieldCheck,  cls: 'text-amber-700 bg-amber-50 border-amber-300' },
+    { value: 'elementos',            label: 'Elementos',         short: 'Elem', icon: Package,      cls: 'text-cyan-700 bg-cyan-50 border-cyan-300' },
+    { value: 'reintegros',           label: 'Reintegros',        short: 'Rein', icon: DollarSign,   cls: 'text-orange-700 bg-orange-50 border-orange-300' },
 ];
 
-const DOC_TYPES: { value: AuditRequestAttachment['document_type']; label: string }[] = [
-    { value: 'orden_medica',   label: 'Orden médica' },
-    { value: 'receta',         label: 'Receta' },
-    { value: 'estudio',        label: 'Estudio previo' },
-    { value: 'informe',        label: 'Informe médico' },
-    { value: 'consentimiento', label: 'Consentimiento' },
-    { value: 'otro',           label: 'Otro' },
+const DOC_TYPES: { value: ExpedientDocumentType; label: string }[] = [
+    { value: 'orden_medica',     label: 'Orden médica' },
+    { value: 'receta',           label: 'Receta' },
+    { value: 'estudio',          label: 'Estudio previo' },
+    { value: 'informe',          label: 'Informe médico' },
+    { value: 'consentimiento',   label: 'Consentimiento' },
+    { value: 'historia_clinica', label: 'Historia clínica' },
+    { value: 'factura',          label: 'Factura' },
+    { value: 'otro',             label: 'Otro' },
 ];
+
+// Colores del semáforo
+const RULE_COLORS: Record<string, { bg: string; border: string; text: string; icon: React.ElementType; label: string }> = {
+    verde:    { bg: 'bg-green-50',  border: 'border-green-300', text: 'text-green-700', icon: CheckCircle,   label: 'Auto-aprobable' },
+    amarillo: { bg: 'bg-yellow-50', border: 'border-yellow-300', text: 'text-yellow-700', icon: AlertTriangle, label: 'Requiere auditor' },
+    rojo:     { bg: 'bg-red-50',    border: 'border-red-300', text: 'text-red-700', icon: ShieldAlert, label: 'Requiere auditor' },
+};
 
 // ════════════════════════════════════════════════════════
 // ═  COMPONENTE PRINCIPAL
 // ════════════════════════════════════════════════════════
 
-export default function NewRequestPage() {
+export default function NewExpedientPage() {
     const { user } = useAuth();
     const { activeJurisdiction } = useJurisdiction();
 
     // ── Estado: Tipo ──
-    const [requestType, setRequestType] = useState<ExtendedRequestType>('ambulatoria');
+    const [expedientType, setExpedientType] = useState<ExpedientType>('ambulatoria');
 
     // ── Estado: Afiliado ──
     const [affSearch, setAffSearch] = useState('');
@@ -107,6 +122,7 @@ export default function NewRequestPage() {
     const [affiliate, setAffiliate] = useState<Affiliate | null>(null);
     const [searchingAff, setSearchingAff] = useState(false);
     const [planName, setPlanName] = useState('');
+    const [affiliatePlan, setAffiliatePlan] = useState<Plan | null>(null);
 
     // ── Estado: Consumos del afiliado ──
     const [consumptions, setConsumptions] = useState<ConsumptionItem[]>([]);
@@ -120,22 +136,27 @@ export default function NewRequestPage() {
     const [practiceItems, setPracticeItems] = useState<PracticeItem[]>([]);
 
     // ── Estado: Extras ──
-    const [priority, setPriority] = useState<'normal' | 'urgente'>('normal');
+    const [priority, setPriority] = useState<ExpedientPriority>('normal');
     const [notes, setNotes] = useState('');
     const [files, setFiles] = useState<PendingFile[]>([]);
-    const [docType, setDocType] = useState<AuditRequestAttachment['document_type']>('orden_medica');
+    const [docType, setDocType] = useState<ExpedientDocumentType>('orden_medica');
+
+    // ── Estado: Motor de reglas ──
+    const [rulesEvaluated, setRulesEvaluated] = useState(false);
+    const [rulesResult, setRulesResult] = useState<ExpedientRuleResult | null>(null);
+    const [evaluating, setEvaluating] = useState(false);
 
     // ── Estado: Submit ──
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
-    const [submittedNumbers, setSubmittedNumbers] = useState<string[]>([]);
+    const [submittedExpNumber, setSubmittedExpNumber] = useState('');
+    const [autoApprovedCodes, setAutoApprovedCodes] = useState<string[]>([]);
     const [error, setError] = useState('');
 
     // ═══════════════════════════════════════════
     // ═  BÚSQUEDAS
     // ═══════════════════════════════════════════
 
-    /** Búsqueda inteligente de afiliados: nombre, DNI o nro. afiliado */
     const searchAffs = useCallback(async (q: string) => {
         if (q.length < 2) { setAffResults([]); return; }
         setSearchingAff(true);
@@ -152,7 +173,6 @@ export default function NewRequestPage() {
         setSearchingAff(false);
     }, [activeJurisdiction]);
 
-    /** Búsqueda en nomenclador: código o descripción de práctica */
     const searchPracs = useCallback(async (q: string) => {
         if (q.length < 2) { setPracResults([]); return; }
         setSearchingPrac(true);
@@ -192,11 +212,21 @@ export default function NewRequestPage() {
         setAffiliate(a);
         setAffResults([]);
         setAffSearch('');
+        setRulesEvaluated(false);
+        setRulesResult(null);
         if (a.plan_id) {
-            const { data } = await supabase.from('plans').select('name').eq('id', a.plan_id).single();
-            setPlanName((data as Record<string, unknown> | null)?.name as string || `Plan #${a.plan_id}`);
+            const { data } = await db('plans').select('*').eq('id', a.plan_id).single();
+            if (data) {
+                const plan = data as Plan;
+                setPlanName(plan.name || `Plan #${a.plan_id}`);
+                setAffiliatePlan(plan);
+            } else {
+                setPlanName(`Plan #${a.plan_id}`);
+                setAffiliatePlan(null);
+            }
         } else {
             setPlanName('Sin plan');
+            setAffiliatePlan(null);
         }
     }, []);
 
@@ -206,6 +236,9 @@ export default function NewRequestPage() {
         setShowConsumptions(false);
         setConsumptions([]);
         setPlanName('');
+        setAffiliatePlan(null);
+        setRulesEvaluated(false);
+        setRulesResult(null);
     }, []);
 
     // ═══════════════════════════════════════════
@@ -216,23 +249,37 @@ export default function NewRequestPage() {
         if (!affiliate) return;
         setLoadingConsumptions(true);
         try {
-            // Consultar audits y audit_requests en paralelo
-            const [auditsRes, requestsRes] = await Promise.all([
-                supabase
-                    .from('audits')
+            const [auditsRes, requestsRes, expRes] = await Promise.all([
+                supabase.from('audits')
                     .select('practice_id, created_at')
                     .eq('affiliate_id', String(affiliate.id))
-                    .order('created_at', { ascending: false })
-                    .limit(200),
-                supabase
-                    .from('audit_requests')
+                    .order('created_at', { ascending: false }).limit(200),
+                supabase.from('audit_requests')
                     .select('practice_id, created_at, practice_quantity')
                     .eq('affiliate_id', String(affiliate.id))
-                    .order('created_at', { ascending: false })
-                    .limit(200),
+                    .order('created_at', { ascending: false }).limit(200),
+                db('expedients')
+                    .select('id, created_at')
+                    .eq('affiliate_id', String(affiliate.id))
+                    .order('created_at', { ascending: false }).limit(50),
             ]);
 
-            const allRecords = [...(auditsRes.data || []), ...(requestsRes.data || [])];
+            // Buscar prácticas de expedientes
+            const expIds = ((expRes.data || []) as Array<{ id: string }>).map(e => e.id);
+            let expPractices: Record<string, unknown>[] = [];
+            if (expIds.length > 0) {
+                const { data } = await db('expedient_practices')
+                    .select('practice_id, quantity, created_at')
+                    .in('expedient_id', expIds)
+                    .in('status', ['autorizada', 'autorizada_parcial', 'pendiente', 'en_revision']);
+                expPractices = (data || []) as Record<string, unknown>[];
+            }
+
+            const allRecords = [
+                ...(auditsRes.data || []),
+                ...(requestsRes.data || []),
+                ...expPractices,
+            ];
             const practiceIds = [...new Set(
                 allRecords.map((r: Record<string, unknown>) => r.practice_id).filter(Boolean)
             )];
@@ -244,17 +291,12 @@ export default function NewRequestPage() {
                 return;
             }
 
-            // Obtener info de prácticas
             const { data: practices } = await supabase
-                .from('practices')
-                .select('id, code, name')
-                .in('id', practiceIds);
-
+                .from('practices').select('id, code, name').in('id', practiceIds);
             const practiceMap = new Map(
                 (practices || []).map((p: Record<string, unknown>) => [p.id, p])
             );
 
-            // Agrupar por práctica
             const grouped: Record<number, ConsumptionItem> = {};
             for (const r of allRecords) {
                 const rec = r as Record<string, unknown>;
@@ -269,7 +311,7 @@ export default function NewRequestPage() {
                         lastDate: '',
                     };
                 }
-                grouped[pid].count += ((rec.practice_quantity as number) || 1);
+                grouped[pid].count += ((rec.practice_quantity as number) || (rec.quantity as number) || 1);
                 const date = rec.created_at as string;
                 if (!grouped[pid].lastDate || date > grouped[pid].lastDate) {
                     grouped[pid].lastDate = date;
@@ -285,7 +327,7 @@ export default function NewRequestPage() {
     }, [affiliate]);
 
     // ═══════════════════════════════════════════
-    // ═  GESTIÓN DE PRÁCTICAS (MÚLTIPLES)
+    // ═  GESTIÓN DE PRÁCTICAS
     // ═══════════════════════════════════════════
 
     const addPractice = (practice: Practice) => {
@@ -293,16 +335,22 @@ export default function NewRequestPage() {
         setPracticeItems(prev => [...prev, { practice, quantity: 1 }]);
         setPracSearch('');
         setPracResults([]);
+        setRulesEvaluated(false);
+        setRulesResult(null);
     };
 
     const removePractice = (index: number) => {
         setPracticeItems(prev => prev.filter((_, i) => i !== index));
+        setRulesEvaluated(false);
+        setRulesResult(null);
     };
 
     const updateQuantity = (index: number, qty: number) => {
         setPracticeItems(prev =>
             prev.map((item, i) => i === index ? { ...item, quantity: Math.max(1, qty) } : item)
         );
+        setRulesEvaluated(false);
+        setRulesResult(null);
     };
 
     // ═══════════════════════════════════════════
@@ -319,60 +367,126 @@ export default function NewRequestPage() {
     };
 
     // ═══════════════════════════════════════════
-    // ═  ENVÍO
+    // ═  MOTOR DE REGLAS — EVALUAR
     // ═══════════════════════════════════════════
 
-    const isTypeEnabled = REQUEST_TYPES.find(t => t.value === requestType)?.enabled ?? false;
-    const canSubmit = !!affiliate && practiceItems.length > 0 && !submitting && isTypeEnabled;
+    const handleEvaluate = async () => {
+        if (!affiliate || !affiliatePlan || practiceItems.length === 0) return;
+        setEvaluating(true);
+        setError('');
+        try {
+            const result = await RulesEngine.evaluate({
+                type: expedientType,
+                affiliate,
+                plan: affiliatePlan,
+                practices: practiceItems.map(pi => ({
+                    practice_id: pi.practice.id,
+                    practice: pi.practice,
+                    quantity: pi.quantity,
+                })),
+                jurisdiction_id: activeJurisdiction?.id || 1,
+            });
+
+            setPracticeItems(prev =>
+                prev.map((item, idx) => ({
+                    ...item,
+                    ruleResult: result.practices[idx],
+                }))
+            );
+
+            setRulesResult(result);
+            setRulesEvaluated(true);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Error evaluando reglas');
+        }
+        setEvaluating(false);
+    };
+
+    // ═══════════════════════════════════════════
+    // ═  VALIDACIONES
+    // ═══════════════════════════════════════════
+
+    const hasOrdenMedica = files.some(f => f.documentType === 'orden_medica');
+    const isAffiliateActive = affiliate?.status === 'activo';
+    const isAffiliateBlocked = affiliate && !isAffiliateActive;
+
+    const validationErrors: string[] = [];
+    if (!affiliate) validationErrors.push('Seleccioná un afiliado');
+    if (isAffiliateBlocked) validationErrors.push(`Afiliado ${affiliate?.status} — no se puede procesar`);
+    if (practiceItems.length === 0) validationErrors.push('Agregá al menos una práctica');
+    if (!hasOrdenMedica) validationErrors.push('Orden médica obligatoria — adjuntá el archivo');
+
+    const canEvaluate = !!affiliate && isAffiliateActive && practiceItems.length > 0 && !!affiliatePlan && !evaluating;
+    const canSubmit = canEvaluate && hasOrdenMedica && rulesEvaluated && !submitting;
+
+    const greenCount = practiceItems.filter(pi => pi.ruleResult?.result === 'verde').length;
+    const yellowCount = practiceItems.filter(pi => pi.ruleResult?.result === 'amarillo').length;
+    const redCount = practiceItems.filter(pi => pi.ruleResult?.result === 'rojo').length;
+
+    // ═══════════════════════════════════════════
+    // ═  ENVÍO — CREAR EXPEDIENTE
+    // ═══════════════════════════════════════════
 
     const handleSubmit = async () => {
-        if (!canSubmit || !user || !activeJurisdiction) return;
+        if (!canSubmit || !user || !activeJurisdiction || !affiliate) return;
         setSubmitting(true);
         setError('');
         try {
-            const numbers: string[] = [];
-            let firstRequestId = '';
+            const expedient = await ExpedientService.create({
+                type: expedientType,
+                priority,
+                affiliate_id: String(affiliate.id),
+                affiliate_plan_id: affiliate.plan_id,
+                family_member_relation: affiliate.relationship,
+                request_notes: notes || undefined,
+                requires_control_desk: rulesResult?.requires_control_desk || false,
+                rules_result: rulesResult?.overall,
+                created_by: user.id,
+                jurisdiction_id: activeJurisdiction.id,
+                practices: practiceItems.map((pi, idx) => ({
+                    practice_id: pi.practice.id,
+                    quantity: pi.quantity,
+                    practice_value: pi.practice.financial_value,
+                    coverage_percent: pi.ruleResult?.coverage_percent,
+                    covered_amount: pi.ruleResult?.covered_amount,
+                    copay_amount: pi.ruleResult?.copay_amount,
+                    copay_percent: pi.ruleResult?.copay_percent,
+                    rule_result: pi.ruleResult?.result,
+                    rule_messages: pi.ruleResult?.messages,
+                    sort_order: idx,
+                })),
+            });
 
-            for (const item of practiceItems) {
-                const req = await AuditRequestService.create({
-                    type: requestType as AuditRequestType,
-                    affiliate_id: String(affiliate!.id),
-                    affiliate_plan_id: affiliate!.plan_id,
-                    family_member_relation: affiliate!.relationship,
-                    practice_id: item.practice.id,
-                    practice_quantity: item.quantity,
-                    practice_value: item.practice.financial_value,
-                    request_notes: practiceItems.length > 1
-                        ? `[Grupo de ${practiceItems.length} prácticas] ${notes}`.trim()
-                        : (notes || undefined),
-                    priority,
-                    created_by: user.id,
-                    jurisdiction_id: activeJurisdiction.id,
-                });
-                numbers.push(req.request_number || req.id);
-                if (!firstRequestId) firstRequestId = req.id;
-            }
-
-            // Adjuntos al primer registro
-            if (firstRequestId && files.length > 0) {
+            // Adjuntos
+            if (files.length > 0) {
                 for (const pf of files) {
-                    await AuditRequestService.uploadAttachment(firstRequestId, pf.file, pf.documentType, user.id);
+                    await ExpedientService.uploadAttachment(expedient.id, pf.file, pf.documentType, user.id);
                 }
             }
 
-            setSubmittedNumbers(numbers);
+            // Auto-aprobar prácticas VERDES si corresponde
+            const codes: string[] = [];
+            if (greenCount > 0 && rulesResult?.overall !== 'rojo') {
+                const autoResult = await ExpedientService.autoApprovePractices(expedient.id, user.id);
+                codes.push(...autoResult.authorized.map(a => a.authorization_code));
+            }
+
+            setSubmittedExpNumber(expedient.expedient_number || expedient.id);
+            setAutoApprovedCodes(codes);
             setSubmitted(true);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Error al crear solicitud');
+            setError(err instanceof Error ? err.message : 'Error al crear expediente');
         }
         setSubmitting(false);
     };
 
     const resetForm = () => {
         setAffiliate(null); setPracticeItems([]); setFiles([]); setNotes('');
-        setPriority('normal'); setSubmitted(false); setSubmittedNumbers([]);
-        setAffSearch(''); setPracSearch(''); setShowConsumptions(false);
-        setConsumptions([]); setPlanName('');
+        setPriority('normal'); setSubmitted(false); setSubmittedExpNumber('');
+        setAutoApprovedCodes([]); setAffSearch(''); setPracSearch('');
+        setShowConsumptions(false); setConsumptions([]); setPlanName('');
+        setAffiliatePlan(null); setRulesEvaluated(false); setRulesResult(null);
+        setExpedientType('ambulatoria');
     };
 
     // ═══════════════════════════════════════════
@@ -380,21 +494,55 @@ export default function NewRequestPage() {
     // ═══════════════════════════════════════════
 
     if (submitted) {
+        const allAutoApproved = autoApprovedCodes.length === practiceItems.length && practiceItems.length > 0;
+        const someAutoApproved = autoApprovedCodes.length > 0 && !allAutoApproved;
+
         return (
             <div className="max-w-lg mx-auto p-6 mt-8">
-                <div className="border border-green-200 bg-green-50/50 rounded-xl p-8 text-center">
-                    <CheckCircle className="h-14 w-14 text-green-500 mx-auto mb-3" />
-                    <h2 className="text-xl font-bold text-green-800 mb-1">
-                        {submittedNumbers.length === 1 ? 'Solicitud Enviada' : `${submittedNumbers.length} Solicitudes Enviadas`}
-                    </h2>
-                    <div className="my-3 space-y-1">
-                        {submittedNumbers.map(n => (
-                            <p key={n} className="text-2xl font-mono font-bold text-green-900">{n}</p>
-                        ))}
-                    </div>
-                    <p className="text-sm text-green-600 mb-5">Derivada(s) a auditoría para revisión.</p>
-                    <div className="flex gap-3 justify-center">
-                        <Button onClick={resetForm}>Nueva Solicitud</Button>
+                <div className="border border-green-200 bg-green-50/50 rounded-xl p-8 text-center space-y-4">
+                    <CheckCircle className="h-14 w-14 text-green-500 mx-auto" />
+                    <h2 className="text-xl font-bold text-green-800">Expediente Creado</h2>
+                    <p className="text-3xl font-mono font-bold text-green-900">{submittedExpNumber}</p>
+
+                    {allAutoApproved && (
+                        <div className="bg-green-100 border border-green-300 rounded-lg p-3">
+                            <p className="text-sm font-semibold text-green-800 flex items-center justify-center gap-1.5">
+                                <Zap className="h-4 w-4" /> Todas las prácticas auto-aprobadas
+                            </p>
+                            <div className="mt-2 space-y-1">
+                                {autoApprovedCodes.map(code => (
+                                    <p key={code} className="text-sm font-mono text-green-800">{code}</p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {someAutoApproved && (
+                        <div className="space-y-2">
+                            <div className="bg-green-100 border border-green-300 rounded-lg p-3">
+                                <p className="text-sm font-semibold text-green-800">
+                                    ✓ {autoApprovedCodes.length} práctica(s) auto-aprobada(s):
+                                </p>
+                                <div className="mt-1 space-y-0.5">
+                                    {autoApprovedCodes.map(code => (
+                                        <p key={code} className="text-sm font-mono text-green-800">{code}</p>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                                <p className="text-sm text-yellow-800">
+                                    ⏳ {practiceItems.length - autoApprovedCodes.length} práctica(s) derivada(s) a auditoría
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {autoApprovedCodes.length === 0 && (
+                        <p className="text-sm text-green-600">Derivado a auditoría para revisión.</p>
+                    )}
+
+                    <div className="flex gap-3 justify-center pt-2">
+                        <Button onClick={resetForm}>Nuevo Expediente</Button>
                         <Link href="/audits/requests"><Button variant="outline">Ver Bandeja</Button></Link>
                     </div>
                 </div>
@@ -418,38 +566,36 @@ export default function NewRequestPage() {
                 <Link href="/audits/requests">
                     <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                 </Link>
-                <h1 className="text-xl font-bold">Nueva Solicitud de Auditoría</h1>
+                <div>
+                    <h1 className="text-xl font-bold">Nuevo Expediente</h1>
+                    <p className="text-xs text-muted-foreground">Apertura de expediente digital de auditoría</p>
+                </div>
             </div>
 
             {/* ══════════════════════════════════════ */}
-            {/* ═  TIPO DE SOLICITUD                 ═ */}
+            {/* ═  TIPO DE EXPEDIENTE                ═ */}
             {/* ══════════════════════════════════════ */}
             <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
-                    Tipo de solicitud
+                    Tipo de expediente
                 </label>
                 <div className="flex gap-1.5 flex-wrap">
-                    {REQUEST_TYPES.map(t => {
+                    {EXPEDIENT_TYPES.map(t => {
                         const Icon = t.icon;
-                        const active = requestType === t.value;
+                        const active = expedientType === t.value;
                         return (
                             <button
                                 key={t.value}
-                                onClick={() => t.enabled && setRequestType(t.value)}
-                                disabled={!t.enabled}
-                                className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
-                                    !t.enabled
-                                        ? 'border-dashed border-muted-foreground/20 text-muted-foreground/40 cursor-not-allowed'
-                                        : active
-                                            ? `${t.cls} ring-1 ring-current/20`
-                                            : 'border-border text-muted-foreground hover:border-muted-foreground/40'
+                                onClick={() => { setExpedientType(t.value); setRulesEvaluated(false); setRulesResult(null); }}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
+                                    active
+                                        ? `${t.cls} ring-1 ring-current/20`
+                                        : 'border-border text-muted-foreground hover:border-muted-foreground/40'
                                 }`}
                             >
-                                {!t.enabled && <Lock className="h-3 w-3" />}
                                 <Icon className="h-3.5 w-3.5" />
                                 <span className="hidden sm:inline">{t.label}</span>
                                 <span className="sm:hidden">{t.short}</span>
-                                {!t.enabled && <span className="text-[10px] opacity-60">próx.</span>}
                             </button>
                         );
                     })}
@@ -465,7 +611,6 @@ export default function NewRequestPage() {
                 </label>
 
                 {!affiliate ? (
-                    /* ── Buscador de afiliados ── */
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -517,7 +662,6 @@ export default function NewRequestPage() {
                         )}
                     </div>
                 ) : (
-                    /* ── Ficha completa del afiliado ── */
                     <div className="border rounded-xl overflow-hidden">
                         {/* Cabecera */}
                         <div className="bg-primary/5 border-b px-4 py-3 flex items-start justify-between">
@@ -530,17 +674,13 @@ export default function NewRequestPage() {
                                     {affiliate.cuit && ` · CUIT ${affiliate.cuit}`}
                                 </p>
                             </div>
-                            <button
-                                onClick={clearAffiliate}
-                                className="text-muted-foreground hover:text-foreground p-1"
-                            >
+                            <button onClick={clearAffiliate} className="text-muted-foreground hover:text-foreground p-1">
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
 
-                        {/* Grid de datos del afiliado */}
+                        {/* Grid de datos */}
                         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
-                            {/* Edad + género */}
                             <div className="flex items-center gap-1.5">
                                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                                 <span>{age !== null ? `${age} años` : 'Edad N/D'}</span>
@@ -550,24 +690,16 @@ export default function NewRequestPage() {
                                     </span>
                                 )}
                             </div>
-
-                            {/* Plan */}
                             <div className="flex items-center gap-1.5">
                                 <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="font-medium">
-                                    {planName || (affiliate.plan_id ? `Plan #${affiliate.plan_id}` : 'Sin plan')}
-                                </span>
+                                <span className="font-medium">{planName || 'Sin plan'}</span>
                             </div>
-
-                            {/* Relación / Titular */}
                             <div className="flex items-center gap-1.5">
                                 <User className="h-3.5 w-3.5 text-muted-foreground" />
                                 <span className={affiliate.relationship === 'Titular' ? 'font-semibold text-blue-700' : ''}>
                                     {affiliate.relationship || 'Titular'}
                                 </span>
                             </div>
-
-                            {/* Estado */}
                             <div>
                                 <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
                                     affiliate.status === 'activo' ? 'bg-green-100 text-green-700' :
@@ -577,38 +709,24 @@ export default function NewRequestPage() {
                                     ● {affiliate.status === 'activo' ? 'Activo' : affiliate.status === 'suspendido' ? 'Suspendido' : 'Baja'}
                                 </span>
                             </div>
-
-                            {/* Antigüedad */}
                             {affiliate.start_date && (
                                 <div className="text-xs text-muted-foreground">
                                     Alta: {new Date(affiliate.start_date).toLocaleDateString('es-AR')}
                                 </div>
                             )}
-
-                            {/* Convenio */}
                             {affiliate.agreement && (
-                                <div className="text-xs text-muted-foreground truncate">
-                                    Convenio: {affiliate.agreement}
-                                </div>
+                                <div className="text-xs text-muted-foreground truncate">Convenio: {affiliate.agreement}</div>
                             )}
-
-                            {/* Teléfono */}
                             {affiliate.phone && (
                                 <div className="flex items-center gap-1.5 text-muted-foreground">
-                                    <Phone className="h-3.5 w-3.5" />
-                                    <span className="text-xs">{affiliate.phone}</span>
+                                    <Phone className="h-3.5 w-3.5" /><span className="text-xs">{affiliate.phone}</span>
                                 </div>
                             )}
-
-                            {/* Email */}
                             {affiliate.email && (
                                 <div className="flex items-center gap-1.5 text-muted-foreground">
-                                    <Mail className="h-3.5 w-3.5" />
-                                    <span className="text-xs truncate">{affiliate.email}</span>
+                                    <Mail className="h-3.5 w-3.5" /><span className="text-xs truncate">{affiliate.email}</span>
                                 </div>
                             )}
-
-                            {/* Dirección */}
                             {(affiliate.city || affiliate.address) && (
                                 <div className="flex items-center gap-1.5 text-muted-foreground col-span-2 sm:col-span-3">
                                     <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -619,53 +737,40 @@ export default function NewRequestPage() {
                             )}
                         </div>
 
-                        {/* Condiciones especiales / badges */}
+                        {/* Condiciones especiales */}
                         {(specialConds.length > 0 || affiliate.special_pharmacy || (affiliate.copay_debt && affiliate.copay_debt > 0)) && (
                             <div className="px-4 pb-3 flex flex-wrap gap-1.5">
                                 {specialConds.map(sc => (
-                                    <span key={sc} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">
-                                        ⚠️ {sc}
-                                    </span>
+                                    <span key={sc} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">⚠️ {sc}</span>
                                 ))}
                                 {affiliate.special_pharmacy && (
-                                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-medium">
-                                        💊 Farmacia especial
-                                    </span>
+                                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-medium">💊 Farmacia especial</span>
                                 )}
                                 {affiliate.copay_debt && affiliate.copay_debt > 0 && (
-                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">
-                                        💰 Deuda coseguro: ${affiliate.copay_debt.toLocaleString()}
-                                    </span>
+                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">💰 Deuda coseguro: ${affiliate.copay_debt.toLocaleString()}</span>
                                 )}
                                 {affiliate.frozen_quota && (
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
-                                        ❄️ Cuota congelada
-                                    </span>
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">❄️ Cuota congelada</span>
                                 )}
                                 {affiliate.has_life_insurance && (
-                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
-                                        🛡️ Seguro de vida
-                                    </span>
+                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">🛡️ Seguro de vida</span>
                                 )}
                             </div>
                         )}
 
                         {/* Alerta si no está activo */}
-                        {affiliate.status !== 'activo' && (
-                            <div className="mx-4 mb-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-xs">
+                        {isAffiliateBlocked && (
+                            <div className="mx-4 mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm font-medium">
                                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                                ¡Afiliado {affiliate.status}! Verificar cobertura antes de continuar.
+                                Afiliado {affiliate.status} — No se puede crear el expediente.
                             </div>
                         )}
 
-                        {/* Observaciones */}
                         {affiliate.observations && (
-                            <div className="px-4 pb-3 text-xs text-muted-foreground">
-                                📝 {affiliate.observations}
-                            </div>
+                            <div className="px-4 pb-3 text-xs text-muted-foreground">📝 {affiliate.observations}</div>
                         )}
 
-                        {/* ── Panel de consumos ── */}
+                        {/* Panel de consumos */}
                         <div className="border-t">
                             <button
                                 onClick={() => {
@@ -675,30 +780,20 @@ export default function NewRequestPage() {
                                 className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-muted/50 transition-colors"
                             >
                                 <span className="flex items-center gap-2 font-medium">
-                                    <BarChart3 className="h-4 w-4" />
-                                    Consumos del afiliado
+                                    <BarChart3 className="h-4 w-4" /> Consumos del afiliado
                                 </span>
                                 {loadingConsumptions ? (
                                     <span className="text-xs text-muted-foreground animate-pulse">Cargando...</span>
-                                ) : (
-                                    showConsumptions
-                                        ? <ChevronUp className="h-4 w-4" />
-                                        : <ChevronDown className="h-4 w-4" />
-                                )}
+                                ) : showConsumptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
-
                             {showConsumptions && (
                                 <div className="px-4 pb-3">
                                     {consumptions.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground py-2">
-                                            Sin consumos registrados para este afiliado.
-                                        </p>
+                                        <p className="text-xs text-muted-foreground py-2">Sin consumos registrados.</p>
                                     ) : (
                                         <div className="space-y-1.5 max-h-40 overflow-y-auto">
                                             {consumptions.map(c => (
-                                                <div key={c.practiceCode}
-                                                    className="flex items-center justify-between text-xs bg-muted/30 rounded px-2.5 py-1.5"
-                                                >
+                                                <div key={c.practiceCode} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2.5 py-1.5">
                                                     <span>
                                                         <span className="font-mono font-medium">{c.practiceCode}</span>
                                                         <span className="ml-1.5">{c.practiceName}</span>
@@ -726,7 +821,6 @@ export default function NewRequestPage() {
                     Prácticas * <span className="normal-case text-muted-foreground/60">(buscar en nomenclador)</span>
                 </label>
 
-                {/* Buscador de prácticas */}
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -756,12 +850,8 @@ export default function NewRequestPage() {
                                             <span className="ml-2">{p.description}</span>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
-                                            <span className="font-mono text-muted-foreground">
-                                                ${p.financial_value?.toLocaleString()}
-                                            </span>
-                                            {alreadyAdded && (
-                                                <span className="text-xs text-green-600">✓ agregada</span>
-                                            )}
+                                            <span className="font-mono text-muted-foreground">${p.financial_value?.toLocaleString()}</span>
+                                            {alreadyAdded && <span className="text-xs text-green-600">✓ agregada</span>}
                                         </div>
                                     </button>
                                 );
@@ -769,48 +859,77 @@ export default function NewRequestPage() {
                         </div>
                     )}
                     {pracSearch.length >= 2 && !searchingPrac && pracResults.length === 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                            No se encontraron prácticas para &quot;{pracSearch}&quot;
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">No se encontraron prácticas para &quot;{pracSearch}&quot;</p>
                     )}
                 </div>
 
-                {/* Lista de prácticas agregadas */}
+                {/* Lista de prácticas con semáforo */}
                 {practiceItems.length > 0 && (
                     <div className="border rounded-lg overflow-hidden">
-                        {practiceItems.map((pi, idx) => (
-                            <div key={pi.practice.id}
-                                className="flex items-center gap-3 px-3 py-2 border-b last:border-0 hover:bg-muted/30"
-                            >
-                                <div className="flex-1 min-w-0 text-sm">
-                                    <span className="font-mono font-semibold">{pi.practice.code}</span>
-                                    <span className="ml-1.5">{pi.practice.description}</span>
-                                </div>
-                                <span className="text-xs text-muted-foreground font-mono shrink-0">
-                                    ${((pi.practice.financial_value || 0) * pi.quantity).toLocaleString()}
-                                </span>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-xs text-muted-foreground">×</span>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        max={99}
-                                        value={pi.quantity}
-                                        onChange={e => updateQuantity(idx, parseInt(e.target.value) || 1)}
-                                        className="w-14 h-7 text-center text-sm"
-                                    />
-                                </div>
-                                <button
-                                    onClick={() => removePractice(idx)}
-                                    className="text-muted-foreground hover:text-red-500 p-1"
+                        {practiceItems.map((pi, idx) => {
+                            const rc = pi.ruleResult;
+                            const color = rc ? RULE_COLORS[rc.result] : null;
+                            const RuleIcon = color?.icon;
+                            return (
+                                <div key={pi.practice.id}
+                                    className={`border-b last:border-0 transition-colors ${
+                                        color ? `${color.bg}` : 'hover:bg-muted/30'
+                                    }`}
                                 >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                            </div>
-                        ))}
-                        {/* Fila de totales */}
+                                    <div className="flex items-center gap-3 px-3 py-2">
+                                        {rc && RuleIcon && (
+                                            <div className={`shrink-0 ${color!.text}`} title={color!.label}>
+                                                <RuleIcon className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                        <div className="flex-1 min-w-0 text-sm">
+                                            <span className="font-mono font-semibold">{pi.practice.code}</span>
+                                            <span className="ml-1.5">{pi.practice.description}</span>
+                                        </div>
+                                        {rc && (
+                                            <span className={`text-xs font-medium shrink-0 ${color!.text}`}>
+                                                {rc.coverage_percent.toFixed(0)}% cob.
+                                            </span>
+                                        )}
+                                        <span className="text-xs text-muted-foreground font-mono shrink-0">
+                                            ${((pi.practice.financial_value || 0) * pi.quantity).toLocaleString()}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-xs text-muted-foreground">×</span>
+                                            <Input
+                                                type="number" min={1} max={99}
+                                                value={pi.quantity}
+                                                onChange={e => updateQuantity(idx, parseInt(e.target.value) || 1)}
+                                                className="w-14 h-7 text-center text-sm"
+                                            />
+                                        </div>
+                                        <button onClick={() => removePractice(idx)} className="text-muted-foreground hover:text-red-500 p-1">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {rc && rc.messages.length > 0 && (
+                                        <div className="px-3 pb-2 pl-10">
+                                            {rc.messages.map((msg, mi) => (
+                                                <p key={mi} className={`text-xs ${color!.text} opacity-80`}>• {msg}</p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
                         <div className="flex items-center justify-between px-3 py-2 bg-muted/30 text-sm font-semibold">
-                            <span>{practiceItems.length} práctica(s)</span>
+                            <div className="flex items-center gap-3">
+                                <span>{practiceItems.length} práctica(s)</span>
+                                {rulesEvaluated && (
+                                    <div className="flex items-center gap-2 text-xs font-medium">
+                                        {greenCount > 0 && <span className="text-green-700">● {greenCount} auto</span>}
+                                        {yellowCount > 0 && <span className="text-yellow-700">● {yellowCount} auditor</span>}
+                                        {redCount > 0 && <span className="text-red-700">● {redCount} auditor</span>}
+                                    </div>
+                                )}
+                            </div>
                             <span className="font-mono">Total: ${totalValue.toLocaleString()}</span>
                         </div>
                     </div>
@@ -821,7 +940,6 @@ export default function NewRequestPage() {
             {/* ═  PRIORIDAD + NOTAS + ADJUNTOS      ═ */}
             {/* ══════════════════════════════════════ */}
             <div className="space-y-3">
-                {/* Prioridad */}
                 <div className="flex items-center gap-3">
                     <label className="text-xs font-medium text-muted-foreground">Prioridad:</label>
                     <div className="flex gap-1">
@@ -830,21 +948,16 @@ export default function NewRequestPage() {
                             className={`px-3 py-1.5 rounded text-sm font-medium border ${
                                 priority === 'normal' ? 'bg-slate-100 border-slate-300' : 'border-transparent text-muted-foreground'
                             }`}
-                        >
-                            Normal
-                        </button>
+                        >Normal</button>
                         <button
                             onClick={() => setPriority('urgente')}
                             className={`px-3 py-1.5 rounded text-sm font-medium border ${
                                 priority === 'urgente' ? 'bg-red-100 border-red-300 text-red-700' : 'border-transparent text-muted-foreground'
                             }`}
-                        >
-                            🔴 Urgente
-                        </button>
+                        >🔴 Urgente</button>
                     </div>
                 </div>
 
-                {/* Observaciones */}
                 <Input
                     placeholder="Observaciones para el auditor (opcional)"
                     value={notes}
@@ -853,10 +966,10 @@ export default function NewRequestPage() {
 
                 {/* Adjuntos */}
                 <div className="space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <select
                             value={docType}
-                            onChange={e => setDocType(e.target.value as AuditRequestAttachment['document_type'])}
+                            onChange={e => setDocType(e.target.value as ExpedientDocumentType)}
                             className="border rounded px-2 py-1.5 text-sm bg-background"
                         >
                             {DOC_TYPES.map(d => (
@@ -875,13 +988,25 @@ export default function NewRequestPage() {
                             </span>
                         )}
                     </div>
+
+                    {/* Indicador de orden médica */}
+                    <div className={`flex items-center gap-2 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
+                        hasOrdenMedica
+                            ? 'bg-green-50 border-green-200 text-green-700'
+                            : 'bg-red-50 border-red-200 text-red-700'
+                    }`}>
+                        {hasOrdenMedica
+                            ? <><CheckCircle className="h-3.5 w-3.5" /> Orden médica adjunta</>
+                            : <><AlertCircle className="h-3.5 w-3.5" /> Orden médica obligatoria — seleccioná &quot;Orden médica&quot; y adjuntá el archivo</>
+                        }
+                    </div>
+
                     {files.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                             {files.map((f, i) => (
-                                <span key={i}
-                                    className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded"
-                                >
-                                    {f.file.name.length > 25 ? f.file.name.slice(0, 23) + '…' : f.file.name}
+                                <span key={i} className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                                    <span className="text-muted-foreground">[{DOC_TYPES.find(d => d.value === f.documentType)?.label}]</span>
+                                    {f.file.name.length > 20 ? f.file.name.slice(0, 18) + '…' : f.file.name}
                                     <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}>
                                         <X className="h-3 w-3" />
                                     </button>
@@ -892,27 +1017,127 @@ export default function NewRequestPage() {
                 </div>
             </div>
 
-            {/* ── Error ── */}
-            {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    {error}
+            {/* ══════════════════════════════════════ */}
+            {/* ═  VALIDACIONES INLINE               ═ */}
+            {/* ══════════════════════════════════════ */}
+            {validationErrors.length > 0 && affiliate && (
+                <div className="space-y-1">
+                    {validationErrors.map((ve, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs text-red-600">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {ve}
+                        </div>
+                    ))}
                 </div>
             )}
 
-            {/* ── Botón enviar ── */}
-            <Button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                className="w-full bg-green-600 hover:bg-green-700 h-11 text-base"
-            >
-                <Send className="h-4 w-4 mr-2" />
-                {submitting
-                    ? 'Enviando...'
-                    : practiceItems.length > 1
-                        ? `Enviar ${practiceItems.length} Solicitudes`
-                        : 'Enviar Solicitud'}
-            </Button>
+            {/* ── Error ── */}
+            {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════ */}
+            {/* ═  RESUMEN DE EVALUACIÓN             ═ */}
+            {/* ══════════════════════════════════════ */}
+            {rulesEvaluated && rulesResult && (
+                <div className={`rounded-lg border p-4 space-y-2 ${
+                    rulesResult.overall === 'verde' ? 'bg-green-50 border-green-300' :
+                    rulesResult.overall === 'amarillo' ? 'bg-yellow-50 border-yellow-300' :
+                    'bg-red-50 border-red-300'
+                }`}>
+                    <div className="flex items-center gap-2">
+                        {rulesResult.overall === 'verde' ? (
+                            <>
+                                <Zap className="h-5 w-5 text-green-600" />
+                                <span className="font-semibold text-green-800">
+                                    Todas las prácticas se auto-aprobarán al enviar
+                                </span>
+                            </>
+                        ) : rulesResult.overall === 'amarillo' ? (
+                            <>
+                                <Eye className="h-5 w-5 text-yellow-600" />
+                                <span className="font-semibold text-yellow-800">
+                                    {greenCount > 0
+                                        ? `${greenCount} auto-aprobable(s), ${yellowCount + redCount} requieren auditor`
+                                        : 'Todas requieren revisión del auditor'}
+                                </span>
+                            </>
+                        ) : (
+                            <>
+                                <ShieldAlert className="h-5 w-5 text-red-600" />
+                                <span className="font-semibold text-red-800">
+                                    Requiere revisión del auditor
+                                </span>
+                            </>
+                        )}
+                    </div>
+
+                    {rulesResult.requires_control_desk && (
+                        <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            Este expediente pasará por mesa de control antes del auditor
+                        </p>
+                    )}
+
+                    {rulesResult.messages.length > 0 && (
+                        <div className="text-xs space-y-0.5">
+                            {rulesResult.messages.map((msg, i) => (
+                                <p key={i} className="text-red-700">• {msg}</p>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════ */}
+            {/* ═  BOTONES: EVALUAR + ENVIAR         ═ */}
+            {/* ══════════════════════════════════════ */}
+            <div className="space-y-2">
+                {!rulesEvaluated && (
+                    <Button
+                        onClick={handleEvaluate}
+                        disabled={!canEvaluate}
+                        variant="outline"
+                        className="w-full h-11 text-base border-2"
+                    >
+                        {evaluating ? (
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Evaluando reglas...</>
+                        ) : (
+                            <><Eye className="h-4 w-4 mr-2" /> Evaluar Expediente</>
+                        )}
+                    </Button>
+                )}
+
+                {rulesEvaluated && (
+                    <Button
+                        onClick={handleSubmit}
+                        disabled={!canSubmit}
+                        className={`w-full h-11 text-base ${
+                            rulesResult?.overall === 'verde'
+                                ? 'bg-green-600 hover:bg-green-700'
+                                : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                    >
+                        {submitting ? (
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando expediente...</>
+                        ) : rulesResult?.overall === 'verde' ? (
+                            <><Zap className="h-4 w-4 mr-2" /> Enviar y Auto-aprobar ({practiceItems.length} práctica{practiceItems.length > 1 ? 's' : ''})</>
+                        ) : (
+                            <><Send className="h-4 w-4 mr-2" /> Enviar a Auditoría ({practiceItems.length} práctica{practiceItems.length > 1 ? 's' : ''})</>
+                        )}
+                    </Button>
+                )}
+
+                {rulesEvaluated && (
+                    <button
+                        onClick={() => { setRulesEvaluated(false); setRulesResult(null); setPracticeItems(prev => prev.map(item => ({ ...item, ruleResult: undefined }))); }}
+                        className="text-xs text-muted-foreground hover:text-foreground mx-auto block"
+                    >
+                        ↻ Re-evaluar
+                    </button>
+                )}
+            </div>
         </div>
     );
 }
