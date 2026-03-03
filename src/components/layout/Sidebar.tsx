@@ -128,10 +128,12 @@ export function Sidebar() {
                         </p>
                     </Link>
 
-                    {/* Selector de Cámara */}
-                    <div className="mt-3">
-                        <JurisdictionToggle />
-                    </div>
+                    {/* Selector de Cámara — solo superusuarios y gerentes */}
+                    {user && (user.is_superuser || user.role === 'gerencia') && (
+                        <div className="mt-3">
+                            <JurisdictionToggle />
+                        </div>
+                    )}
                 </div>
 
                 <div className="px-6 py-2">

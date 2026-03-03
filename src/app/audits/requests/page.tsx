@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
-import { AuditRequestService } from '@/services/auditRequestService';
+import { ExpedientService } from '@/services/expedientService';
+import type { PracticeResolutionStatus } from '@/services/expedientService';
 import {
     Stethoscope,
     FlaskConical,
@@ -25,96 +26,158 @@ import {
     Send,
     Ban,
     Plus,
+    ChevronDown,
+    User,
+    Calendar,
+    Shield,
+    Pill,
+    Sparkles,
+    DollarSign,
+    Pause,
+    RotateCcw,
+    Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
-    AuditRequest,
-    AuditRequestType,
-    AuditRequestStatus,
-    AuditRequestNote,
-    AuditRequestAttachment,
-    AuditRequestLog,
+    Expedient,
+    ExpedientType,
+    ExpedientStatus,
+    ExpedientPractice,
+    ExpedientNote,
+    ExpedientAttachment,
+    ExpedientLog,
+    RulesResult,
 } from '@/types/database';
 
 // ── Helpers de UI ──
 
-const TYPE_CONFIG: Record<AuditRequestType, { label: string; icon: React.ElementType; color: string }> = {
-    ambulatoria: { label: 'Ambulatoria', icon: Stethoscope, color: 'bg-blue-100 text-blue-700' },
-    bioquimica: { label: 'Bioquímica', icon: FlaskConical, color: 'bg-emerald-100 text-emerald-700' },
-    internacion: { label: 'Internación', icon: Building2, color: 'bg-purple-100 text-purple-700' },
+const TYPE_CONFIG: Record<ExpedientType, { label: string; icon: React.ElementType; color: string }> = {
+    ambulatoria: { label: 'Ambulatoria', icon: Stethoscope, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+    bioquimica: { label: 'Bioquímica', icon: FlaskConical, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
+    internacion: { label: 'Internación', icon: Building2, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' },
+    odontologica: { label: 'Odontológica', icon: Sparkles, color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300' },
+    programas_especiales: { label: 'Prog. Especial', icon: Shield, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+    elementos: { label: 'Elementos', icon: Pill, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300' },
+    reintegros: { label: 'Reintegro', icon: DollarSign, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
 };
 
-const STATUS_CONFIG: Record<AuditRequestStatus, { label: string; color: string; icon: React.ElementType }> = {
+const STATUS_CONFIG: Record<ExpedientStatus, { label: string; color: string; icon: React.ElementType }> = {
+    borrador: { label: 'Borrador', color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', icon: FileText },
+    pendiente: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', icon: Clock },
+    en_revision: { label: 'En Revisión', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300', icon: Eye },
+    parcialmente_resuelto: { label: 'Parcial', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300', icon: AlertTriangle },
+    resuelto: { label: 'Resuelto', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300', icon: CheckCircle },
+    observada: { label: 'Observada', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300', icon: AlertTriangle },
+    en_apelacion: { label: 'En Apelación', color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', icon: RotateCcw },
+    anulada: { label: 'Anulada', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400', icon: Ban },
+};
+
+const PRACTICE_STATUS_CONFIG: Record<PracticeResolutionStatus, { label: string; color: string; icon: React.ElementType }> = {
     pendiente: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
     en_revision: { label: 'En Revisión', color: 'bg-blue-100 text-blue-800', icon: Eye },
     autorizada: { label: 'Autorizada', color: 'bg-green-100 text-green-800', icon: CheckCircle },
-    denegada: { label: 'Denegada', color: 'bg-red-100 text-red-800', icon: XCircle },
+    denegada: { label: 'Denegada', color: 'bg-red-100 text-red-700', icon: XCircle },
     observada: { label: 'Observada', color: 'bg-orange-100 text-orange-800', icon: AlertTriangle },
-    anulada: { label: 'Anulada', color: 'bg-gray-100 text-gray-600', icon: Ban },
-    vencida: { label: 'Vencida', color: 'bg-gray-100 text-gray-500', icon: Clock },
+    autorizada_parcial: { label: 'Parcial', color: 'bg-indigo-100 text-indigo-800', icon: AlertTriangle },
+    diferida: { label: 'Diferida', color: 'bg-slate-100 text-slate-700', icon: Pause },
+};
+
+const RULE_COLORS: Record<RulesResult, string> = {
+    verde: 'text-green-600 bg-green-100',
+    amarillo: 'text-yellow-700 bg-yellow-100',
+    rojo: 'text-red-600 bg-red-100',
 };
 
 function formatDate(d: string) {
     return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Componente: Lista de solicitudes ──
+function formatShortDate(d: string) {
+    return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
 
-function RequestList({
-    requests,
+// ── Componente: Lista de expedientes ──
+
+function ExpedientList({
+    expedients,
     onSelect,
     selectedId,
 }: {
-    requests: AuditRequest[];
-    onSelect: (r: AuditRequest) => void;
+    expedients: Expedient[];
+    onSelect: (e: Expedient) => void;
     selectedId?: string;
 }) {
-    if (requests.length === 0) {
+    if (expedients.length === 0) {
         return (
             <div className="text-center py-12 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p>No hay solicitudes con estos filtros</p>
+                <p>No hay expedientes con estos filtros</p>
             </div>
         );
     }
 
     return (
-        <div className="divide-y">
-            {requests.map(r => {
-                const tc = TYPE_CONFIG[r.type];
-                const sc = STATUS_CONFIG[r.status];
+        <div className="divide-y divide-border/50">
+            {expedients.map(exp => {
+                const tc = TYPE_CONFIG[exp.type];
+                const sc = STATUS_CONFIG[exp.status];
                 const TypeIcon = tc.icon;
                 const StatusIcon = sc.icon;
-                const isSelected = selectedId === r.id;
+                const isSelected = selectedId === exp.id;
 
                 return (
                     <button
-                        key={r.id}
-                        onClick={() => onSelect(r)}
-                        className={`w-full text-left p-4 hover:bg-muted/50 transition-colors ${
-                            isSelected ? 'bg-primary/5 border-l-2 border-primary' : ''
+                        key={exp.id}
+                        onClick={() => onSelect(exp)}
+                        className={`w-full text-left p-4 hover:bg-muted/50 transition-all duration-150 ${
+                            isSelected ? 'bg-primary/5 border-l-3 border-primary' : 'border-l-3 border-transparent'
                         }`}
                     >
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                                <TypeIcon className="h-4 w-4 shrink-0" />
-                                <span className="font-mono text-xs text-muted-foreground">{r.request_number}</span>
-                                {r.priority === 'urgente' && (
-                                    <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">URGENTE</span>
+                                <div className={`p-1.5 rounded-lg ${tc.color}`}>
+                                    <TypeIcon className="h-3.5 w-3.5" />
+                                </div>
+                                <span className="font-mono text-xs text-muted-foreground font-medium">
+                                    {exp.expedient_number}
+                                </span>
+                                {exp.priority === 'urgente' && (
+                                    <span className="text-[10px] bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                        Urgente
+                                    </span>
                                 )}
                             </div>
-                            <Badge className={`${sc.color} text-xs shrink-0`}>
-                                <StatusIcon className="h-3 w-3 mr-1" />
+                            <Badge className={`${sc.color} text-[10px] shrink-0 gap-1`}>
+                                <StatusIcon className="h-3 w-3" />
                                 {sc.label}
                             </Badge>
                         </div>
-                        <p className="font-medium mt-1 truncate">Afiliado #{String(r.affiliate_id).slice(0, 8)}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Práctica #{r.practice_id} • {formatDate(r.created_at)}
+
+                        <p className="font-medium mt-1.5 truncate text-sm">
+                            Afiliado #{String(exp.affiliate_id).slice(0, 8)}
                         </p>
-                        {r.request_notes && (
-                            <p className="text-xs text-muted-foreground mt-1 truncate italic">
-                                &quot;{r.request_notes}&quot;
+
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatShortDate(exp.created_at)}
+                            </span>
+                            {exp.rules_result && (
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${RULE_COLORS[exp.rules_result]}`}>
+                                    {exp.rules_result}
+                                </span>
+                            )}
+                            {exp.assigned_to && (
+                                <span className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    Asignado
+                                </span>
+                            )}
+                        </div>
+
+                        {exp.request_notes && (
+                            <p className="text-xs text-muted-foreground mt-1.5 truncate italic opacity-70">
+                                &quot;{exp.request_notes}&quot;
                             </p>
                         )}
                     </button>
@@ -124,167 +187,294 @@ function RequestList({
     );
 }
 
-// ── Componente: Detalle de solicitud ──
+// ── Componente: Detalle del expediente ──
 
-function RequestDetail({
-    request,
-    onAction,
+function ExpedientDetail({
+    expedient: initialExpedient,
+    onAction: _onAction,
+    onBack,
 }: {
-    request: AuditRequest;
+    expedient: Expedient;
     onAction: () => void;
+    onBack: () => void;
 }) {
+    void _onAction; // Called indirectly via reload
     const { user } = useAuth();
-    const [tab, setTab] = useState<'detalle' | 'adjuntos' | 'notas' | 'historial'>('detalle');
-    const [notes, setNotes] = useState<AuditRequestNote[]>([]);
-    const [attachments, setAttachments] = useState<AuditRequestAttachment[]>([]);
-    const [log, setLog] = useState<AuditRequestLog[]>([]);
-
-    // Resolución
-    const [diagnosisCode, setDiagnosisCode] = useState(request.diagnosis_code || '');
-    const [diagnosisDesc, setDiagnosisDesc] = useState(request.diagnosis_description || '');
-    const [resolutionNotes, setResolutionNotes] = useState('');
+    const [expedient, setExpedient] = useState(initialExpedient);
+    const [tab, setTab] = useState<'practicas' | 'adjuntos' | 'notas' | 'historial'>('practicas');
+    const [notes, setNotes] = useState<ExpedientNote[]>([]);
+    const [attachments, setAttachments] = useState<ExpedientAttachment[]>([]);
+    const [log, setLog] = useState<ExpedientLog[]>([]);
     const [newNote, setNewNote] = useState('');
+    const [loading, setLoading] = useState(true);
     const [resolving, setResolving] = useState(false);
 
-    const tc = TYPE_CONFIG[request.type];
-    const sc = STATUS_CONFIG[request.status];
+    // Práctica seleccionada para resolución
+    const [selectedPractice, setSelectedPractice] = useState<ExpedientPractice | null>(null);
+    const [resolutionAction, setResolutionAction] = useState<'autorizar' | 'denegar' | 'observar' | 'parcial' | 'diferir' | null>(null);
+    const [diagnosisCode, setDiagnosisCode] = useState('');
+    const [diagnosisDesc, setDiagnosisDesc] = useState('');
+    const [resolutionNotes, setResolutionNotes] = useState('');
+    const [reviewDate, setReviewDate] = useState('');
+    const [coveragePercent, setCoveragePercent] = useState(80);
+    const [adjustedQuantity, setAdjustedQuantity] = useState(1);
+
+    const tc = TYPE_CONFIG[expedient.type];
+    const sc = STATUS_CONFIG[expedient.status];
     const TypeIcon = tc.icon;
-    const isPending = ['pendiente', 'en_revision', 'observada'].includes(request.status);
+    const canResolve = ['pendiente', 'en_revision', 'parcialmente_resuelto', 'observada'].includes(expedient.status);
+    const isMine = expedient.assigned_to === user?.id;
 
-    // Cargar datos del detalle
+    // Cargar datos completos del expediente
+    const loadFullData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [full, n, a, l] = await Promise.all([
+                ExpedientService.fetchById(expedient.id),
+                ExpedientService.fetchNotes(expedient.id),
+                ExpedientService.fetchAttachments(expedient.id),
+                ExpedientService.fetchLog(expedient.id),
+            ]);
+            if (full) setExpedient(full);
+            setNotes(n);
+            setAttachments(a);
+            setLog(l);
+        } catch {
+            // Error loading data
+        }
+        setLoading(false);
+    }, [expedient.id]);
+
     useEffect(() => {
-        let cancelled = false;
-        Promise.all([
-            AuditRequestService.fetchNotes(request.id),
-            AuditRequestService.fetchAttachments(request.id),
-            AuditRequestService.fetchLog(request.id),
-        ]).then(([n, a, l]) => {
-            if (!cancelled) {
-                setNotes(n);
-                setAttachments(a);
-                setLog(l);
-            }
-        });
-        return () => { cancelled = true; };
-    }, [request.id]);
-
-    const reloadDetails = async () => {
-        const [n, a, l] = await Promise.all([
-            AuditRequestService.fetchNotes(request.id),
-            AuditRequestService.fetchAttachments(request.id),
-            AuditRequestService.fetchLog(request.id),
-        ]);
-        setNotes(n);
-        setAttachments(a);
-        setLog(l);
-    };
+        loadFullData();
+    }, [loadFullData]);
 
     // Tomar para revisión
     const handleTake = async () => {
         if (!user) return;
         setResolving(true);
         try {
-            await AuditRequestService.takeForReview(request.id, user.id);
-            onAction();
+            await ExpedientService.takeForReview(expedient.id, user.id);
+            await loadFullData();
         } catch {
-            // Handle error
+            // Error
         }
         setResolving(false);
     };
 
-    // Autorizar
-    const handleAuthorize = async () => {
-        if (!user || !diagnosisCode) return;
+    // Resolver práctica
+    const handleResolvePractice = async () => {
+        if (!user || !selectedPractice || !resolutionAction) return;
         setResolving(true);
         try {
-            await AuditRequestService.authorize(request.id, user.id, {
-                diagnosis_code: diagnosisCode,
-                diagnosis_description: diagnosisDesc,
-                resolution_notes: resolutionNotes,
-                coverage_percent: request.coverage_percent || 80,
-                covered_amount: request.covered_amount || (request.practice_value || 0) * 0.8,
-                copay_amount: request.copay_amount || (request.practice_value || 0) * 0.2,
-                practice_value: request.practice_value || 0,
-            });
-            onAction();
+            switch (resolutionAction) {
+                case 'autorizar':
+                    await ExpedientService.authorizePractice(
+                        expedient.id,
+                        selectedPractice.id,
+                        user.id,
+                        {
+                            diagnosis_code: diagnosisCode || undefined,
+                            diagnosis_description: diagnosisDesc || undefined,
+                            resolution_notes: resolutionNotes || undefined,
+                            coverage_percent: coveragePercent,
+                            covered_amount: (selectedPractice.practice_value || 0) * (coveragePercent / 100),
+                            copay_amount: (selectedPractice.practice_value || 0) * ((100 - coveragePercent) / 100),
+                        },
+                    );
+                    break;
+                case 'parcial':
+                    await ExpedientService.authorizePartialPractice(
+                        expedient.id,
+                        selectedPractice.id,
+                        user.id,
+                        {
+                            diagnosis_code: diagnosisCode || undefined,
+                            diagnosis_description: diagnosisDesc || undefined,
+                            resolution_notes: resolutionNotes,
+                            coverage_percent: coveragePercent,
+                            covered_amount: (selectedPractice.practice_value || 0) * (coveragePercent / 100),
+                            copay_amount: (selectedPractice.practice_value || 0) * ((100 - coveragePercent) / 100),
+                            adjusted_quantity: adjustedQuantity,
+                        },
+                    );
+                    break;
+                case 'denegar':
+                    await ExpedientService.denyPractice(
+                        expedient.id,
+                        selectedPractice.id,
+                        user.id,
+                        {
+                            resolution_notes: resolutionNotes,
+                            diagnosis_code: diagnosisCode || undefined,
+                            diagnosis_description: diagnosisDesc || undefined,
+                        },
+                    );
+                    break;
+                case 'observar':
+                    await ExpedientService.observePractice(
+                        expedient.id,
+                        selectedPractice.id,
+                        user.id,
+                        resolutionNotes,
+                    );
+                    break;
+                case 'diferir':
+                    await ExpedientService.deferPractice(
+                        expedient.id,
+                        selectedPractice.id,
+                        user.id,
+                        reviewDate,
+                        resolutionNotes,
+                    );
+                    break;
+            }
+
+            // Reset form
+            setSelectedPractice(null);
+            setResolutionAction(null);
+            setDiagnosisCode('');
+            setDiagnosisDesc('');
+            setResolutionNotes('');
+            setReviewDate('');
+            setCoveragePercent(80);
+            setAdjustedQuantity(1);
+
+            // Check if all practices are resolved → update expedient status
+            await checkExpedientCompletion();
+            await loadFullData();
         } catch {
-            // Handle error
+            // Error
         }
         setResolving(false);
     };
 
-    // Denegar
-    const handleDeny = async () => {
-        if (!user || !resolutionNotes) return;
-        setResolving(true);
-        try {
-            await AuditRequestService.deny(request.id, user.id, {
-                resolution_notes: resolutionNotes,
-                diagnosis_code: diagnosisCode || undefined,
-                diagnosis_description: diagnosisDesc || undefined,
-            });
-            onAction();
-        } catch {
-            // Handle error
-        }
-        setResolving(false);
-    };
+    // Verificar si el expediente está completamente resuelto
+    const checkExpedientCompletion = async () => {
+        const full = await ExpedientService.fetchById(expedient.id);
+        if (!full || !full.practices) return;
 
-    // Observar
-    const handleObserve = async () => {
-        if (!user || !resolutionNotes) return;
-        setResolving(true);
-        try {
-            await AuditRequestService.observe(request.id, user.id, resolutionNotes);
-            onAction();
-        } catch {
-            // Handle error
+        const allResolved = full.practices.every(p =>
+            ['autorizada', 'denegada', 'autorizada_parcial'].includes(p.status),
+        );
+        const someResolved = full.practices.some(p =>
+            ['autorizada', 'denegada', 'autorizada_parcial'].includes(p.status),
+        );
+        const someObserved = full.practices.some(p => p.status === 'observada');
+
+        if (allResolved && user) {
+            // Marcar como resuelto
+            const supabase = (await import('@/lib/supabase')).createClient();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const db = (table: string): any => supabase.from(table as any);
+            await db('expedients')
+                .update({
+                    status: 'resuelto',
+                    resolved_by: user.id,
+                    resolved_at: new Date().toISOString(),
+                })
+                .eq('id', expedient.id);
+        } else if (someObserved) {
+            const supabase = (await import('@/lib/supabase')).createClient();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const db = (table: string): any => supabase.from(table as any);
+            await db('expedients')
+                .update({ status: 'observada' })
+                .eq('id', expedient.id);
+        } else if (someResolved) {
+            const supabase = (await import('@/lib/supabase')).createClient();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const db = (table: string): any => supabase.from(table as any);
+            await db('expedients')
+                .update({ status: 'parcialmente_resuelto' })
+                .eq('id', expedient.id);
         }
-        setResolving(false);
     };
 
     // Agregar nota
     const handleAddNote = async () => {
         if (!user || !newNote.trim()) return;
         try {
-            await AuditRequestService.addNote({
-                request_id: request.id,
+            await ExpedientService.addNote({
+                expedient_id: expedient.id,
                 author_id: user.id,
                 content: newNote,
                 note_type: 'interna',
             });
             setNewNote('');
-            reloadDetails();
+            const n = await ExpedientService.fetchNotes(expedient.id);
+            setNotes(n);
         } catch {
-            // Handle error
+            // Error
         }
     };
 
+    const practices = expedient.practices || [];
+    const resolvedCount = practices.filter(p =>
+        ['autorizada', 'denegada', 'autorizada_parcial'].includes(p.status),
+    ).length;
+
     const TABS = [
-        { id: 'detalle' as const, label: 'Detalle', icon: FileText },
+        { id: 'practicas' as const, label: `Prácticas (${practices.length})`, icon: Stethoscope },
         { id: 'adjuntos' as const, label: `Adjuntos (${attachments.length})`, icon: Paperclip },
         { id: 'notas' as const, label: `Notas (${notes.length})`, icon: MessageSquare },
-        { id: 'historial' as const, label: 'Historial', icon: History },
+        { id: 'historial' as const, label: 'Timeline', icon: History },
     ];
 
     return (
         <div className="flex flex-col h-full">
-            {/* Header del detalle */}
+            {/* Header del expediente */}
             <div className="p-4 border-b bg-muted/20">
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                        <TypeIcon className="h-5 w-5" />
-                        <span className="font-mono font-bold">{request.request_number}</span>
-                        {request.priority === 'urgente' && (
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">URGENTE</span>
-                        )}
+                <div className="flex items-center gap-2 mb-2">
+                    <button onClick={onBack} className="md:hidden p-1 hover:bg-muted rounded">
+                        <ArrowLeft className="h-4 w-4" />
+                    </button>
+                    <div className={`p-1.5 rounded-lg ${tc.color}`}>
+                        <TypeIcon className="h-4 w-4" />
                     </div>
-                    <Badge className={sc.color}>{sc.label}</Badge>
+                    <span className="font-mono font-bold text-sm">{expedient.expedient_number}</span>
+                    {expedient.priority === 'urgente' && (
+                        <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold uppercase">Urgente</span>
+                    )}
+                    <div className="ml-auto">
+                        <Badge className={sc.color}>{sc.label}</Badge>
+                    </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                    Creada: {formatDate(request.created_at)}
-                    {request.resolved_at && ` | Resuelta: ${formatDate(request.resolved_at)}`}
-                </p>
+
+                {/* Barra de progreso */}
+                {practices.length > 0 && (
+                    <div className="mt-2">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                            <span>{resolvedCount}/{practices.length} prácticas resueltas</span>
+                            <span>{Math.round((resolvedCount / practices.length) * 100)}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-primary transition-all duration-300 rounded-full"
+                                style={{ width: `${(resolvedCount / practices.length) * 100}%` }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    <span>Creado: {formatDate(expedient.created_at)}</span>
+                    {expedient.assigned_to && <span>• Asignado</span>}
+                    {expedient.resolved_at && <span>• Resuelto: {formatDate(expedient.resolved_at)}</span>}
+                </div>
+
+                {/* Botón tomar */}
+                {canResolve && !isMine && expedient.status === 'pendiente' && (
+                    <Button
+                        className="mt-3 w-full bg-blue-600 hover:bg-blue-700"
+                        size="sm"
+                        onClick={handleTake}
+                        disabled={resolving}
+                    >
+                        {resolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
+                        Tomar para revisión
+                    </Button>
+                )}
             </div>
 
             {/* Tabs */}
@@ -305,246 +495,470 @@ function RequestDetail({
 
             {/* Contenido del tab */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-                {tab === 'detalle' && (
+                {loading ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                        <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin opacity-30" />
+                        <p className="text-sm">Cargando expediente...</p>
+                    </div>
+                ) : (
                     <>
-                        {/* Datos del afiliado */}
-                        <div className="bg-muted/30 rounded-lg p-3 space-y-1.5 text-sm">
-                            <p className="font-bold text-xs text-muted-foreground uppercase tracking-widest mb-2">Afiliado</p>
-                            <p><span className="text-muted-foreground">ID:</span> {String(request.affiliate_id).slice(0, 8)}...</p>
-                            {request.family_member_relation && (
-                                <p><span className="text-muted-foreground">Parentesco:</span> {request.family_member_relation}</p>
-                            )}
-                            <p><span className="text-muted-foreground">Plan:</span> #{request.affiliate_plan_id}</p>
-                        </div>
+                        {/* ── TAB: Prácticas ── */}
+                        {tab === 'practicas' && (
+                            <>
+                                {/* Datos del afiliado */}
+                                <div className="bg-muted/30 rounded-xl p-3 space-y-1.5 text-sm">
+                                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest mb-2">Afiliado</p>
+                                    <p><span className="text-muted-foreground">ID:</span> {String(expedient.affiliate_id).slice(0, 12)}...</p>
+                                    {expedient.family_member_relation && (
+                                        <p><span className="text-muted-foreground">Parentesco:</span> {expedient.family_member_relation}</p>
+                                    )}
+                                    {expedient.affiliate_plan_id && (
+                                        <p><span className="text-muted-foreground">Plan:</span> #{expedient.affiliate_plan_id}</p>
+                                    )}
+                                    {expedient.request_notes && (
+                                        <p className="italic text-muted-foreground mt-1">&quot;{expedient.request_notes}&quot;</p>
+                                    )}
+                                </div>
 
-                        {/* Práctica */}
-                        <div className="bg-muted/30 rounded-lg p-3 space-y-1.5 text-sm">
-                            <p className="font-bold text-xs text-muted-foreground uppercase tracking-widest mb-2">Práctica Solicitada</p>
-                            <p><span className="text-muted-foreground">ID:</span> #{request.practice_id}</p>
-                            <p><span className="text-muted-foreground">Cantidad:</span> {request.practice_quantity}</p>
-                            {request.practice_value && (
-                                <p><span className="text-muted-foreground">Valor:</span> ${request.practice_value.toLocaleString()}</p>
-                            )}
-                            {request.coverage_percent != null && (
-                                <p><span className="text-muted-foreground">Cobertura:</span> {request.coverage_percent}%</p>
-                            )}
-                            {request.copay_amount != null && (
-                                <p><span className="text-muted-foreground">Coseguro:</span> ${request.copay_amount.toLocaleString()}</p>
-                            )}
-                        </div>
-
-                        {/* Autorización (si existe) */}
-                        {request.authorization_code && (
-                            <div className="bg-green-50 rounded-lg p-3 space-y-1.5 text-sm border border-green-200">
-                                <p className="font-bold text-xs text-green-700 uppercase tracking-widest mb-2">Autorización</p>
-                                <p className="font-mono font-bold text-lg text-green-800">{request.authorization_code}</p>
-                                {request.authorization_expiry && (
-                                    <p className="text-green-600 text-xs">Vence: {request.authorization_expiry}</p>
+                                {/* Motor de reglas global */}
+                                {expedient.rules_result && (
+                                    <div className={`rounded-xl p-3 text-sm border ${
+                                        expedient.rules_result === 'verde' ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' :
+                                        expedient.rules_result === 'amarillo' ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800' :
+                                        'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
+                                    }`}>
+                                        <p className="font-bold text-[10px] uppercase tracking-widest mb-1">Motor de Reglas</p>
+                                        <p className="font-semibold">
+                                            Resultado global: <span className="uppercase">{expedient.rules_result}</span>
+                                        </p>
+                                    </div>
                                 )}
-                            </div>
+
+                                {/* Lista de prácticas */}
+                                <div className="space-y-2">
+                                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest">
+                                        Prácticas solicitadas
+                                    </p>
+                                    {practices.map((p, idx) => {
+                                        const ps = PRACTICE_STATUS_CONFIG[p.status];
+                                        const PStatusIcon = ps.icon;
+                                        const isSelected = selectedPractice?.id === p.id;
+                                        const canResolvePractice = canResolve && (isMine || expedient.status === 'pendiente') &&
+                                            ['pendiente', 'en_revision', 'observada'].includes(p.status);
+
+                                        return (
+                                            <div key={p.id} className={`border rounded-xl overflow-hidden transition-all ${
+                                                isSelected ? 'ring-2 ring-primary border-primary' : 'border-border/50'
+                                            }`}>
+                                                {/* Cabecera de la práctica */}
+                                                <div
+                                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors ${
+                                                        canResolvePractice ? '' : 'opacity-70'
+                                                    }`}
+                                                    onClick={() => {
+                                                        if (canResolvePractice) {
+                                                            setSelectedPractice(isSelected ? null : p);
+                                                            setResolutionAction(null);
+                                                        }
+                                                    }}
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <span className="text-xs font-bold text-muted-foreground w-5">#{idx + 1}</span>
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-medium truncate">
+                                                                Práctica #{p.practice_id}
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                                                <span>Cant: {p.quantity}</span>
+                                                                {p.practice_value != null && (
+                                                                    <span>• ${p.practice_value.toLocaleString()}</span>
+                                                                )}
+                                                                {p.rule_result && (
+                                                                    <span className={`px-1 py-0.5 rounded text-[10px] font-bold uppercase ${RULE_COLORS[p.rule_result]}`}>
+                                                                        {p.rule_result}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <Badge className={`${ps.color} text-[10px] gap-1`}>
+                                                            <PStatusIcon className="h-3 w-3" />
+                                                            {ps.label}
+                                                        </Badge>
+                                                        {canResolvePractice && (
+                                                            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isSelected ? 'rotate-180' : ''}`} />
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Autorización (si ya fue resuelta) */}
+                                                {p.authorization_code && (
+                                                    <div className="px-3 pb-2 border-t bg-green-50/50 dark:bg-green-950/20">
+                                                        <div className="flex items-center justify-between py-2">
+                                                            <div>
+                                                                <p className="text-xs text-green-700 dark:text-green-400 font-semibold">Autorización</p>
+                                                                <p className="font-mono font-bold text-green-800 dark:text-green-300">{p.authorization_code}</p>
+                                                            </div>
+                                                            {p.authorization_expiry && (
+                                                                <p className="text-xs text-green-600">Vence: {formatShortDate(p.authorization_expiry)}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Mensajes del motor de reglas */}
+                                                {p.rule_messages && p.rule_messages.length > 0 && isSelected && (
+                                                    <div className="px-3 py-2 border-t bg-muted/20">
+                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Alertas del motor</p>
+                                                        {p.rule_messages.map((msg, i) => (
+                                                            <p key={i} className="text-xs text-muted-foreground">• {msg}</p>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Resolución (si fue denegada o tiene notas) */}
+                                                {p.resolution_notes && !isSelected && (
+                                                    <div className="px-3 py-2 border-t bg-muted/10">
+                                                        <p className="text-xs italic text-muted-foreground">{p.resolution_notes}</p>
+                                                    </div>
+                                                )}
+
+                                                {/* Panel de resolución expandido */}
+                                                {isSelected && canResolvePractice && (
+                                                    <div className="border-t p-3 bg-muted/10 space-y-3">
+                                                        {/* Acciones de resolución */}
+                                                        {!resolutionAction && (
+                                                            <div className="grid grid-cols-5 gap-1.5">
+                                                                <button
+                                                                    onClick={() => setResolutionAction('autorizar')}
+                                                                    className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors text-green-700 dark:text-green-400"
+                                                                >
+                                                                    <CheckCircle className="h-5 w-5" />
+                                                                    <span className="text-[10px] font-semibold">Autorizar</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setResolutionAction('parcial')}
+                                                                    className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors text-indigo-700 dark:text-indigo-400"
+                                                                >
+                                                                    <AlertTriangle className="h-5 w-5" />
+                                                                    <span className="text-[10px] font-semibold">Parcial</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setResolutionAction('observar')}
+                                                                    className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors text-orange-700 dark:text-orange-400"
+                                                                >
+                                                                    <Eye className="h-5 w-5" />
+                                                                    <span className="text-[10px] font-semibold">Observar</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setResolutionAction('diferir')}
+                                                                    className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-400"
+                                                                >
+                                                                    <Pause className="h-5 w-5" />
+                                                                    <span className="text-[10px] font-semibold">Diferir</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setResolutionAction('denegar')}
+                                                                    className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-red-700 dark:text-red-400"
+                                                                >
+                                                                    <XCircle className="h-5 w-5" />
+                                                                    <span className="text-[10px] font-semibold">Denegar</span>
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Formulario de resolución */}
+                                                        {resolutionAction && (
+                                                            <div className="space-y-2.5">
+                                                                <div className="flex items-center justify-between">
+                                                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                                        {resolutionAction === 'autorizar' && '✅ Autorizar'}
+                                                                        {resolutionAction === 'parcial' && '🔄 Autorización Parcial'}
+                                                                        {resolutionAction === 'observar' && '👁️ Observar'}
+                                                                        {resolutionAction === 'diferir' && '⏰ Diferir'}
+                                                                        {resolutionAction === 'denegar' && '❌ Denegar'}
+                                                                    </p>
+                                                                    <button
+                                                                        onClick={() => setResolutionAction(null)}
+                                                                        className="text-xs text-muted-foreground hover:text-foreground"
+                                                                    >
+                                                                        Cancelar
+                                                                    </button>
+                                                                </div>
+
+                                                                {/* Diagnóstico (autorizar/parcial/denegar) */}
+                                                                {['autorizar', 'parcial', 'denegar'].includes(resolutionAction) && (
+                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                        <Input
+                                                                            placeholder="CIE-10"
+                                                                            value={diagnosisCode}
+                                                                            onChange={e => setDiagnosisCode(e.target.value)}
+                                                                            className="h-8 text-xs"
+                                                                        />
+                                                                        <Input
+                                                                            placeholder="Descripción diagnóstico"
+                                                                            value={diagnosisDesc}
+                                                                            onChange={e => setDiagnosisDesc(e.target.value)}
+                                                                            className="h-8 text-xs"
+                                                                        />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Cobertura (autorizar/parcial) */}
+                                                                {['autorizar', 'parcial'].includes(resolutionAction) && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <label className="text-xs text-muted-foreground whitespace-nowrap">Cobertura:</label>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={100}
+                                                                            value={coveragePercent}
+                                                                            onChange={e => setCoveragePercent(Number(e.target.value))}
+                                                                            className="h-8 text-xs w-20"
+                                                                        />
+                                                                        <span className="text-xs text-muted-foreground">%</span>
+                                                                        {p.practice_value != null && (
+                                                                            <span className="text-xs text-muted-foreground ml-2">
+                                                                                = ${((p.practice_value * coveragePercent) / 100).toLocaleString()}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Cantidad ajustada (parcial) */}
+                                                                {resolutionAction === 'parcial' && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <label className="text-xs text-muted-foreground whitespace-nowrap">Cantidad:</label>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min={1}
+                                                                            max={p.quantity}
+                                                                            value={adjustedQuantity}
+                                                                            onChange={e => setAdjustedQuantity(Number(e.target.value))}
+                                                                            className="h-8 text-xs w-20"
+                                                                        />
+                                                                        <span className="text-xs text-muted-foreground">de {p.quantity} solicitadas</span>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Fecha de revisión (diferir) */}
+                                                                {resolutionAction === 'diferir' && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <label className="text-xs text-muted-foreground whitespace-nowrap">Revisar el:</label>
+                                                                        <Input
+                                                                            type="date"
+                                                                            value={reviewDate}
+                                                                            onChange={e => setReviewDate(e.target.value)}
+                                                                            className="h-8 text-xs"
+                                                                        />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Notas */}
+                                                                <textarea
+                                                                    value={resolutionNotes}
+                                                                    onChange={e => setResolutionNotes(e.target.value)}
+                                                                    placeholder={
+                                                                        resolutionAction === 'denegar' ? 'Motivo de denegación (obligatorio)...' :
+                                                                        resolutionAction === 'observar' ? 'Qué falta o debe corregirse...' :
+                                                                        'Observaciones...'
+                                                                    }
+                                                                    rows={2}
+                                                                    className="w-full border rounded-lg px-3 py-2 text-xs bg-background resize-none"
+                                                                />
+
+                                                                {/* Botón enviar */}
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={handleResolvePractice}
+                                                                    disabled={
+                                                                        resolving ||
+                                                                        (resolutionAction === 'denegar' && !resolutionNotes) ||
+                                                                        (resolutionAction === 'observar' && !resolutionNotes) ||
+                                                                        (resolutionAction === 'diferir' && !reviewDate)
+                                                                    }
+                                                                    className={`w-full ${
+                                                                        resolutionAction === 'autorizar' ? 'bg-green-600 hover:bg-green-700' :
+                                                                        resolutionAction === 'parcial' ? 'bg-indigo-600 hover:bg-indigo-700' :
+                                                                        resolutionAction === 'denegar' ? 'bg-red-600 hover:bg-red-700' :
+                                                                        resolutionAction === 'observar' ? 'bg-orange-600 hover:bg-orange-700' :
+                                                                        'bg-slate-600 hover:bg-slate-700'
+                                                                    }`}
+                                                                >
+                                                                    {resolving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                                                    Confirmar{' '}
+                                                                    {resolutionAction === 'autorizar' && 'autorización'}
+                                                                    {resolutionAction === 'parcial' && 'autorización parcial'}
+                                                                    {resolutionAction === 'denegar' && 'denegación'}
+                                                                    {resolutionAction === 'observar' && 'observación'}
+                                                                    {resolutionAction === 'diferir' && 'diferimiento'}
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
                         )}
 
-                        {/* Notas del administrativo */}
-                        {request.request_notes && (
-                            <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                                <p className="font-bold text-xs text-muted-foreground uppercase tracking-widest mb-2">Observaciones del Administrativo</p>
-                                <p className="italic">{request.request_notes}</p>
-                            </div>
-                        )}
-
-                        {/* Resolución */}
-                        {request.resolution_notes && (
-                            <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                                <p className="font-bold text-xs text-muted-foreground uppercase tracking-widest mb-2">Resolución del Auditor</p>
-                                <p>{request.resolution_notes}</p>
-                                {request.diagnosis_code && (
-                                    <p className="mt-1"><span className="text-muted-foreground">Diagnóstico:</span> {request.diagnosis_code} — {request.diagnosis_description}</p>
+                        {/* ── TAB: Adjuntos ── */}
+                        {tab === 'adjuntos' && (
+                            <>
+                                {attachments.length === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <Paperclip className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                                        <p className="text-sm">Sin documentos adjuntos</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {attachments.map(a => (
+                                            <div key={a.id} className="flex items-center justify-between p-3 border rounded-xl">
+                                                <div className="flex items-center gap-2">
+                                                    <Paperclip className="h-4 w-4 text-muted-foreground" />
+                                                    <div>
+                                                        <p className="text-sm font-medium">{a.file_name}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {a.document_type.replace('_', ' ')} • {a.file_size ? `${(a.file_size / 1024).toFixed(0)} KB` : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <Button variant="outline" size="sm" onClick={async () => {
+                                                    const url = await ExpedientService.getAttachmentUrl(a.storage_path);
+                                                    window.open(url, '_blank');
+                                                }}>
+                                                    Ver
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
-                            </div>
+                            </>
                         )}
-                    </>
-                )}
 
-                {tab === 'adjuntos' && (
-                    <>
-                        {attachments.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                <Paperclip className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                                <p className="text-sm">Sin documentos adjuntos</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {attachments.map(a => (
-                                    <div key={a.id} className="flex items-center justify-between p-3 border rounded-lg">
-                                        <div className="flex items-center gap-2">
-                                            <Paperclip className="h-4 w-4 text-muted-foreground" />
-                                            <div>
-                                                <p className="text-sm font-medium">{a.file_name}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {a.document_type.replace('_', ' ')} • {a.file_size ? `${(a.file_size / 1024).toFixed(0)} KB` : ''}
-                                                </p>
+                        {/* ── TAB: Notas ── */}
+                        {tab === 'notas' && (
+                            <>
+                                <div className="space-y-3">
+                                    {notes.length === 0 && (
+                                        <p className="text-center text-sm text-muted-foreground py-4">Sin notas aún</p>
+                                    )}
+                                    {notes.map(n => (
+                                        <div key={n.id} className={`p-3 rounded-xl text-sm ${
+                                            n.note_type === 'sistema' ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/20 dark:text-blue-300 dark:border-blue-800' :
+                                            n.note_type === 'resolucion' ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/20 dark:text-green-300 dark:border-green-800' :
+                                            n.note_type === 'para_afiliado' ? 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-800' :
+                                            'bg-muted/30'
+                                        }`}>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="font-semibold text-[10px] uppercase tracking-wider">{n.note_type.replace('_', ' ')}</span>
+                                                <span className="text-[10px] opacity-70">{formatDate(n.created_at)}</span>
+                                            </div>
+                                            <p>{n.content}</p>
+                                            {n.status_from && n.status_to && (
+                                                <p className="text-[10px] mt-1 opacity-70">{n.status_from} → {n.status_to}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Agregar nota */}
+                                <div className="flex gap-2 mt-4">
+                                    <Input
+                                        value={newNote}
+                                        onChange={e => setNewNote(e.target.value)}
+                                        placeholder="Escribir nota interna..."
+                                        onKeyDown={e => e.key === 'Enter' && handleAddNote()}
+                                        className="h-9"
+                                    />
+                                    <Button size="icon" onClick={handleAddNote} disabled={!newNote.trim()} className="h-9 w-9">
+                                        <Send className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ── TAB: Timeline ── */}
+                        {tab === 'historial' && (
+                            <div className="relative">
+                                <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
+                                <div className="space-y-4">
+                                    {log.length === 0 && (
+                                        <p className="text-center text-sm text-muted-foreground py-4">Sin historial</p>
+                                    )}
+                                    {log.map(l => (
+                                        <div key={l.id} className="flex items-start gap-4 relative">
+                                            <div className="w-6 h-6 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center shrink-0 z-10">
+                                                <div className="w-2 h-2 rounded-full bg-primary" />
+                                            </div>
+                                            <div className="flex-1 pb-2">
+                                                <p className="text-sm font-medium">{formatAction(l.action)}</p>
+                                                <p className="text-[10px] text-muted-foreground">{formatDate(l.performed_at)}</p>
+                                                {Object.keys(l.details).length > 0 && (
+                                                    <pre className="text-[10px] bg-muted/30 rounded-lg p-2 mt-1 overflow-x-auto">
+                                                        {JSON.stringify(l.details, null, 2)}
+                                                    </pre>
+                                                )}
                                             </div>
                                         </div>
-                                        <Button variant="outline" size="sm" onClick={async () => {
-                                            const url = await AuditRequestService.getAttachmentUrl(a.storage_path);
-                                            window.open(url, '_blank');
-                                        }}>
-                                            Ver
-                                        </Button>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </>
-                )}
-
-                {tab === 'notas' && (
-                    <>
-                        <div className="space-y-3">
-                            {notes.map(n => (
-                                <div key={n.id} className={`p-3 rounded-lg text-sm ${
-                                    n.note_type === 'sistema' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                    n.note_type === 'resolucion' ? 'bg-green-50 text-green-700 border border-green-200' :
-                                    n.note_type === 'para_afiliado' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                                    'bg-muted/30'
-                                }`}>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="font-semibold text-xs uppercase">{n.note_type.replace('_', ' ')}</span>
-                                        <span className="text-xs opacity-70">{formatDate(n.created_at)}</span>
-                                    </div>
-                                    <p>{n.content}</p>
-                                    {n.status_from && n.status_to && (
-                                        <p className="text-xs mt-1 opacity-70">{n.status_from} → {n.status_to}</p>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Agregar nota */}
-                        <div className="flex gap-2 mt-4">
-                            <Input
-                                value={newNote}
-                                onChange={e => setNewNote(e.target.value)}
-                                placeholder="Escribir nota interna..."
-                                onKeyDown={e => e.key === 'Enter' && handleAddNote()}
-                            />
-                            <Button size="icon" onClick={handleAddNote} disabled={!newNote.trim()}>
-                                <Send className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </>
-                )}
-
-                {tab === 'historial' && (
-                    <div className="space-y-2">
-                        {log.map(l => (
-                            <div key={l.id} className="flex items-start gap-3 text-sm p-2">
-                                <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
-                                <div>
-                                    <p className="font-medium">{l.action.replace('_', ' ')}</p>
-                                    <p className="text-xs text-muted-foreground">{formatDate(l.performed_at)}</p>
-                                    {Object.keys(l.details).length > 0 && (
-                                        <pre className="text-xs bg-muted/30 rounded p-1 mt-1">
-                                            {JSON.stringify(l.details, null, 2)}
-                                        </pre>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
                 )}
             </div>
-
-            {/* Panel de resolución (solo si pendiente) */}
-            {isPending && (
-                <div className="border-t p-4 space-y-3 bg-muted/10">
-                    <p className="font-bold text-xs text-muted-foreground uppercase tracking-widest">Resolución</p>
-
-                    {/* Diagnóstico (obligatorio para autorizar) */}
-                    <div className="grid grid-cols-2 gap-2">
-                        <Input
-                            placeholder="Código CIE-10"
-                            value={diagnosisCode}
-                            onChange={e => setDiagnosisCode(e.target.value)}
-                        />
-                        <Input
-                            placeholder="Descripción diagnóstico"
-                            value={diagnosisDesc}
-                            onChange={e => setDiagnosisDesc(e.target.value)}
-                        />
-                    </div>
-
-                    <textarea
-                        value={resolutionNotes}
-                        onChange={e => setResolutionNotes(e.target.value)}
-                        placeholder="Observaciones de la resolución..."
-                        rows={2}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-background resize-none"
-                    />
-
-                    <div className="flex gap-2">
-                        {request.status === 'pendiente' && (
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={handleTake}
-                                disabled={resolving}
-                                className="text-blue-600"
-                            >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Tomar
-                            </Button>
-                        )}
-                        <Button
-                            size="sm"
-                            onClick={handleAuthorize}
-                            disabled={resolving || !diagnosisCode}
-                            className="bg-green-600 hover:bg-green-700 flex-1"
-                        >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Autorizar
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleObserve}
-                            disabled={resolving || !resolutionNotes}
-                            className="text-orange-600"
-                        >
-                            <AlertTriangle className="h-4 w-4 mr-1" />
-                            Observar
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleDeny}
-                            disabled={resolving || !resolutionNotes}
-                            className="text-red-600"
-                        >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Denegar
-                        </Button>
-                    </div>
-                </div>
-            )}
         </div>
     );
+}
+
+// Helper para formatear acciones del log
+function formatAction(action: string): string {
+    const map: Record<string, string> = {
+        created: '📥 Expediente creado',
+        taken_for_review: '👁️ Tomado para revisión',
+        practice_authorized: '✅ Práctica autorizada',
+        practice_authorized_partial: '🔄 Práctica autorizada parcialmente',
+        practice_denied: '❌ Práctica denegada',
+        practice_observed: '⏸️ Práctica observada',
+        practice_deferred: '⏰ Práctica diferida',
+        auto_approved: '🤖 Auto-aprobación por motor de reglas',
+        observed: '👁️ Expediente observado',
+        resubmitted: '🔁 Reenviado tras observación',
+        appealed: '📣 Apelación presentada',
+        cancelled: '🚫 Expediente anulado',
+        reassigned: '🔄 Reasignado',
+        attachment_added: '📎 Adjunto agregado',
+        control_desk_approved: '✅ Mesa de control: aprobado',
+        control_desk_rejected: '❌ Mesa de control: rechazado',
+    };
+    return map[action] || action.replace(/_/g, ' ');
 }
 
 // ── Página principal: Bandeja de Auditoría ──
 
 export default function AuditRequestsPage() {
     const { activeJurisdiction } = useJurisdiction();
-    const [requests, setRequests] = useState<AuditRequest[]>([]);
-    const [selectedRequest, setSelectedRequest] = useState<AuditRequest | null>(null);
+    const { user } = useAuth();
+    const [expedients, setExpedients] = useState<Expedient[]>([]);
+    const [selectedExpedient, setSelectedExpedient] = useState<Expedient | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [filterType, setFilterType] = useState<AuditRequestType | 'todas'>('todas');
-    const [filterStatus, setFilterStatus] = useState<AuditRequestStatus | 'pendientes'>('pendientes');
+    const [filterType, setFilterType] = useState<ExpedientType | 'todas'>('todas');
+    const [filterStatus, setFilterStatus] = useState<'pendientes' | ExpedientStatus>('pendientes');
     const [reloadKey, setReloadKey] = useState(0);
-    const [counts, setCounts] = useState<Record<AuditRequestStatus, number>>({
-        pendiente: 0, en_revision: 0, autorizada: 0, denegada: 0, observada: 0, anulada: 0, vencida: 0,
+    const [counts, setCounts] = useState<Record<ExpedientStatus, number>>({
+        borrador: 0,
+        pendiente: 0,
+        en_revision: 0,
+        parcialmente_resuelto: 0,
+        resuelto: 0,
+        observada: 0,
+        en_apelacion: 0,
+        anulada: 0,
     });
 
     useEffect(() => {
@@ -553,15 +967,15 @@ export default function AuditRequestsPage() {
             if (!activeJurisdiction) return;
             setLoading(true);
             try {
-                let result: AuditRequest[];
+                let result: Expedient[];
 
                 if (filterStatus === 'pendientes') {
-                    result = await AuditRequestService.fetchPending(
+                    result = await ExpedientService.fetchPending(
                         activeJurisdiction.id,
                         filterType !== 'todas' ? filterType : undefined,
                     );
                 } else {
-                    const { data } = await AuditRequestService.fetchAll({
+                    const { data } = await ExpedientService.fetchAll({
                         jurisdiction_id: activeJurisdiction.id,
                         type: filterType !== 'todas' ? filterType : undefined,
                         status: filterStatus,
@@ -571,11 +985,11 @@ export default function AuditRequestsPage() {
                 }
 
                 if (!cancelled) {
-                    setRequests(result);
+                    setExpedients(result);
                 }
 
-                // Refresh counts
-                const c = await AuditRequestService.getCounts(activeJurisdiction.id);
+                // Cargar contadores
+                const c = await ExpedientService.getCounts(activeJurisdiction.id);
                 if (!cancelled) {
                     setCounts(c);
                 }
@@ -588,23 +1002,31 @@ export default function AuditRequestsPage() {
         return () => { cancelled = true; };
     }, [activeJurisdiction, filterType, filterStatus, reloadKey]);
 
-    const handleAction = () => {
-        setSelectedRequest(null);
+    const handleAction = useCallback(() => {
+        setSelectedExpedient(null);
         setReloadKey(k => k + 1);
-    };
+    }, []);
 
     // Filtrar por búsqueda local
-    const filtered = requests.filter(r => {
+    const filtered = expedients.filter(e => {
         if (!search) return true;
         const q = search.toLowerCase();
         return (
-            r.request_number?.toLowerCase().includes(q) ||
-            String(r.affiliate_id).toLowerCase().includes(q) ||
-            r.request_notes?.toLowerCase().includes(q)
+            e.expedient_number?.toLowerCase().includes(q) ||
+            String(e.affiliate_id).toLowerCase().includes(q) ||
+            e.request_notes?.toLowerCase().includes(q)
         );
     });
 
-    const pendingTotal = counts.pendiente + counts.en_revision + counts.observada;
+    const pendingTotal = counts.pendiente + counts.en_revision + counts.observada + counts.parcialmente_resuelto;
+
+    // Tabs de estado para la bandeja
+    const statusTabs: Array<{ key: 'pendientes' | ExpedientStatus; label: string; count: number; color: string }> = [
+        { key: 'pendientes', label: 'Pendientes', count: pendingTotal, color: 'bg-yellow-100 text-yellow-800 ring-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-300 dark:ring-yellow-700' },
+        { key: 'resuelto', label: 'Resueltos', count: counts.resuelto, color: 'bg-green-100 text-green-800 ring-green-300 dark:bg-green-900/40 dark:text-green-300 dark:ring-green-700' },
+        { key: 'en_apelacion', label: 'Apelaciones', count: counts.en_apelacion, color: 'bg-red-100 text-red-700 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700' },
+        { key: 'anulada', label: 'Anuladas', count: counts.anulada, color: 'bg-gray-100 text-gray-600 ring-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700' },
+    ];
 
     return (
         <div className="h-[calc(100vh-4rem)] flex flex-col">
@@ -616,9 +1038,10 @@ export default function AuditRequestsPage() {
                             <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                         </Link>
                         <div>
-                            <h1 className="text-xl font-bold">Pendientes de Auditoría</h1>
+                            <h1 className="text-xl font-bold">Expedientes de Auditoría</h1>
                             <p className="text-sm text-muted-foreground">
                                 {pendingTotal} pendiente{pendingTotal !== 1 ? 's' : ''} de resolución
+                                {user && <span className="ml-1">• {user.full_name}</span>}
                             </p>
                         </div>
                     </div>
@@ -630,25 +1053,17 @@ export default function AuditRequestsPage() {
                     </Link>
                 </div>
 
-                {/* Contadores */}
-                <div className="flex gap-2 mb-3 overflow-x-auto">
-                    <button
-                        onClick={() => setFilterStatus('pendientes')}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                            filterStatus === 'pendientes' ? 'bg-yellow-100 text-yellow-800 ring-1 ring-yellow-300' : 'bg-muted text-muted-foreground'
-                        }`}
-                    >
-                        Pendientes ({pendingTotal})
-                    </button>
-                    {Object.entries(STATUS_CONFIG).filter(([k]) => !['pendiente', 'en_revision', 'observada'].includes(k)).map(([key, cfg]) => (
+                {/* Contadores de estado */}
+                <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+                    {statusTabs.map(st => (
                         <button
-                            key={key}
-                            onClick={() => setFilterStatus(key as AuditRequestStatus)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                                filterStatus === key ? `${cfg.color} ring-1` : 'bg-muted text-muted-foreground'
+                            key={st.key}
+                            onClick={() => setFilterStatus(st.key)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                                filterStatus === st.key ? `${st.color} ring-1 shadow-sm` : 'bg-muted text-muted-foreground hover:bg-muted/80'
                             }`}
                         >
-                            {cfg.label} ({counts[key as AuditRequestStatus]})
+                            {st.label} ({st.count})
                         </button>
                     ))}
                 </div>
@@ -666,13 +1081,13 @@ export default function AuditRequestsPage() {
                     </div>
                     <select
                         value={filterType}
-                        onChange={e => setFilterType(e.target.value as AuditRequestType | 'todas')}
-                        className="border rounded-md px-3 py-1 text-sm bg-background h-9"
+                        onChange={e => setFilterType(e.target.value as ExpedientType | 'todas')}
+                        className="border rounded-lg px-3 py-1 text-sm bg-background h-9 cursor-pointer"
                     >
-                        <option value="todas">Todas</option>
-                        <option value="ambulatoria">Ambulatorias</option>
-                        <option value="bioquimica">Bioquímicas</option>
-                        <option value="internacion">Internación</option>
+                        <option value="todas">Todos los tipos</option>
+                        {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
+                            <option key={key} value={key}>{cfg.label}</option>
+                        ))}
                     </select>
                 </div>
             </div>
@@ -680,35 +1095,39 @@ export default function AuditRequestsPage() {
             {/* Body: Split list + detail */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Lista */}
-                <div className={`${selectedRequest ? 'w-2/5 border-r hidden md:block' : 'w-full'} overflow-y-auto`}>
+                <div className={`${selectedExpedient ? 'w-2/5 border-r hidden md:block' : 'w-full'} overflow-y-auto`}>
                     {loading ? (
-                        <div className="text-center py-12 text-muted-foreground">Cargando solicitudes...</div>
+                        <div className="text-center py-12 text-muted-foreground">
+                            <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin opacity-30" />
+                            <p className="text-sm">Cargando expedientes...</p>
+                        </div>
                     ) : (
-                        <RequestList
-                            requests={filtered}
-                            onSelect={setSelectedRequest}
-                            selectedId={selectedRequest?.id}
+                        <ExpedientList
+                            expedients={filtered}
+                            onSelect={setSelectedExpedient}
+                            selectedId={selectedExpedient?.id}
                         />
                     )}
                 </div>
 
                 {/* Detalle */}
-                {selectedRequest && (
+                {selectedExpedient && (
                     <div className="flex-1 overflow-hidden md:block">
-                        <RequestDetail
-                            request={selectedRequest}
+                        <ExpedientDetail
+                            expedient={selectedExpedient}
                             onAction={handleAction}
+                            onBack={() => setSelectedExpedient(null)}
                         />
                     </div>
                 )}
 
                 {/* Empty state cuando no hay selección en desktop */}
-                {!selectedRequest && (
+                {!selectedExpedient && (
                     <div className="flex-1 hidden md:flex items-center justify-center text-muted-foreground">
                         <div className="text-center">
                             <FileText className="h-16 w-16 mx-auto mb-3 opacity-20" />
-                            <p className="text-lg">Seleccione una solicitud</p>
-                            <p className="text-sm">para ver el detalle y tomar acciones</p>
+                            <p className="text-lg">Seleccione un expediente</p>
+                            <p className="text-sm">para ver el detalle y resolver prácticas</p>
                         </div>
                     </div>
                 )}
