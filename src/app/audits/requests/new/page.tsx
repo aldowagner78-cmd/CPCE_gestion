@@ -22,7 +22,7 @@ import {
     ChevronDown, ChevronUp, User,
     ShieldCheck, Package, DollarSign,
     BarChart3, Smile, Calendar, Phone, Mail,
-    MapPin, FileText, AlertTriangle, Lock, Megaphone, MessageSquare, Loader2
+    MapPin, FileText, AlertTriangle, Lock, Megaphone,
     Zap, ShieldAlert, Eye, Loader2,
     MessageSquare, Filter, Clock, Star,
 } from 'lucide-react';
