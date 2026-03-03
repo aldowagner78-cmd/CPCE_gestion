@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,10 +8,8 @@ import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { AuditRequestService } from '@/services/auditRequestService';
 import { createClient } from '@/lib/supabase';
 import {
-    FileText,
     Search,
     Upload,
-    Send,
     AlertCircle,
     CheckCircle,
     Stethoscope,
@@ -21,29 +18,27 @@ import {
     ArrowLeft,
     Paperclip,
     X,
-    User,
+    Send,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { AuditRequestType, Affiliate, Practice, AuditRequestAttachment } from '@/types/database';
 
 const supabase = createClient();
 
-const REQUEST_TYPES: { value: AuditRequestType; label: string; icon: React.ElementType; color: string }[] = [
-    { value: 'ambulatoria', label: 'Ambulatoria', icon: Stethoscope, color: 'text-blue-600 bg-blue-50 border-blue-200' },
-    { value: 'bioquimica', label: 'Bioquímica', icon: FlaskConical, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-    { value: 'internacion', label: 'Internación', icon: Building2, color: 'text-purple-600 bg-purple-50 border-purple-200' },
+const TYPES: { value: AuditRequestType; label: string; icon: React.ElementType; cls: string }[] = [
+    { value: 'ambulatoria', label: 'Ambulatoria', icon: Stethoscope, cls: 'text-blue-600 bg-blue-50 border-blue-300' },
+    { value: 'bioquimica', label: 'Bioquímica', icon: FlaskConical, cls: 'text-emerald-600 bg-emerald-50 border-emerald-300' },
+    { value: 'internacion', label: 'Internación', icon: Building2, cls: 'text-purple-600 bg-purple-50 border-purple-300' },
 ];
 
-const DOCUMENT_TYPES: { value: AuditRequestAttachment['document_type']; label: string }[] = [
+const DOC_TYPES: { value: AuditRequestAttachment['document_type']; label: string }[] = [
     { value: 'orden_medica', label: 'Orden médica' },
     { value: 'receta', label: 'Receta' },
     { value: 'estudio', label: 'Estudio previo' },
     { value: 'informe', label: 'Informe médico' },
     { value: 'consentimiento', label: 'Consentimiento' },
-    { value: 'otro', label: 'Otro documento' },
+    { value: 'otro', label: 'Otro' },
 ];
-
-type Step = 1 | 2 | 3 | 4 | 5;
 
 interface PendingFile {
     file: File;
@@ -54,595 +49,352 @@ export default function NewRequestPage() {
     const { user } = useAuth();
     const { activeJurisdiction } = useJurisdiction();
 
-    // Wizard steps
-    const [step, setStep] = useState<Step>(1);
+    // Tipo
+    const [requestType, setRequestType] = useState<AuditRequestType>('ambulatoria');
 
-    // Step 1: Tipo
-    const [requestType, setRequestType] = useState<AuditRequestType | null>(null);
+    // Afiliado
+    const [affSearch, setAffSearch] = useState('');
+    const [affResults, setAffResults] = useState<Affiliate[]>([]);
+    const [affiliate, setAffiliate] = useState<Affiliate | null>(null);
+    const [searchingAff, setSearchingAff] = useState(false);
 
-    // Step 2: Afiliado
-    const [affiliateSearch, setAffiliateSearch] = useState('');
-    const [affiliateResults, setAffiliateResults] = useState<Affiliate[]>([]);
-    const [selectedAffiliate, setSelectedAffiliate] = useState<Affiliate | null>(null);
-    const [searchingAffiliate, setSearchingAffiliate] = useState(false);
+    // Práctica
+    const [pracSearch, setPracSearch] = useState('');
+    const [pracResults, setPracResults] = useState<Practice[]>([]);
+    const [practice, setPractice] = useState<Practice | null>(null);
+    const [searchingPrac, setSearchingPrac] = useState(false);
+    const [quantity, setQuantity] = useState(1);
+    const [estDays, setEstDays] = useState(1);
 
-    // Step 3: Práctica
-    const [practiceSearch, setPracticeSearch] = useState('');
-    const [practiceResults, setPracticeResults] = useState<Practice[]>([]);
-    const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
-    const [searchingPractice, setSearchingPractice] = useState(false);
-    const [practiceQuantity, setPracticeQuantity] = useState(1);
-
-    // Step 4: Adjuntos
-    const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
-    const [currentDocType, setCurrentDocType] = useState<AuditRequestAttachment['document_type']>('orden_medica');
-
-    // Step 5: Observaciones y envío
-    const [requestNotes, setRequestNotes] = useState('');
+    // Extras
     const [priority, setPriority] = useState<'normal' | 'urgente'>('normal');
-    const [estimatedDays, setEstimatedDays] = useState<number>(0);
+    const [notes, setNotes] = useState('');
+    const [files, setFiles] = useState<PendingFile[]>([]);
+    const [docType, setDocType] = useState<AuditRequestAttachment['document_type']>('orden_medica');
 
-    // General state
+    // Estado
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [submittedNumber, setSubmittedNumber] = useState('');
     const [error, setError] = useState('');
 
-    // ── Búsqueda de afiliados ──
-    const searchAffiliates = useCallback(async (query: string) => {
-        if (query.length < 2) { setAffiliateResults([]); return; }
-        setSearchingAffiliate(true);
+    // ── Búsquedas con debounce ──
+    const searchAffs = useCallback(async (q: string) => {
+        if (q.length < 2) { setAffResults([]); return; }
+        setSearchingAff(true);
         try {
             const { data } = await supabase
                 .from('affiliates')
                 .select('*')
-                .or(`full_name.ilike.%${query}%,document_number.ilike.%${query}%,affiliate_number.ilike.%${query}%`)
+                .or(`full_name.ilike.%${q}%,document_number.ilike.%${q}%,affiliate_number.ilike.%${q}%`)
                 .eq('jurisdiction_id', activeJurisdiction?.id || 1)
                 .eq('status', 'activo')
-                .limit(10);
-            setAffiliateResults((data || []) as Affiliate[]);
-        } catch {
-            setAffiliateResults([]);
-        }
-        setSearchingAffiliate(false);
+                .limit(8);
+            setAffResults((data || []) as Affiliate[]);
+        } catch { setAffResults([]); }
+        setSearchingAff(false);
     }, [activeJurisdiction]);
 
-    useEffect(() => {
-        const timer = setTimeout(() => { if (affiliateSearch) searchAffiliates(affiliateSearch); }, 300);
-        return () => clearTimeout(timer);
-    }, [affiliateSearch, searchAffiliates]);
-
-    // ── Búsqueda de prácticas ──
-    const searchPractices = useCallback(async (query: string) => {
-        if (query.length < 2) { setPracticeResults([]); return; }
-        setSearchingPractice(true);
+    const searchPracs = useCallback(async (q: string) => {
+        if (q.length < 2) { setPracResults([]); return; }
+        setSearchingPrac(true);
         try {
             const { data } = await supabase
                 .from('practices')
                 .select('*')
-                .or(`name.ilike.%${query}%,code.ilike.%${query}%`)
+                .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
                 .eq('jurisdiction_id', activeJurisdiction?.id || 1)
                 .eq('is_active', true)
-                .limit(15);
-            // Map Supabase fields to Practice type
-            setPracticeResults((data || []).map((p: Record<string, unknown>) => ({
+                .limit(10);
+            setPracResults((data || []).map((p: Record<string, unknown>) => ({
                 ...p,
                 description: p.name as string,
                 financial_value: (p.fixed_value as number) || 0,
             })) as Practice[]);
-        } catch {
-            setPracticeResults([]);
-        }
-        setSearchingPractice(false);
+        } catch { setPracResults([]); }
+        setSearchingPrac(false);
     }, [activeJurisdiction]);
 
     useEffect(() => {
-        const timer = setTimeout(() => { if (practiceSearch) searchPractices(practiceSearch); }, 300);
-        return () => clearTimeout(timer);
-    }, [practiceSearch, searchPractices]);
+        const t = setTimeout(() => { if (affSearch) searchAffs(affSearch); }, 300);
+        return () => clearTimeout(t);
+    }, [affSearch, searchAffs]);
 
-    // ── Agregar archivo ──
+    useEffect(() => {
+        const t = setTimeout(() => { if (pracSearch) searchPracs(pracSearch); }, 300);
+        return () => clearTimeout(t);
+    }, [pracSearch, searchPracs]);
+
+    // ── Archivos ──
     const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files) return;
-        const newFiles: PendingFile[] = Array.from(files).map(f => ({
-            file: f,
-            documentType: currentDocType,
-        }));
-        setPendingFiles(prev => [...prev, ...newFiles]);
+        if (!e.target.files) return;
+        setFiles(prev => [...prev, ...Array.from(e.target.files!).map(f => ({ file: f, documentType: docType }))]);
         e.target.value = '';
     };
 
-    const removeFile = (index: number) => {
-        setPendingFiles(prev => prev.filter((_, i) => i !== index));
-    };
+    // ── Enviar ──
+    const canSubmit = !!affiliate && !!practice && !submitting;
 
-    // ── Enviar solicitud ──
     const handleSubmit = async () => {
-        if (!requestType || !selectedAffiliate || !selectedPractice || !user || !activeJurisdiction) return;
-
+        if (!canSubmit || !user || !activeJurisdiction) return;
         setSubmitting(true);
         setError('');
-
         try {
-            // 1. Crear la solicitud
-            const request = await AuditRequestService.create({
+            const req = await AuditRequestService.create({
                 type: requestType,
-                affiliate_id: String(selectedAffiliate.id),
-                affiliate_plan_id: selectedAffiliate.plan_id,
-                family_member_relation: selectedAffiliate.relationship,
-                practice_id: selectedPractice.id,
-                practice_quantity: practiceQuantity,
-                practice_value: selectedPractice.financial_value,
-                request_notes: requestNotes || undefined,
+                affiliate_id: String(affiliate.id),
+                affiliate_plan_id: affiliate.plan_id,
+                family_member_relation: affiliate.relationship,
+                practice_id: practice.id,
+                practice_quantity: quantity,
+                practice_value: practice.financial_value,
+                request_notes: notes || undefined,
                 priority,
-                estimated_days: requestType === 'internacion' ? estimatedDays : undefined,
+                estimated_days: requestType === 'internacion' ? estDays : undefined,
                 created_by: user.id,
                 jurisdiction_id: activeJurisdiction.id,
             });
-
-            // 2. Subir adjuntos
-            for (const pf of pendingFiles) {
-                await AuditRequestService.uploadAttachment(
-                    request.id,
-                    pf.file,
-                    pf.documentType,
-                    user.id,
-                );
+            for (const pf of files) {
+                await AuditRequestService.uploadAttachment(req.id, pf.file, pf.documentType, user.id);
             }
-
-            setSubmittedNumber(request.request_number || request.id);
+            setSubmittedNumber(req.request_number || req.id);
             setSubmitted(true);
         } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : 'Error desconocido';
-            setError(message);
+            setError(err instanceof Error ? err.message : 'Error al crear solicitud');
         }
-
         setSubmitting(false);
     };
 
-    // ── Validación por paso ──
-    const canProceed = (s: Step): boolean => {
-        switch (s) {
-            case 1: return !!requestType;
-            case 2: return !!selectedAffiliate;
-            case 3: return !!selectedPractice;
-            case 4: return true; // Adjuntos son opcionales
-            case 5: return true;
-            default: return false;
-        }
-    };
-
-    // ── Pantalla de éxito ──
+    // ── Éxito ──
     if (submitted) {
         return (
-            <div className="max-w-2xl mx-auto p-6">
-                <Card className="border-green-200 bg-green-50/50">
-                    <CardContent className="p-8 text-center">
-                        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                        <h2 className="text-2xl font-bold text-green-800 mb-2">Solicitud Enviada</h2>
-                        <p className="text-green-700 mb-1">
-                            Número de solicitud:
-                        </p>
-                        <p className="text-3xl font-mono font-bold text-green-900 mb-6">
-                            {submittedNumber}
-                        </p>
-                        <p className="text-sm text-green-600 mb-6">
-                            La solicitud fue derivada a auditoría. El auditor la revisará a la brevedad.
-                        </p>
-                        <div className="flex gap-3 justify-center">
-                            <Button onClick={() => {
-                                setStep(1); setRequestType(null); setSelectedAffiliate(null);
-                                setSelectedPractice(null); setPendingFiles([]); setRequestNotes('');
-                                setPriority('normal'); setEstimatedDays(0); setSubmitted(false);
-                            }}>
-                                Nueva Solicitud
-                            </Button>
-                            <Link href="/audits">
-                                <Button variant="outline">Ver Solicitudes</Button>
-                            </Link>
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="max-w-lg mx-auto p-6 mt-8">
+                <div className="border border-green-200 bg-green-50/50 rounded-xl p-8 text-center">
+                    <CheckCircle className="h-14 w-14 text-green-500 mx-auto mb-3" />
+                    <h2 className="text-xl font-bold text-green-800 mb-1">Solicitud Enviada</h2>
+                    <p className="text-3xl font-mono font-bold text-green-900 my-3">{submittedNumber}</p>
+                    <p className="text-sm text-green-600 mb-5">Derivada a auditoría para revisión.</p>
+                    <div className="flex gap-3 justify-center">
+                        <Button onClick={() => {
+                            setAffiliate(null); setPractice(null); setFiles([]); setNotes('');
+                            setPriority('normal'); setQuantity(1); setEstDays(1); setSubmitted(false);
+                            setAffSearch(''); setPracSearch('');
+                        }}>
+                            Nueva Solicitud
+                        </Button>
+                        <Link href="/audits/requests">
+                            <Button variant="outline">Ver Bandeja</Button>
+                        </Link>
+                    </div>
+                </div>
             </div>
         );
     }
 
+    // ── Formulario único — todo en una pantalla ──
     return (
-        <div className="max-w-3xl mx-auto p-6 space-y-6">
+        <div className="max-w-2xl mx-auto p-4 space-y-4">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <Link href="/audits">
+                <Link href="/audits/requests">
                     <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                 </Link>
-                <div>
-                    <h1 className="text-2xl font-bold">Nueva Solicitud de Auditoría</h1>
-                    <p className="text-sm text-muted-foreground">Complete los pasos para generar la solicitud</p>
+                <h1 className="text-xl font-bold">Nueva Solicitud</h1>
+            </div>
+
+            {/* Tipo — 3 botones inline, default ambulatoria */}
+            <div className="flex gap-2">
+                {TYPES.map(t => {
+                    const Icon = t.icon;
+                    return (
+                        <button
+                            key={t.value}
+                            onClick={() => setRequestType(t.value)}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all flex-1 justify-center ${
+                                requestType === t.value ? `${t.cls} ring-1 ring-current/20` : 'border-border text-muted-foreground hover:border-muted-foreground/40'
+                            }`}
+                        >
+                            <Icon className="h-4 w-4" />
+                            {t.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Afiliado */}
+            <div className="space-y-2">
+                <label className="text-sm font-semibold">Afiliado *</label>
+                {!affiliate ? (
+                    <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Nombre, DNI o nro. afiliado..."
+                            value={affSearch}
+                            onChange={e => setAffSearch(e.target.value)}
+                            className="pl-9"
+                            autoFocus
+                        />
+                        {searchingAff && <p className="text-xs text-muted-foreground mt-1">Buscando...</p>}
+                        {affResults.length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-background border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                {affResults.map(a => (
+                                    <button
+                                        key={String(a.id)}
+                                        onClick={() => { setAffiliate(a); setAffResults([]); setAffSearch(''); }}
+                                        className="w-full px-3 py-2 text-left hover:bg-muted/50 text-sm border-b last:border-0"
+                                    >
+                                        <span className="font-medium">{a.full_name}</span>
+                                        <span className="text-muted-foreground ml-2">DNI {a.document_number}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+                        <div className="text-sm">
+                            <span className="font-bold">{affiliate.full_name}</span>
+                            <span className="text-muted-foreground ml-2">DNI {affiliate.document_number} • {affiliate.relationship || 'Titular'}</span>
+                        </div>
+                        <button onClick={() => { setAffiliate(null); setAffSearch(''); }} className="text-muted-foreground hover:text-foreground">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Práctica */}
+            <div className="space-y-2">
+                <label className="text-sm font-semibold">Práctica *</label>
+                {!practice ? (
+                    <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Código o nombre de práctica..."
+                            value={pracSearch}
+                            onChange={e => setPracSearch(e.target.value)}
+                            className="pl-9"
+                        />
+                        {searchingPrac && <p className="text-xs text-muted-foreground mt-1">Buscando...</p>}
+                        {pracResults.length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-background border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                {pracResults.map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => { setPractice(p); setPracResults([]); setPracSearch(''); }}
+                                        className="w-full px-3 py-2 text-left hover:bg-muted/50 text-sm border-b last:border-0 flex justify-between"
+                                    >
+                                        <span><span className="font-medium">{p.code}</span> — {p.description}</span>
+                                        <span className="font-mono text-muted-foreground ml-2">${p.financial_value?.toLocaleString()}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+                        <div className="text-sm">
+                            <span className="font-bold">{practice.code}</span>
+                            <span className="ml-1">{practice.description}</span>
+                            <span className="text-muted-foreground ml-2">${practice.financial_value?.toLocaleString()}</span>
+                        </div>
+                        <button onClick={() => { setPractice(null); setPracSearch(''); }} className="text-muted-foreground hover:text-foreground">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Fila: Cantidad + Prioridad + Días (si internación) */}
+            <div className="flex gap-3 flex-wrap">
+                <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Cantidad</label>
+                    <Input type="number" min={1} max={100} value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} className="w-20" />
+                </div>
+
+                {requestType === 'internacion' && (
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Días est.</label>
+                        <Input type="number" min={1} max={365} value={estDays} onChange={e => setEstDays(parseInt(e.target.value) || 1)} className="w-20" />
+                    </div>
+                )}
+
+                <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Prioridad</label>
+                    <div className="flex gap-1">
+                        <button
+                            onClick={() => setPriority('normal')}
+                            className={`px-3 py-1.5 rounded text-sm font-medium border ${priority === 'normal' ? 'bg-slate-100 border-slate-300' : 'border-transparent text-muted-foreground'}`}
+                        >Normal</button>
+                        <button
+                            onClick={() => setPriority('urgente')}
+                            className={`px-3 py-1.5 rounded text-sm font-medium border ${priority === 'urgente' ? 'bg-red-100 border-red-300 text-red-700' : 'border-transparent text-muted-foreground'}`}
+                        >🔴 Urgente</button>
+                    </div>
                 </div>
             </div>
 
-            {/* Progress */}
-            <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map(s => (
-                    <div key={s} className="flex items-center flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-                            s < step ? 'bg-primary text-primary-foreground' :
-                            s === step ? 'bg-primary text-primary-foreground ring-2 ring-primary/30' :
-                            'bg-muted text-muted-foreground'
-                        }`}>
-                            {s < step ? '✓' : s}
-                        </div>
-                        {s < 5 && <div className={`h-1 flex-1 mx-1 rounded ${s < step ? 'bg-primary' : 'bg-muted'}`} />}
-                    </div>
-                ))}
+            {/* Observaciones — una línea */}
+            <div>
+                <Input
+                    placeholder="Observaciones para el auditor (opcional)"
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                />
             </div>
 
-            {/* Step 1: Tipo */}
-            {step === 1 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <FileText className="h-5 w-5" />
-                            Paso 1: Tipo de solicitud
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            {REQUEST_TYPES.map(rt => (
-                                <button
-                                    key={rt.value}
-                                    onClick={() => setRequestType(rt.value)}
-                                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                                        requestType === rt.value
-                                            ? `${rt.color} border-current ring-2 ring-current/20`
-                                            : 'border-border hover:border-muted-foreground/30'
-                                    }`}
-                                >
-                                    <rt.icon className="h-8 w-8 mb-2" />
-                                    <p className="font-semibold">{rt.label}</p>
-                                </button>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Step 2: Afiliado */}
-            {step === 2 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <User className="h-5 w-5" />
-                            Paso 2: Seleccionar afiliado
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Buscar por nombre, DNI o nro. de afiliado..."
-                                value={affiliateSearch}
-                                onChange={e => { setAffiliateSearch(e.target.value); setSelectedAffiliate(null); }}
-                                className="pl-10"
-                            />
-                        </div>
-
-                        {searchingAffiliate && <p className="text-sm text-muted-foreground">Buscando...</p>}
-
-                        {affiliateResults.length > 0 && !selectedAffiliate && (
-                            <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
-                                {affiliateResults.map(a => (
-                                    <button
-                                        key={String(a.id)}
-                                        onClick={() => { setSelectedAffiliate(a); setAffiliateResults([]); }}
-                                        className="w-full p-3 text-left hover:bg-muted/50 transition-colors"
-                                    >
-                                        <p className="font-medium">{a.full_name}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            DNI: {a.document_number} | Nro: {a.affiliate_number || '—'} | {a.relationship || 'Titular'}
-                                        </p>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {selectedAffiliate && (
-                            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-bold text-lg">{selectedAffiliate.full_name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            DNI: {selectedAffiliate.document_number} | Nro: {selectedAffiliate.affiliate_number || '—'}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {selectedAffiliate.relationship || 'Titular'} | Plan ID: {selectedAffiliate.plan_id}
-                                        </p>
-                                    </div>
-                                    <Button variant="ghost" size="sm" onClick={() => { setSelectedAffiliate(null); setAffiliateSearch(''); }}>
-                                        Cambiar
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Step 3: Práctica */}
-            {step === 3 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <FileText className="h-5 w-5" />
-                            Paso 3: Práctica solicitada
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Buscar por código o nombre de práctica..."
-                                value={practiceSearch}
-                                onChange={e => { setPracticeSearch(e.target.value); setSelectedPractice(null); }}
-                                className="pl-10"
-                            />
-                        </div>
-
-                        {searchingPractice && <p className="text-sm text-muted-foreground">Buscando...</p>}
-
-                        {practiceResults.length > 0 && !selectedPractice && (
-                            <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
-                                {practiceResults.map(p => (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => { setSelectedPractice(p); setPracticeResults([]); }}
-                                        className="w-full p-3 text-left hover:bg-muted/50 transition-colors"
-                                    >
-                                        <div className="flex justify-between">
-                                            <p className="font-medium">{p.code} — {p.description}</p>
-                                            <span className="text-sm font-mono text-muted-foreground">
-                                                ${p.financial_value?.toLocaleString()}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">{p.category}</p>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {selectedPractice && (
-                            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-bold">{selectedPractice.code} — {selectedPractice.description}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            Categoría: {selectedPractice.category} | Valor: ${selectedPractice.financial_value?.toLocaleString()}
-                                        </p>
-                                    </div>
-                                    <Button variant="ghost" size="sm" onClick={() => { setSelectedPractice(null); setPracticeSearch(''); }}>
-                                        Cambiar
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex items-center gap-3">
-                            <label className="text-sm font-medium">Cantidad/Sesiones:</label>
-                            <Input
-                                type="number"
-                                min={1}
-                                max={100}
-                                value={practiceQuantity}
-                                onChange={e => setPracticeQuantity(parseInt(e.target.value) || 1)}
-                                className="w-24"
-                            />
-                        </div>
-
-                        {requestType === 'internacion' && (
-                            <div className="flex items-center gap-3">
-                                <label className="text-sm font-medium">Días estimados de internación:</label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={365}
-                                    value={estimatedDays}
-                                    onChange={e => setEstimatedDays(parseInt(e.target.value) || 0)}
-                                    className="w-24"
-                                />
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Step 4: Adjuntos */}
-            {step === 4 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Paperclip className="h-5 w-5" />
-                            Paso 4: Documentos adjuntos
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                            Adjunte los documentos necesarios (órdenes médicas, recetas, estudios, etc.)
-                        </p>
-
-                        <div className="flex items-center gap-3">
-                            <select
-                                value={currentDocType}
-                                onChange={e => setCurrentDocType(e.target.value as AuditRequestAttachment['document_type'])}
-                                className="border rounded-md px-3 py-2 text-sm bg-background"
-                            >
-                                {DOCUMENT_TYPES.map(dt => (
-                                    <option key={dt.value} value={dt.value}>{dt.label}</option>
-                                ))}
-                            </select>
-
-                            <label className="flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-                                <Upload className="h-4 w-4" />
-                                <span className="text-sm font-medium">Seleccionar archivo</span>
-                                <input
-                                    type="file"
-                                    className="hidden"
-                                    onChange={handleFileAdd}
-                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                    multiple
-                                />
-                            </label>
-                        </div>
-
-                        {pendingFiles.length > 0 ? (
-                            <div className="border rounded-lg divide-y">
-                                {pendingFiles.map((pf, i) => (
-                                    <div key={i} className="flex items-center justify-between p-3">
-                                        <div className="flex items-center gap-2">
-                                            <Paperclip className="h-4 w-4 text-muted-foreground" />
-                                            <div>
-                                                <p className="text-sm font-medium">{pf.file.name}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {DOCUMENT_TYPES.find(d => d.value === pf.documentType)?.label} • {(pf.file.size / 1024).toFixed(0)} KB
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <Button variant="ghost" size="icon" onClick={() => removeFile(i)}>
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-8 text-muted-foreground border rounded-lg border-dashed">
-                                <Upload className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">No hay archivos adjuntos aún</p>
-                                <p className="text-xs">Puede continuar sin adjuntos</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Step 5: Confirmación */}
-            {step === 5 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Send className="h-5 w-5" />
-                            Paso 5: Confirmar y enviar
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {/* Resumen */}
-                        <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Tipo:</span>
-                                <span className="font-semibold capitalize">{requestType}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Afiliado:</span>
-                                <span className="font-semibold">{selectedAffiliate?.full_name}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">DNI:</span>
-                                <span>{selectedAffiliate?.document_number}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Práctica:</span>
-                                <span className="font-semibold">{selectedPractice?.code} — {selectedPractice?.description}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Valor:</span>
-                                <span className="font-mono">${selectedPractice?.financial_value?.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Cantidad:</span>
-                                <span>{practiceQuantity}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Adjuntos:</span>
-                                <span>{pendingFiles.length} archivo(s)</span>
-                            </div>
-                            {requestType === 'internacion' && estimatedDays > 0 && (
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Días estimados:</span>
-                                    <span>{estimatedDays}</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Prioridad */}
-                        <div className="flex items-center gap-3">
-                            <label className="text-sm font-medium">Prioridad:</label>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setPriority('normal')}
-                                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                                        priority === 'normal' ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-transparent text-muted-foreground'
-                                    }`}
-                                >
-                                    Normal
-                                </button>
-                                <button
-                                    onClick={() => setPriority('urgente')}
-                                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                                        priority === 'urgente' ? 'bg-red-100 border-red-300 text-red-700' : 'border-transparent text-muted-foreground'
-                                    }`}
-                                >
-                                    🔴 Urgente
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Observaciones */}
-                        <div>
-                            <label className="text-sm font-medium mb-1 block">Observaciones (opcional):</label>
-                            <textarea
-                                value={requestNotes}
-                                onChange={e => setRequestNotes(e.target.value)}
-                                placeholder="Información adicional para el auditor..."
-                                rows={3}
-                                className="w-full border rounded-lg px-3 py-2 text-sm bg-background resize-none"
-                            />
-                        </div>
-
-                        {error && (
-                            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                                <AlertCircle className="h-4 w-4 shrink-0" />
-                                {error}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Navigation buttons */}
-            <div className="flex justify-between">
-                <Button
-                    variant="outline"
-                    onClick={() => setStep(s => Math.max(1, s - 1) as Step)}
-                    disabled={step === 1}
-                >
-                    Anterior
-                </Button>
-
-                {step < 5 ? (
-                    <Button
-                        onClick={() => setStep(s => Math.min(5, s + 1) as Step)}
-                        disabled={!canProceed(step)}
+            {/* Adjuntos — compacto */}
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                    <select
+                        value={docType}
+                        onChange={e => setDocType(e.target.value as AuditRequestAttachment['document_type'])}
+                        className="border rounded px-2 py-1.5 text-sm bg-background"
                     >
-                        Siguiente
-                    </Button>
-                ) : (
-                    <Button
-                        onClick={handleSubmit}
-                        disabled={submitting}
-                        className="bg-green-600 hover:bg-green-700"
-                    >
-                        {submitting ? 'Enviando...' : 'Enviar Solicitud'}
-                    </Button>
+                        {DOC_TYPES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                    </select>
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg cursor-pointer hover:bg-muted/50 text-sm">
+                        <Upload className="h-3.5 w-3.5" />
+                        Adjuntar
+                        <input type="file" className="hidden" onChange={handleFileAdd} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple />
+                    </label>
+                    {files.length > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                            <Paperclip className="h-3 w-3 inline mr-0.5" />{files.length} archivo(s)
+                        </span>
+                    )}
+                </div>
+                {files.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                        {files.map((f, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                                {f.file.name.length > 20 ? f.file.name.slice(0, 18) + '…' : f.file.name}
+                                <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}>
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
                 )}
             </div>
+
+            {/* Error */}
+            {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {error}
+                </div>
+            )}
+
+            {/* Botón enviar */}
+            <Button
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className="w-full bg-green-600 hover:bg-green-700 h-11 text-base"
+            >
+                <Send className="h-4 w-4 mr-2" />
+                {submitting ? 'Enviando...' : 'Enviar Solicitud'}
+            </Button>
         </div>
     );
 }
