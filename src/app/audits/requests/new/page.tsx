@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
-    ExpedientType, ExpedientDocumentType, ExpedientPriority,
+    ExpedientType, ExpedientDocumentType, ExpedientPriority, ExpedientNoteType,
     Affiliate, Practice, Plan,
 } from '@/types/database';
 import { compressImage, formatBytes, validateFileSize } from '@/lib/imageCompressor';
@@ -176,7 +176,7 @@ export default function NewExpedientPage() {
     const [diagResults, setDiagResults] = useState<{ id: number; code: string; name: string; chapter: string }[]>([]);
     const [searchingDiag, setSearchingDiag] = useState(false);
     const [notes, setNotes] = useState('');
-    const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string; channel: string }[]>([]);
+    const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string; channel: ExpedientNoteType }[]>([]);
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [docType, setDocType] = useState<ExpedientDocumentType>('orden_medica');
     const [compressing, setCompressing] = useState(false);
