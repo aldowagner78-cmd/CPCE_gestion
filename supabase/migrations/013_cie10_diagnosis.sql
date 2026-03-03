@@ -243,10 +243,8 @@ ON CONFLICT (code) DO NOTHING;
 -- 3. Índice para búsqueda rápida de diagnósticos
 -- ─────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_diseases_code ON diseases(code);
-CREATE INDEX IF NOT EXISTS idx_diseases_name_trgm ON diseases USING gin (name gin_trgm_ops);
-
--- Fallback si gin_trgm_ops no está disponible:
--- CREATE INDEX IF NOT EXISTS idx_diseases_name ON diseases(name);
+CREATE INDEX IF NOT EXISTS idx_diseases_name ON diseases(name);
+CREATE INDEX IF NOT EXISTS idx_expedients_diagnosis ON expedients(diagnosis_code);
 
 -- ═══════════════════════════════════════
 -- FIN DE MIGRACIÓN 013
