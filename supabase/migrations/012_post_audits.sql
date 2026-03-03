@@ -5,6 +5,18 @@
 -- =====================================================
 
 -- ─────────────────────────────────────────────────────
+-- 0. FUNCIÓN AUXILIAR: update_updated_at()
+--    (se crea si no existe, usada por triggers de todas las tablas)
+-- ─────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ─────────────────────────────────────────────────────
 -- 1. TABLA: post_audits (cabecera de auditoría posterior)
 --    Vincula una factura con las autorizaciones que cubre
 -- ─────────────────────────────────────────────────────
