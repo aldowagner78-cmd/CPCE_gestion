@@ -176,7 +176,7 @@ export default function NewExpedientPage() {
     const [diagResults, setDiagResults] = useState<{ id: number; code: string; name: string; chapter: string }[]>([]);
     const [searchingDiag, setSearchingDiag] = useState(false);
     const [notes, setNotes] = useState('');
-    const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string }[]>([]);
+    const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string; channel: string }[]>([]);
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [docType, setDocType] = useState<ExpedientDocumentType>('orden_medica');
     const [compressing, setCompressing] = useState(false);
@@ -666,7 +666,7 @@ export default function NewExpedientPage() {
                         expedient_id: expedient.id,
                         author_id: user.id,
                         content: msg.text,
-                        note_type: (msg as any).channel || 'interna',
+                        note_type: msg.channel || 'interna',
                     });
                 }
             }
