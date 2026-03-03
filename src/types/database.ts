@@ -488,6 +488,15 @@ export type Alert = {
     reviewed_at?: string
 }
 
+// ── IA Suggestions (Etapa 1) ──
+
+export type IASuggestion = {
+    type: 'priority' | 'coherence' | 'duplicate'
+    severity: 'info' | 'warning' | 'critical'
+    message: string
+    data?: Record<string, unknown>
+}
+
 // ── Solicitudes de Auditoría ──
 
 export type AuditRequestType = 'ambulatoria' | 'bioquimica' | 'internacion'
@@ -499,47 +508,56 @@ export type AuditRequest = {
     request_number: string
     type: AuditRequestType
     priority: AuditRequestPriority
-    
+
     // Afiliado
     affiliate_id: string
     affiliate_plan_id?: number
     family_member_relation?: string
-    
+
     // Práctica
     practice_id: number
     practice_quantity: number
-    
+
     // Prestador
     provider_id?: number
     requesting_doctor_id?: number
-    
+
     // Diagnóstico (cargado por auditor)
     disease_id?: number
     diagnosis_code?: string
     diagnosis_description?: string
-    
+
     // Cobertura calculada
     coverage_percent?: number
     covered_amount?: number
     copay_amount?: number
     practice_value?: number
-    
+
     // Estado
     status: AuditRequestStatus
-    
+
     // Autorización
     authorization_id?: number
     authorization_code?: string
     authorization_expiry?: string
-    
+
     // Internación
     hospitalization_id?: number
     estimated_days?: number
-    
+
     // Notas
     request_notes?: string
     resolution_notes?: string
-    
+
+    // ── IA y SLA (Etapa 1) ──
+    clinical_priority_score?: number      // 0-100; >= 30 = Estrella
+    ia_suggestions?: IASuggestion[]       // sugerencias JSON del motor IA
+    sla_status?: 'verde' | 'amarillo' | 'rojo'
+    sla_hours_elapsed?: number
+    last_activity_at?: string
+    duplicate_warning?: boolean
+    duplicate_ids?: string[]
+
     // Trazabilidad
     created_by: string
     resolved_by?: string
@@ -547,7 +565,7 @@ export type AuditRequest = {
     jurisdiction_id: number
     created_at: string
     updated_at: string
-    
+
     // Relaciones expandidas (joins)
     affiliate?: Affiliate
     practice?: Practice
@@ -674,6 +692,16 @@ export type Expedient = {
 
     // Motor de reglas
     rules_result?: RulesResult
+
+    // ── IA y SLA (Etapa 1) ──
+    clinical_priority_score?: number      // 0-100; >= 30 = Estrella
+    ia_suggestions?: IASuggestion[]       // sugerencias JSONB del motor IA
+    sla_status?: 'verde' | 'amarillo' | 'rojo'
+    sla_hours_elapsed?: number
+    last_activity_at?: string
+    duplicate_warning?: boolean
+    duplicate_ids?: string[]
+    ocr_text?: string                     // texto extraído de la orden manuscrita
 
     // Trazabilidad
     created_by: string

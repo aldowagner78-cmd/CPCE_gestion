@@ -9,6 +9,7 @@ import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { ExpedientService } from '@/services/expedientService';
 import type { PracticeResolutionStatus } from '@/services/expedientService';
 import { generateExpedientPDF, generatePracticePDF } from '@/lib/expedientPDF';
+import { computeSLA } from '@/services/slaService';
 import {
     Stethoscope,
     FlaskConical,
@@ -42,6 +43,7 @@ import {
     Upload,
     ShieldCheck,
     XOctagon,
+    Star,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -130,14 +132,18 @@ function ExpedientList({
                 const TypeIcon = tc.icon;
                 const StatusIcon = sc.icon;
                 const isSelected = selectedId === exp.id;
+                // ── SLA + IA (Etapa 1) ──
+                const slaInfo = (['pendiente', 'en_revision', 'observada'] as ExpedientStatus[]).includes(exp.status)
+                    ? computeSLA(exp.created_at)
+                    : null;
+                const hasPriority = (exp.clinical_priority_score ?? 0) >= 3;
 
                 return (
                     <button
                         key={exp.id}
                         onClick={() => onSelect(exp)}
-                        className={`w-full text-left p-4 hover:bg-muted/50 transition-all duration-150 ${
-                            isSelected ? 'bg-primary/5 border-l-3 border-primary' : 'border-l-3 border-transparent'
-                        }`}
+                        className={`w-full text-left p-4 hover:bg-muted/50 transition-all duration-150 ${isSelected ? 'bg-primary/5 border-l-3 border-primary' : 'border-l-3 border-transparent'
+                            }`}
                     >
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
@@ -152,11 +158,29 @@ function ExpedientList({
                                         Urgente
                                     </span>
                                 )}
+                                {/* ── Estrella de prioridad IA ── */}
+                                {hasPriority && (
+                                    <span title="Prioridad clínica alta (IA)" className="inline-flex">
+                                        <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400 shrink-0" />
+                                    </span>
+                                )}
                             </div>
-                            <Badge className={`${sc.color} text-[10px] shrink-0 gap-1`}>
-                                <StatusIcon className="h-3 w-3" />
-                                {sc.label}
-                            </Badge>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                {/* ── Semáforo SLA ── */}
+                                {slaInfo && (
+                                    <span
+                                        className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${slaInfo.status === 'verde' ? 'bg-green-500'
+                                            : slaInfo.status === 'amarillo' ? 'bg-yellow-400'
+                                                : 'bg-red-500 animate-pulse'
+                                            }`}
+                                        title={`SLA: ${slaInfo.hoursElapsed.toFixed(1)}h hábiles`}
+                                    />
+                                )}
+                                <Badge className={`${sc.color} text-[10px] gap-1`}>
+                                    <StatusIcon className="h-3 w-3" />
+                                    {sc.label}
+                                </Badge>
+                            </div>
                         </div>
 
                         <p className="font-medium mt-1.5 truncate text-sm">
@@ -177,6 +201,14 @@ function ExpedientList({
                                 <span className="flex items-center gap-1">
                                     <User className="h-3 w-3" />
                                     Asignado
+                                </span>
+                            )}
+                            {/* Horas hábiles SLA */}
+                            {slaInfo && (
+                                <span className={`text-[10px] font-medium ${slaInfo.status === 'rojo' ? 'text-red-600' :
+                                    slaInfo.status === 'amarillo' ? 'text-yellow-600' : 'text-green-600'
+                                    }`}>
+                                    {slaInfo.hoursElapsed.toFixed(1)}h
                                 </span>
                             )}
                         </div>
@@ -212,6 +244,9 @@ function ExpedientDetail({
     const [attachments, setAttachments] = useState<ExpedientAttachment[]>([]);
     const [log, setLog] = useState<ExpedientLog[]>([]);
     const [newNote, setNewNote] = useState('');
+    const [commChannel, setCommChannel] = useState<'interna' | 'para_afiliado'>('interna');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [resolving, setResolving] = useState(false);
 
@@ -514,7 +549,7 @@ function ExpedientDetail({
         generatePracticePDF(expedient, practice);
     };
 
-    // Agregar nota
+    // Agregar nota (usa el canal activo como note_type)
     const handleAddNote = async () => {
         if (!user || !newNote.trim()) return;
         try {
@@ -522,7 +557,7 @@ function ExpedientDetail({
                 expedient_id: expedient.id,
                 author_id: user.id,
                 content: newNote,
-                note_type: 'interna',
+                note_type: commChannel,
             });
             setNewNote('');
             const n = await ExpedientService.fetchNotes(expedient.id);
@@ -540,9 +575,43 @@ function ExpedientDetail({
     const TABS = [
         { id: 'practicas' as const, label: `Prácticas (${practices.length})`, icon: Stethoscope },
         { id: 'adjuntos' as const, label: `Adjuntos (${attachments.length})`, icon: Paperclip },
-        { id: 'notas' as const, label: `Notas (${notes.length})`, icon: MessageSquare },
+        { id: 'notas' as const, label: `Comunicación (${notes.length})`, icon: MessageSquare },
         { id: 'historial' as const, label: 'Timeline', icon: History },
     ];
+
+    // ── Asistente IA local (costo cero, sin API externa) ──────────────
+    const handlePolishText = () => {
+        if (!newNote.trim()) return;
+        setAiLoading(true);
+        const empathyPhrases = [
+            'Le informamos que ',
+            'Nos comunicamos para indicarle que ',
+            'A fin de brindarle la mejor atención, ',
+            'Con el objetivo de resolver su solicitud, ',
+        ];
+        const closing = commChannel === 'para_afiliado'
+            ? ' Quedamos a su disposición ante cualquier consulta.'
+            : ' Se solicita revisarlo a la brevedad.';
+        const opener = empathyPhrases[newNote.length % empathyPhrases.length];
+        const polished = opener + newNote.trim().charAt(0).toLowerCase() + newNote.trim().slice(1) + closing;
+        setNewNote(polished);
+        setAiLoading(false);
+    };
+
+    const handleGenerateSummary = () => {
+        const practiceList = practices.map(p => `${p.practice_id} (${p.status})`).join(', ');
+        const noteCount = notes.length;
+        const lastNote = notes.length > 0 ? notes[notes.length - 1].content : 'Sin comunicaciones previas';
+        const slaNote = (() => {
+            const { calcBusinessHours } = require('@/services/slaService');
+            const h = calcBusinessHours(expedient.created_at) as number;
+            if (h < 24) return 'dentro del plazo verde';
+            if (h <= 48) return 'en plazo amarillo';
+            return 'con demora crítica (rojo)';
+        })();
+        const summary = `Solicitud ${expedient.expedient_number}: prácticas solicitadas: ${practiceList || 'sin prácticas'}. Estado actual: ${expedient.status}. ${noteCount} mensaje(s) registrado(s). Último mensaje: "${lastNote}". Tiempo de gestión: ${slaNote}.`;
+        setAiSummary(summary);
+    };
 
     return (
         <div className="flex flex-col h-full">
@@ -808,9 +877,8 @@ function ExpedientDetail({
                     <button
                         key={t.id}
                         onClick={() => setTab(t.id)}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
-                            tab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                        }`}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${tab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                            }`}
                     >
                         <t.icon className="h-3.5 w-3.5" />
                         {t.label}
@@ -823,7 +891,7 @@ function ExpedientDetail({
                 {loading ? (
                     <div className="text-center py-12 text-muted-foreground">
                         <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin opacity-30" />
-                        <p className="text-sm">Cargando expediente...</p>
+                        <p className="text-sm">Cargando solicitud...</p>
                     </div>
                 ) : (
                     <>
@@ -847,11 +915,10 @@ function ExpedientDetail({
 
                                 {/* Motor de reglas global */}
                                 {expedient.rules_result && (
-                                    <div className={`rounded-xl p-3 text-sm border ${
-                                        expedient.rules_result === 'verde' ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' :
+                                    <div className={`rounded-xl p-3 text-sm border ${expedient.rules_result === 'verde' ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' :
                                         expedient.rules_result === 'amarillo' ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800' :
-                                        'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
-                                    }`}>
+                                            'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
+                                        }`}>
                                         <p className="font-bold text-[10px] uppercase tracking-widest mb-1">Motor de Reglas</p>
                                         <p className="font-semibold">
                                             Resultado global: <span className="uppercase">{expedient.rules_result}</span>
@@ -872,14 +939,12 @@ function ExpedientDetail({
                                             ['pendiente', 'en_revision', 'observada'].includes(p.status);
 
                                         return (
-                                            <div key={p.id} className={`border rounded-xl overflow-hidden transition-all ${
-                                                isSelected ? 'ring-2 ring-primary border-primary' : 'border-border/50'
-                                            }`}>
+                                            <div key={p.id} className={`border rounded-xl overflow-hidden transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : 'border-border/50'
+                                                }`}>
                                                 {/* Cabecera de la práctica */}
                                                 <div
-                                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors ${
-                                                        canResolvePractice ? '' : 'opacity-70'
-                                                    }`}
+                                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors ${canResolvePractice ? '' : 'opacity-70'
+                                                        }`}
                                                     onClick={() => {
                                                         if (canResolvePractice) {
                                                             setSelectedPractice(isSelected ? null : p);
@@ -1095,8 +1160,8 @@ function ExpedientDetail({
                                                                     onChange={e => setResolutionNotes(e.target.value)}
                                                                     placeholder={
                                                                         resolutionAction === 'denegar' ? 'Motivo de denegación (obligatorio)...' :
-                                                                        resolutionAction === 'observar' ? 'Qué falta o debe corregirse...' :
-                                                                        'Observaciones...'
+                                                                            resolutionAction === 'observar' ? 'Qué falta o debe corregirse...' :
+                                                                                'Observaciones...'
                                                                     }
                                                                     rows={2}
                                                                     className="w-full border rounded-lg px-3 py-2 text-xs bg-background resize-none"
@@ -1112,13 +1177,12 @@ function ExpedientDetail({
                                                                         (resolutionAction === 'observar' && !resolutionNotes) ||
                                                                         (resolutionAction === 'diferir' && !reviewDate)
                                                                     }
-                                                                    className={`w-full ${
-                                                                        resolutionAction === 'autorizar' ? 'bg-green-600 hover:bg-green-700' :
+                                                                    className={`w-full ${resolutionAction === 'autorizar' ? 'bg-green-600 hover:bg-green-700' :
                                                                         resolutionAction === 'parcial' ? 'bg-indigo-600 hover:bg-indigo-700' :
-                                                                        resolutionAction === 'denegar' ? 'bg-red-600 hover:bg-red-700' :
-                                                                        resolutionAction === 'observar' ? 'bg-orange-600 hover:bg-orange-700' :
-                                                                        'bg-slate-600 hover:bg-slate-700'
-                                                                    }`}
+                                                                            resolutionAction === 'denegar' ? 'bg-red-600 hover:bg-red-700' :
+                                                                                resolutionAction === 'observar' ? 'bg-orange-600 hover:bg-orange-700' :
+                                                                                    'bg-slate-600 hover:bg-slate-700'
+                                                                        }`}
                                                                 >
                                                                     {resolving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                                                                     Confirmar{' '}
@@ -1173,20 +1237,56 @@ function ExpedientDetail({
                             </>
                         )}
 
-                        {/* ── TAB: Notas ── */}
+                        {/* ── TAB: Comunicación ── */}
                         {tab === 'notas' && (
                             <>
+                                {/* Selector de canal */}
+                                <div className="flex gap-1 p-1 bg-muted/40 rounded-xl mb-3">
+                                    <button
+                                        onClick={() => { setCommChannel('interna'); setAiSummary(null); }}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${commChannel === 'interna' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        🔒 Interno
+                                    </button>
+                                    <button
+                                        onClick={() => { setCommChannel('para_afiliado'); setAiSummary(null); }}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${commChannel === 'para_afiliado' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        📢 Afiliado
+                                    </button>
+                                </div>
+
+                                {/* Botones de resumen IA */}
+                                <button
+                                    onClick={handleGenerateSummary}
+                                    className="w-full mb-3 flex items-center justify-center gap-1.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground border border-dashed rounded-lg hover:border-primary/50 transition-colors"
+                                >
+                                    ✨ Generar resumen de esta solicitud
+                                </button>
+                                {aiSummary && (
+                                    <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                                        <p className="font-bold text-[10px] uppercase tracking-wider mb-1">📋 Resumen IA</p>
+                                        <p>{aiSummary}</p>
+                                    </div>
+                                )}
+
+                                {/* Lista de mensajes filtrada por canal */}
                                 <div className="space-y-3">
-                                    {notes.length === 0 && (
-                                        <p className="text-center text-sm text-muted-foreground py-4">Sin notas aún</p>
-                                    )}
-                                    {notes.map(n => (
-                                        <div key={n.id} className={`p-3 rounded-xl text-sm ${
-                                            n.note_type === 'sistema' ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/20 dark:text-blue-300 dark:border-blue-800' :
+                                    {notes.filter(n => {
+                                        if (commChannel === 'para_afiliado') return n.note_type === 'para_afiliado';
+                                        return n.note_type === 'interna' || n.note_type === 'sistema' || n.note_type === 'resolucion';
+                                    }).length === 0 && (
+                                            <p className="text-center text-sm text-muted-foreground py-4">Sin mensajes en este canal</p>
+                                        )}
+                                    {notes.filter(n => {
+                                        if (commChannel === 'para_afiliado') return n.note_type === 'para_afiliado';
+                                        return n.note_type === 'interna' || n.note_type === 'sistema' || n.note_type === 'resolucion';
+                                    }).map(n => (
+                                        <div key={n.id} className={`p-3 rounded-xl text-sm ${n.note_type === 'sistema' ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/20 dark:text-blue-300 dark:border-blue-800' :
                                             n.note_type === 'resolucion' ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/20 dark:text-green-300 dark:border-green-800' :
-                                            n.note_type === 'para_afiliado' ? 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-800' :
-                                            'bg-muted/30'
-                                        }`}>
+                                                n.note_type === 'para_afiliado' ? 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-800' :
+                                                    'bg-muted/30'
+                                            }`}>
                                             <div className="flex items-center justify-between mb-1">
                                                 <span className="font-semibold text-[10px] uppercase tracking-wider">{n.note_type.replace('_', ' ')}</span>
                                                 <span className="text-[10px] opacity-70">{formatDate(n.created_at)}</span>
@@ -1199,21 +1299,60 @@ function ExpedientDetail({
                                     ))}
                                 </div>
 
-                                {/* Agregar nota */}
-                                <div className="flex gap-2 mt-4">
+                                {/* Respuestas Rápidas según canal */}
+                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                    {commChannel === 'para_afiliado' ? (
+                                        <>
+                                            {(['📎 Adjuntar pedido médico', '📋 Adjuntar Historia Clínica', '🔬 Adjuntar estudios complementarios'] as const).map(txt => (
+                                                <button
+                                                    key={txt}
+                                                    onClick={() => setNewNote(txt)}
+                                                    className="text-[10px] px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full hover:bg-purple-200 dark:hover:bg-purple-800/40 transition-colors"
+                                                >
+                                                    {txt}
+                                                </button>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {(['⭐ Consultar prioridad clínica', '👥 Pedir segunda opinión médica'] as const).map(txt => (
+                                                <button
+                                                    key={txt}
+                                                    onClick={() => setNewNote(txt)}
+                                                    className="text-[10px] px-2 py-1 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                                >
+                                                    {txt}
+                                                </button>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Input de mensaje */}
+                                <div className="flex gap-2 mt-3">
                                     <Input
                                         value={newNote}
                                         onChange={e => setNewNote(e.target.value)}
-                                        placeholder="Escribir nota interna..."
-                                        onKeyDown={e => e.key === 'Enter' && handleAddNote()}
+                                        placeholder={commChannel === 'para_afiliado' ? 'Mensaje para el afiliado...' : 'Nota interna del equipo...'}
+                                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAddNote()}
                                         className="h-9"
                                     />
-                                    <Button size="icon" onClick={handleAddNote} disabled={!newNote.trim()} className="h-9 w-9">
+                                    {/* Botón IA: pulir texto */}
+                                    <button
+                                        onClick={handlePolishText}
+                                        disabled={!newNote.trim() || aiLoading}
+                                        title="Pulir texto con IA"
+                                        className="h-9 w-9 flex items-center justify-center rounded-md border border-border hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                                    >
+                                        <span className="text-sm">✨</span>
+                                    </button>
+                                    <Button size="icon" onClick={handleAddNote} disabled={!newNote.trim()} className="h-9 w-9 shrink-0">
                                         <Send className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </>
                         )}
+
 
                         {/* ── TAB: Timeline ── */}
                         {tab === 'historial' && (
@@ -1252,22 +1391,22 @@ function ExpedientDetail({
 // Helper para formatear acciones del log
 function formatAction(action: string): string {
     const map: Record<string, string> = {
-        created: '📥 Expediente creado',
-        taken_for_review: '👁️ Tomado para revisión',
+        created: '📥 Solicitud creada',
+        taken_for_review: '👁️ Tomada para revisión',
         practice_authorized: '✅ Práctica autorizada',
         practice_authorized_partial: '🔄 Práctica autorizada parcialmente',
         practice_denied: '❌ Práctica denegada',
         practice_observed: '⏸️ Práctica observada',
         practice_deferred: '⏰ Práctica diferida',
         auto_approved: '🤖 Auto-aprobación por motor de reglas',
-        observed: '👁️ Expediente observado',
-        resubmitted: '🔁 Reenviado tras observación',
+        observed: '👁️ Solicitud observada',
+        resubmitted: '🔁 Reenviada tras observación',
         appealed: '📣 Apelación presentada',
-        cancelled: '🚫 Expediente anulado',
-        reassigned: '🔄 Reasignado',
+        cancelled: '🚫 Solicitud anulada',
+        reassigned: '🔄 Reasignada',
         attachment_added: '📎 Adjunto agregado',
-        control_desk_approved: '✅ Mesa de control: aprobado',
-        control_desk_rejected: '❌ Mesa de control: rechazado',
+        control_desk_approved: '✅ Mesa de control: aprobada',
+        control_desk_rejected: '❌ Mesa de control: rechazada',
     };
     return map[action] || action.replace(/_/g, ' ');
 }
@@ -1393,9 +1532,8 @@ export default function AuditRequestsPage() {
                         <button
                             key={st.key}
                             onClick={() => setFilterStatus(st.key)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
-                                filterStatus === st.key ? `${st.color} ring-1 shadow-sm` : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                            }`}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${filterStatus === st.key ? `${st.color} ring-1 shadow-sm` : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }`}
                         >
                             {st.label} ({st.count})
                         </button>

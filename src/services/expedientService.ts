@@ -67,6 +67,10 @@ interface CreateExpedientInput {
     created_by: string;
     jurisdiction_id: number;
     practices: CreatePracticeInput[];
+    // ── IA (Etapa 1) ──
+    clinical_priority_score?: number;
+    ia_suggestions?: import('@/types/database').IASuggestion[];
+    ocr_text?: string;
 }
 
 interface CreatePracticeInput {
@@ -122,6 +126,11 @@ export const ExpedientService = {
                 status: 'pendiente',
                 created_by: input.created_by,
                 jurisdiction_id: input.jurisdiction_id,
+                // IA fields (Etapa 1)
+                clinical_priority_score: input.clinical_priority_score ?? 0,
+                ia_suggestions: input.ia_suggestions ?? [],
+                ocr_text: input.ocr_text ?? null,
+                last_activity_at: new Date().toISOString(),
             })
             .select()
             .single();

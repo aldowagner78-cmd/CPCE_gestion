@@ -10,6 +10,12 @@ import { RulesEngine } from '@/services/rulesEngine';
 import type { PracticeRuleResult, ExpedientRuleResult } from '@/services/rulesEngine';
 import { createClient } from '@/lib/supabase';
 import {
+    analyzeClinicalPriority, checkCoherence, checkForDuplicates, buildIASuggestions,
+    type ClinicalPriorityResult, type CoherenceCheckResult,
+} from '@/services/aiService';
+import { FamilyMemberSelector } from '@/components/FamilyMemberSelector';
+import { OCRUpload, type OCRResult } from '@/components/OCRUpload';
+import {
     Search, Upload, AlertCircle, CheckCircle,
     Stethoscope, FlaskConical, Building2,
     ArrowLeft, Paperclip, X, Send, Trash2,
@@ -18,7 +24,7 @@ import {
     BarChart3, Smile, Calendar, Phone, Mail,
     MapPin, FileText, AlertTriangle,
     Zap, ShieldAlert, Eye, Loader2,
-    MessageSquare, Filter, Clock,
+    MessageSquare, Filter, Clock, Star,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -100,31 +106,31 @@ const EXPEDIENT_TYPES: {
     icon: React.ElementType;
     cls: string;
 }[] = [
-    { value: 'ambulatoria',          label: 'Ambulatoria',       short: 'Amb',  icon: Stethoscope,  cls: 'text-blue-700 bg-blue-50 border-blue-300' },
-    { value: 'bioquimica',           label: 'Bioquímica',        short: 'Bio',  icon: FlaskConical, cls: 'text-emerald-700 bg-emerald-50 border-emerald-300' },
-    { value: 'internacion',          label: 'Internación',       short: 'Int',  icon: Building2,    cls: 'text-purple-700 bg-purple-50 border-purple-300' },
-    { value: 'odontologica',         label: 'Odontológica',      short: 'Odo',  icon: Smile,        cls: 'text-pink-700 bg-pink-50 border-pink-300' },
-    { value: 'programas_especiales', label: 'Prog. Especiales',  short: 'Prog', icon: ShieldCheck,  cls: 'text-amber-700 bg-amber-50 border-amber-300' },
-    { value: 'elementos',            label: 'Elementos',         short: 'Elem', icon: Package,      cls: 'text-cyan-700 bg-cyan-50 border-cyan-300' },
-    { value: 'reintegros',           label: 'Reintegros',        short: 'Rein', icon: DollarSign,   cls: 'text-orange-700 bg-orange-50 border-orange-300' },
-];
+        { value: 'ambulatoria', label: 'Ambulatoria', short: 'Amb', icon: Stethoscope, cls: 'text-blue-700 bg-blue-50 border-blue-300' },
+        { value: 'bioquimica', label: 'Bioquímica', short: 'Bio', icon: FlaskConical, cls: 'text-emerald-700 bg-emerald-50 border-emerald-300' },
+        { value: 'internacion', label: 'Internación', short: 'Int', icon: Building2, cls: 'text-purple-700 bg-purple-50 border-purple-300' },
+        { value: 'odontologica', label: 'Odontológica', short: 'Odo', icon: Smile, cls: 'text-pink-700 bg-pink-50 border-pink-300' },
+        { value: 'programas_especiales', label: 'Prog. Especiales', short: 'Prog', icon: ShieldCheck, cls: 'text-amber-700 bg-amber-50 border-amber-300' },
+        { value: 'elementos', label: 'Elementos', short: 'Elem', icon: Package, cls: 'text-cyan-700 bg-cyan-50 border-cyan-300' },
+        { value: 'reintegros', label: 'Reintegros', short: 'Rein', icon: DollarSign, cls: 'text-orange-700 bg-orange-50 border-orange-300' },
+    ];
 
 const DOC_TYPES: { value: ExpedientDocumentType; label: string }[] = [
-    { value: 'orden_medica',     label: 'Orden médica' },
-    { value: 'receta',           label: 'Receta' },
-    { value: 'estudio',          label: 'Estudio previo' },
-    { value: 'informe',          label: 'Informe médico' },
-    { value: 'consentimiento',   label: 'Consentimiento' },
+    { value: 'orden_medica', label: 'Orden médica' },
+    { value: 'receta', label: 'Receta' },
+    { value: 'estudio', label: 'Estudio previo' },
+    { value: 'informe', label: 'Informe médico' },
+    { value: 'consentimiento', label: 'Consentimiento' },
     { value: 'historia_clinica', label: 'Historia clínica' },
-    { value: 'factura',          label: 'Factura' },
-    { value: 'otro',             label: 'Otro' },
+    { value: 'factura', label: 'Factura' },
+    { value: 'otro', label: 'Otro' },
 ];
 
 // Colores del semáforo
 const RULE_COLORS: Record<string, { bg: string; border: string; text: string; icon: React.ElementType; label: string }> = {
-    verde:    { bg: 'bg-green-50',  border: 'border-green-300', text: 'text-green-700', icon: CheckCircle,   label: 'Auto-aprobable' },
+    verde: { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', icon: CheckCircle, label: 'Auto-aprobable' },
     amarillo: { bg: 'bg-yellow-50', border: 'border-yellow-300', text: 'text-yellow-700', icon: AlertTriangle, label: 'Requiere auditor' },
-    rojo:     { bg: 'bg-red-50',    border: 'border-red-300', text: 'text-red-700', icon: ShieldAlert, label: 'Requiere auditor' },
+    rojo: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', icon: ShieldAlert, label: 'Requiere auditor' },
 };
 
 // ════════════════════════════════════════════════════════
@@ -181,12 +187,20 @@ export default function NewExpedientPage() {
     const [evaluating, setEvaluating] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
 
+    // ── Estado: IA (Etapa 1) ──
+    const [aiPriorityResult, setAiPriorityResult] = useState<ClinicalPriorityResult | null>(null);
+    const [coherenceResult, setCoherenceResult] = useState<CoherenceCheckResult | null>(null);
+    const [selectedFamilyMember, setSelectedFamilyMember] = useState<import('@/types/database').Affiliate | null>(null);
+    const [ocrResult, setOcrResult] = useState<OCRResult | null>(null);
+    const [showOCRUpload, setShowOCRUpload] = useState(false);
+
     // ── Estado: Submit ──
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [submittedExpNumber, setSubmittedExpNumber] = useState('');
     const [autoApprovedCodes, setAutoApprovedCodes] = useState<string[]>([]);
     const [error, setError] = useState('');
+
 
     // ═══════════════════════════════════════════
     // ═  BÚSQUEDAS
@@ -259,14 +273,37 @@ export default function NewExpedientPage() {
         return () => clearTimeout(t);
     }, [diagSearch]);
 
+    // ── IA: chequeo de coherencia al cambiar práctica/diagnóstico ──
+    useEffect(() => {
+        if (practiceItems.length === 0 || !diagnosis) {
+            setCoherenceResult(null);
+            return;
+        }
+        const practiceDesc = practiceItems.map(pi => pi.practice.description).join(', ');
+        const result = checkCoherence(practiceDesc, diagnosis, diagnosisCode);
+        setCoherenceResult(result);
+
+        // Recalcular prioridad IA con datos actualizados
+        const priorityText = [notes, ocrResult?.text || '', diagnosis, practiceDesc].join(' ');
+        const priorityResult = analyzeClinicalPriority(priorityText, practiceDesc, diagnosis);
+        setAiPriorityResult(priorityResult);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [practiceItems, diagnosis, diagnosisCode]);
+
     // ── Seleccionar / deseleccionar afiliado ──
 
-    const selectAffiliate = useCallback(async (a: Affiliate) => {
+    const selectAffiliate = useCallback(async (a: import('@/types/database').Affiliate) => {
         setAffiliate(a);
         setAffResults([]);
         setAffSearch('');
         setRulesEvaluated(false);
         setRulesResult(null);
+        // Reset IA state al cambiar de afiliado
+        setSelectedFamilyMember(null);
+        setAiPriorityResult(null);
+        setCoherenceResult(null);
+        setOcrResult(null);
+        setShowOCRUpload(false);
         if (a.plan_id) {
             const { data } = await db('plans').select('*').eq('id', a.plan_id).single();
             if (data) {
@@ -282,6 +319,7 @@ export default function NewExpedientPage() {
             setAffiliatePlan(null);
         }
     }, []);
+
 
     const clearAffiliate = useCallback(() => {
         setAffiliate(null);
@@ -552,12 +590,26 @@ export default function NewExpedientPage() {
                 ...(notes.trim() ? [notes.trim()] : []),
             ].join('\n');
 
+            // Calcular datos IA finales para guardar en Supabase
+            const practiceDesc = practiceItems.map(pi => pi.practice.description).join(', ');
+            const finalIAPriority = aiPriorityResult ?? analyzeClinicalPriority(
+                [allNotes, ocrResult?.text || '', diagnosis, practiceDesc].join(' '),
+                practiceDesc,
+                diagnosis,
+            );
+            const iaCoherence = coherenceResult ?? { isCoherent: true, warning: null, suggestions: [] };
+            const iaSuggestions = buildIASuggestions(finalIAPriority, iaCoherence, { hasDuplicate: false, duplicateExpedientNumbers: [], message: null });
+
+            // Si hay familiar seleccionado, usar su id como afiliado real de la solicitud
+            const beneficiaryId = selectedFamilyMember ? String(selectedFamilyMember.id) : String(affiliate.id);
+            const beneficiaryRelation = selectedFamilyMember?.relationship ?? affiliate.relationship;
+
             const expedient = await ExpedientService.create({
                 type: expedientType,
                 priority,
-                affiliate_id: String(affiliate.id),
+                affiliate_id: beneficiaryId,
                 affiliate_plan_id: affiliate.plan_id,
-                family_member_relation: affiliate.relationship,
+                family_member_relation: beneficiaryRelation,
                 request_notes: allNotes || undefined,
                 diagnosis_code: diagnosisCode || undefined,
                 diagnosis_description: diagnosis || undefined,
@@ -565,6 +617,10 @@ export default function NewExpedientPage() {
                 rules_result: finalRulesResult?.overall,
                 created_by: user.id,
                 jurisdiction_id: activeJurisdiction.id,
+                // IA fields (Etapa 1)
+                clinical_priority_score: finalIAPriority.score,
+                ia_suggestions: iaSuggestions,
+                ocr_text: ocrResult?.text || undefined,
                 practices: practiceItems.map((pi, idx) => ({
                     practice_id: pi.practice.id,
                     quantity: pi.quantity,
@@ -578,6 +634,7 @@ export default function NewExpedientPage() {
                     sort_order: idx,
                 })),
             });
+
 
             // Adjuntos
             if (files.length > 0) {
@@ -711,11 +768,10 @@ export default function NewExpedientPage() {
                             <button
                                 key={t.value}
                                 onClick={() => { setExpedientType(t.value); setRulesEvaluated(false); setRulesResult(null); }}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
-                                    active
-                                        ? `${t.cls} ring-1 ring-current/20`
-                                        : 'border-border text-muted-foreground hover:border-muted-foreground/40'
-                                }`}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${active
+                                    ? `${t.cls} ring-1 ring-current/20`
+                                    : 'border-border text-muted-foreground hover:border-muted-foreground/40'
+                                    }`}
                             >
                                 <Icon className="h-3.5 w-3.5" />
                                 <span className="hidden sm:inline">{t.label}</span>
@@ -767,13 +823,12 @@ export default function NewExpedientPage() {
                                                     {a.relationship && ` · ${a.relationship}`}
                                                 </div>
                                             </div>
-                                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                                                a.status === 'activo'
-                                                    ? 'bg-green-100 text-green-700'
-                                                    : a.status === 'suspendido'
-                                                        ? 'bg-yellow-100 text-yellow-700'
-                                                        : 'bg-red-100 text-red-700'
-                                            }`}>
+                                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${a.status === 'activo'
+                                                ? 'bg-green-100 text-green-700'
+                                                : a.status === 'suspendido'
+                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                    : 'bg-red-100 text-red-700'
+                                                }`}>
                                                 {a.status}
                                             </span>
                                         </button>
@@ -825,11 +880,10 @@ export default function NewExpedientPage() {
                                 </span>
                             </div>
                             <div>
-                                <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-                                    affiliate.status === 'activo' ? 'bg-green-100 text-green-700' :
+                                <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${affiliate.status === 'activo' ? 'bg-green-100 text-green-700' :
                                     affiliate.status === 'suspendido' ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-red-100 text-red-700'
-                                }`}>
+                                        'bg-red-100 text-red-700'
+                                    }`}>
                                     ● {affiliate.status === 'activo' ? 'Activo' : affiliate.status === 'suspendido' ? 'Suspendido' : 'Baja'}
                                 </span>
                             </div>
@@ -894,6 +948,32 @@ export default function NewExpedientPage() {
                             <div className="px-4 pb-3 text-xs text-muted-foreground">📝 {affiliate.observations}</div>
                         )}
 
+                        {/* ── Grupo Familiar (Etapa 1) ── */}
+                        {isAffiliateActive && (
+                            <div className="px-4 pb-3">
+                                <FamilyMemberSelector
+                                    affiliate={affiliate}
+                                    selectedMemberId={selectedFamilyMember ? String(selectedFamilyMember.id) : null}
+                                    onSelectMember={(member) => setSelectedFamilyMember(member)}
+                                />
+                            </div>
+                        )}
+
+                        {/* ── Alerta de prioridad clínica IA ── */}
+                        {aiPriorityResult?.hasStarPriority && (
+                            <div className="mx-4 mb-3 p-2.5 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2">
+                                <Star className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 fill-amber-400" />
+                                <div>
+                                    <p className="text-sm font-semibold text-amber-800">
+                                        Prioridad clínica alta detectada (IA)
+                                    </p>
+                                    <p className="text-xs text-amber-700 mt-0.5">
+                                        {aiPriorityResult.reasons.join(' · ')}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Panel de consumos */}
                         <div className="border-t">
                             <button
@@ -920,17 +1000,15 @@ export default function NewExpedientPage() {
                                         <div className="flex gap-1 bg-muted/40 rounded-lg p-0.5 flex-1">
                                             <button
                                                 onClick={() => setConsumptionTab('same')}
-                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                                    consumptionTab === 'same' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                                                }`}
+                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${consumptionTab === 'same' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                                    }`}
                                             >
                                                 Misma práctica
                                             </button>
                                             <button
                                                 onClick={() => setConsumptionTab('all')}
-                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                                    consumptionTab === 'all' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                                                }`}
+                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${consumptionTab === 'all' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                                    }`}
                                             >
                                                 Todos los consumos
                                             </button>
@@ -1070,9 +1148,8 @@ export default function NewExpedientPage() {
                                         key={p.id}
                                         onClick={() => !alreadyAdded && addPractice(p)}
                                         disabled={alreadyAdded}
-                                        className={`w-full px-3 py-2.5 text-left text-sm border-b last:border-0 flex justify-between items-center gap-2 ${
-                                            alreadyAdded ? 'bg-muted/30 text-muted-foreground' : 'hover:bg-muted/50'
-                                        }`}
+                                        className={`w-full px-3 py-2.5 text-left text-sm border-b last:border-0 flex justify-between items-center gap-2 ${alreadyAdded ? 'bg-muted/30 text-muted-foreground' : 'hover:bg-muted/50'
+                                            }`}
                                     >
                                         <div className="min-w-0">
                                             <span className="font-mono font-semibold">{p.code}</span>
@@ -1101,9 +1178,8 @@ export default function NewExpedientPage() {
                             const RuleIcon = color?.icon;
                             return (
                                 <div key={pi.practice.id}
-                                    className={`border-b last:border-0 transition-colors ${
-                                        color ? `${color.bg}` : 'hover:bg-muted/30'
-                                    }`}
+                                    className={`border-b last:border-0 transition-colors ${color ? `${color.bg}` : 'hover:bg-muted/30'
+                                        }`}
                                 >
                                     <div className="flex items-center gap-3 px-3 py-2">
                                         {rc && RuleIcon && (
@@ -1174,15 +1250,13 @@ export default function NewExpedientPage() {
                     <div className="flex gap-1">
                         <button
                             onClick={() => setPriority('normal')}
-                            className={`px-3 py-1.5 rounded text-sm font-medium border ${
-                                priority === 'normal' ? 'bg-slate-100 border-slate-300' : 'border-transparent text-muted-foreground'
-                            }`}
+                            className={`px-3 py-1.5 rounded text-sm font-medium border ${priority === 'normal' ? 'bg-slate-100 border-slate-300' : 'border-transparent text-muted-foreground'
+                                }`}
                         >Normal</button>
                         <button
                             onClick={() => setPriority('urgente')}
-                            className={`px-3 py-1.5 rounded text-sm font-medium border ${
-                                priority === 'urgente' ? 'bg-red-100 border-red-300 text-red-700' : 'border-transparent text-muted-foreground'
-                            }`}
+                            className={`px-3 py-1.5 rounded text-sm font-medium border ${priority === 'urgente' ? 'bg-red-100 border-red-300 text-red-700' : 'border-transparent text-muted-foreground'
+                                }`}
                         >🔴 Urgente</button>
                     </div>
                 </div>
@@ -1257,11 +1331,10 @@ export default function NewExpedientPage() {
                             <div className="max-h-40 overflow-y-auto bg-muted/20 p-3 space-y-2 border-b">
                                 {chatMessages.map((msg, i) => (
                                     <div key={i} className={`flex ${msg.from === 'self' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
-                                            msg.from === 'self'
-                                                ? 'bg-primary text-primary-foreground rounded-br-md'
-                                                : 'bg-muted rounded-bl-md'
-                                        }`}>
+                                        <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${msg.from === 'self'
+                                            ? 'bg-primary text-primary-foreground rounded-br-md'
+                                            : 'bg-muted rounded-bl-md'
+                                            }`}>
                                             <p>{msg.text}</p>
                                             <p className={`text-[10px] mt-0.5 ${msg.from === 'self' ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                                                 {msg.date}
@@ -1335,11 +1408,10 @@ export default function NewExpedientPage() {
                     </div>
 
                     {/* Indicador de orden médica */}
-                    <div className={`flex items-center gap-2 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
-                        hasOrdenMedica
-                            ? 'bg-green-50 border-green-200 text-green-700'
-                            : 'bg-red-50 border-red-200 text-red-700'
-                    }`}>
+                    <div className={`flex items-center gap-2 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${hasOrdenMedica
+                        ? 'bg-green-50 border-green-200 text-green-700'
+                        : 'bg-red-50 border-red-200 text-red-700'
+                        }`}>
                         {hasOrdenMedica
                             ? <><CheckCircle className="h-3.5 w-3.5" /> Orden médica adjunta</>
                             : <><AlertCircle className="h-3.5 w-3.5" /> Orden médica obligatoria — seleccioná &quot;Orden médica&quot; y adjuntá el archivo</>
