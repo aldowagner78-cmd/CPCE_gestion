@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { ExpedientService } from '@/services/expedientService';
 import type { PracticeResolutionStatus } from '@/services/expedientService';
+import { generateExpedientPDF, generatePracticePDF } from '@/lib/expedientPDF';
 import {
     Stethoscope,
     FlaskConical,
@@ -36,6 +37,11 @@ import {
     Pause,
     RotateCcw,
     Loader2,
+    Printer,
+    Gavel,
+    Upload,
+    ShieldCheck,
+    XOctagon,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -218,12 +224,19 @@ function ExpedientDetail({
     const [reviewDate, setReviewDate] = useState('');
     const [coveragePercent, setCoveragePercent] = useState(80);
     const [adjustedQuantity, setAdjustedQuantity] = useState(1);
+    const [showExpedientAction, setShowExpedientAction] = useState<'observar' | 'anular' | null>(null);
 
     const tc = TYPE_CONFIG[expedient.type];
     const sc = STATUS_CONFIG[expedient.status];
     const TypeIcon = tc.icon;
     const canResolve = ['pendiente', 'en_revision', 'parcialmente_resuelto', 'observada'].includes(expedient.status);
     const isMine = expedient.assigned_to === user?.id;
+    const isAdmin = user?.role === 'administrativo' || user?.role === 'admin' || user?.is_superuser;
+    const isSupervisor = user?.role === 'supervisor' || user?.is_superuser;
+    const isResolved = expedient.status === 'resuelto' || expedient.status === 'parcialmente_resuelto';
+    const hasAuthorizedPractices = (expedient.practices || []).some(p => ['autorizada', 'autorizada_parcial'].includes(p.status));
+    const hasDeniedPractices = (expedient.practices || []).some(p => p.status === 'denegada');
+    const isObserved = expedient.status === 'observada';
 
     // Cargar datos completos del expediente
     const loadFullData = useCallback(async () => {
@@ -391,6 +404,116 @@ function ExpedientDetail({
         }
     };
 
+    // Observar expediente completo (auditor)
+    const handleObserveExpedient = async () => {
+        if (!user || !resolutionNotes.trim()) return;
+        setResolving(true);
+        try {
+            await ExpedientService.observe(expedient.id, user.id, resolutionNotes);
+            setResolutionNotes('');
+            await loadFullData();
+        } catch {
+            // Error
+        }
+        setResolving(false);
+    };
+
+    // Reenviar observada (admin completa y reenvía)
+    const handleResubmit = async () => {
+        if (!user) return;
+        setResolving(true);
+        try {
+            await ExpedientService.resubmitObserved(expedient.id, user.id, resolutionNotes || undefined);
+            setResolutionNotes('');
+            await loadFullData();
+        } catch {
+            // Error
+        }
+        setResolving(false);
+    };
+
+    // Apelar (ante denegación)
+    const handleAppeal = async () => {
+        if (!user || !resolutionNotes.trim()) return;
+        setResolving(true);
+        try {
+            await ExpedientService.appeal(expedient.id, user.id, resolutionNotes);
+            setResolutionNotes('');
+            await loadFullData();
+        } catch {
+            // Error
+        }
+        setResolving(false);
+    };
+
+    // Anular expediente
+    const handleCancel = async () => {
+        if (!user || !resolutionNotes.trim()) return;
+        setResolving(true);
+        try {
+            await ExpedientService.cancel(expedient.id, user.id, resolutionNotes);
+            setResolutionNotes('');
+            await loadFullData();
+        } catch {
+            // Error
+        }
+        setResolving(false);
+    };
+
+    // Mesa de control — aprobar
+    const handleControlDeskApprove = async () => {
+        if (!user) return;
+        setResolving(true);
+        try {
+            await ExpedientService.approveControlDesk(expedient.id, user.id);
+            await loadFullData();
+        } catch {
+            // Error
+        }
+        setResolving(false);
+    };
+
+    // Mesa de control — rechazar
+    const handleControlDeskReject = async () => {
+        if (!user || !resolutionNotes.trim()) return;
+        setResolving(true);
+        try {
+            await ExpedientService.rejectControlDesk(expedient.id, user.id, resolutionNotes);
+            setResolutionNotes('');
+            await loadFullData();
+        } catch {
+            // Error
+        }
+        setResolving(false);
+    };
+
+    // Subir adjunto adicional (admin, observadas)
+    const handleUploadAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!user || !e.target.files?.[0]) return;
+        try {
+            await ExpedientService.uploadAttachment(
+                expedient.id,
+                e.target.files[0],
+                'otro',
+                user.id,
+            );
+            const a = await ExpedientService.fetchAttachments(expedient.id);
+            setAttachments(a);
+        } catch {
+            // Error
+        }
+    };
+
+    // Imprimir constancia del expediente
+    const handlePrintExpedient = () => {
+        generateExpedientPDF(expedient);
+    };
+
+    // Imprimir constancia de práctica individual
+    const handlePrintPractice = (practice: ExpedientPractice) => {
+        generatePracticePDF(expedient, practice);
+    };
+
     // Agregar nota
     const handleAddNote = async () => {
         if (!user || !newNote.trim()) return;
@@ -463,17 +586,219 @@ function ExpedientDetail({
                     {expedient.resolved_at && <span>• Resuelto: {formatDate(expedient.resolved_at)}</span>}
                 </div>
 
-                {/* Botón tomar */}
-                {canResolve && !isMine && expedient.status === 'pendiente' && (
-                    <Button
-                        className="mt-3 w-full bg-blue-600 hover:bg-blue-700"
-                        size="sm"
-                        onClick={handleTake}
-                        disabled={resolving}
-                    >
-                        {resolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
-                        Tomar para revisión
-                    </Button>
+                {/* Botones de acción */}
+                <div className="flex gap-2 mt-3 flex-wrap">
+                    {/* Tomar para revisión */}
+                    {canResolve && !isMine && expedient.status === 'pendiente' && (
+                        <Button
+                            className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            size="sm"
+                            onClick={handleTake}
+                            disabled={resolving}
+                        >
+                            {resolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
+                            Tomar para revisión
+                        </Button>
+                    )}
+
+                    {/* Imprimir constancia (si hay prácticas autorizadas) */}
+                    {hasAuthorizedPractices && (
+                        <Button variant="outline" size="sm" onClick={handlePrintExpedient} title="Imprimir constancia">
+                            <Printer className="h-4 w-4 mr-1" /> Constancia
+                        </Button>
+                    )}
+
+                    {/* Reenviar observada (admin) */}
+                    {isObserved && isAdmin && (
+                        <Button
+                            className="flex-1 bg-orange-600 hover:bg-orange-700"
+                            size="sm"
+                            onClick={handleResubmit}
+                            disabled={resolving}
+                        >
+                            {resolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                            Reenviar a Auditoría
+                        </Button>
+                    )}
+
+                    {/* Observar expediente (auditor → devuelve a admin) */}
+                    {canResolve && isMine && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            onClick={() => setShowExpedientAction(showExpedientAction === 'observar' ? null : 'observar')}
+                            title="Observar expediente"
+                        >
+                            <AlertTriangle className="h-4 w-4 mr-1" /> Observar
+                        </Button>
+                    )}
+
+                    {/* Apelar (ante denegación — admin o supervisor) */}
+                    {isResolved && hasDeniedPractices && (isAdmin || isSupervisor) && expedient.status !== 'en_apelacion' && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            title="Presenta apelación"
+                        >
+                            <Gavel className="h-4 w-4 mr-1" /> Apelar
+                        </Button>
+                    )}
+
+                    {/* Anular expediente */}
+                    {canResolve && (isMine || isAdmin || isSupervisor) && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setShowExpedientAction(showExpedientAction === 'anular' ? null : 'anular')}
+                            title="Anular expediente"
+                        >
+                            <XOctagon className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+
+                {/* Mesa de control (supervisor, si aplica) */}
+                {expedient.requires_control_desk && expedient.control_desk_status === 'pendiente' && isSupervisor && (
+                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+                        <p className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider mb-2">
+                            <ShieldCheck className="h-3.5 w-3.5 inline mr-1" />
+                            Mesa de Control
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">
+                            Este expediente requiere aprobación de mesa de control antes de pasar a auditoría.
+                        </p>
+                        <div className="flex gap-2">
+                            <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleControlDeskApprove} disabled={resolving}>
+                                <CheckCircle className="h-4 w-4 mr-1" /> Aprobar
+                            </Button>
+                            <Button size="sm" variant="outline" className="flex-1 text-red-600" onClick={handleControlDeskReject} disabled={resolving || !resolutionNotes.trim()}>
+                                <XCircle className="h-4 w-4 mr-1" /> Rechazar
+                            </Button>
+                        </div>
+                        <textarea
+                            value={resolutionNotes}
+                            onChange={e => setResolutionNotes(e.target.value)}
+                            placeholder="Motivo de rechazo (solo si rechaza)..."
+                            rows={2}
+                            className="w-full border rounded-lg px-3 py-2 text-xs bg-background resize-none mt-2"
+                        />
+                    </div>
+                )}
+
+                {/* Panel: Observar expediente (auditor) */}
+                {showExpedientAction === 'observar' && (
+                    <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl space-y-2">
+                        <p className="text-xs font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wider">
+                            <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                            Observar Expediente
+                        </p>
+                        <p className="text-xs text-orange-700 dark:text-orange-400">
+                            Devolver al administrativo con observaciones. Deberá completar documentación.
+                        </p>
+                        <textarea
+                            value={resolutionNotes}
+                            onChange={e => setResolutionNotes(e.target.value)}
+                            placeholder="Detalle las observaciones (obligatorio)..."
+                            rows={3}
+                            className="w-full border border-orange-200 rounded-lg px-3 py-2 text-xs bg-background resize-none"
+                        />
+                        <div className="flex gap-2">
+                            <Button
+                                size="sm"
+                                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                                onClick={handleObserveExpedient}
+                                disabled={resolving || !resolutionNotes.trim()}
+                            >
+                                <AlertTriangle className="h-4 w-4 mr-1" /> Confirmar Observación
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setShowExpedientAction(null)}>Cancelar</Button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Panel: Anular expediente */}
+                {showExpedientAction === 'anular' && (
+                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl space-y-2">
+                        <p className="text-xs font-bold text-red-800 dark:text-red-300 uppercase tracking-wider">
+                            <XOctagon className="h-3.5 w-3.5 inline mr-1" />
+                            Anular Expediente
+                        </p>
+                        <p className="text-xs text-red-700 dark:text-red-400">
+                            Esta acción es irreversible. El expediente quedará anulado permanentemente.
+                        </p>
+                        <textarea
+                            value={resolutionNotes}
+                            onChange={e => setResolutionNotes(e.target.value)}
+                            placeholder="Motivo de anulación (obligatorio)..."
+                            rows={2}
+                            className="w-full border border-red-200 rounded-lg px-3 py-2 text-xs bg-background resize-none"
+                        />
+                        <div className="flex gap-2">
+                            <Button
+                                size="sm"
+                                className="flex-1 bg-red-600 hover:bg-red-700"
+                                onClick={handleCancel}
+                                disabled={resolving || !resolutionNotes.trim()}
+                            >
+                                <XOctagon className="h-4 w-4 mr-1" /> Confirmar Anulación
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setShowExpedientAction(null)}>Cancelar</Button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Panel: Expediente observado — Admin puede reenviar */}
+                {isObserved && isAdmin && showExpedientAction !== 'anular' && (
+                    <div className="mt-3 p-3 border border-orange-200 dark:border-orange-800 rounded-xl bg-orange-50/50 dark:bg-orange-950/20 space-y-2">
+                        <p className="text-xs font-bold text-orange-700 uppercase tracking-wider">
+                            📋 Expediente observado por el auditor
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Adjunte documentación adicional y reenvíe a auditoría.
+                        </p>
+                        <label className="flex items-center gap-2 text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                            <Upload className="h-4 w-4" />
+                            Adjuntar documentación
+                            <input type="file" className="hidden" onChange={handleUploadAttachment} accept="image/*,.pdf" />
+                        </label>
+                        <textarea
+                            value={resolutionNotes}
+                            onChange={e => setResolutionNotes(e.target.value)}
+                            placeholder="Notas adicionales para el auditor..."
+                            rows={2}
+                            className="w-full border rounded-lg px-3 py-2 text-xs bg-background resize-none"
+                        />
+                    </div>
+                )}
+
+                {/* Panel: Apelación (admin/supervisor ante denegación) */}
+                {isResolved && hasDeniedPractices && expedient.status !== 'en_apelacion' && (isAdmin || isSupervisor) && (
+                    <div className="mt-3 p-3 border border-red-200 dark:border-red-800 rounded-xl bg-red-50/50 dark:bg-red-950/20 space-y-2">
+                        <p className="text-xs font-bold text-red-700 uppercase tracking-wider">
+                            ⚖️ Apelación
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Presente documentación adicional y fundamentos para revertir la denegación.
+                        </p>
+                        <textarea
+                            value={resolutionNotes}
+                            onChange={e => setResolutionNotes(e.target.value)}
+                            placeholder="Fundamentos de la apelación (obligatorio)..."
+                            rows={2}
+                            className="w-full border rounded-lg px-3 py-2 text-xs bg-background resize-none"
+                        />
+                        <Button
+                            size="sm"
+                            className="w-full bg-red-600 hover:bg-red-700"
+                            onClick={handleAppeal}
+                            disabled={resolving || !resolutionNotes.trim()}
+                        >
+                            <Gavel className="h-4 w-4 mr-2" /> Presentar Apelación
+                        </Button>
+                    </div>
                 )}
             </div>
 
@@ -600,9 +925,18 @@ function ExpedientDetail({
                                                                 <p className="text-xs text-green-700 dark:text-green-400 font-semibold">Autorización</p>
                                                                 <p className="font-mono font-bold text-green-800 dark:text-green-300">{p.authorization_code}</p>
                                                             </div>
-                                                            {p.authorization_expiry && (
-                                                                <p className="text-xs text-green-600">Vence: {formatShortDate(p.authorization_expiry)}</p>
-                                                            )}
+                                                            <div className="flex items-center gap-2">
+                                                                {p.authorization_expiry && (
+                                                                    <p className="text-xs text-green-600">Vence: {formatShortDate(p.authorization_expiry)}</p>
+                                                                )}
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); handlePrintPractice(p); }}
+                                                                    className="p-1 rounded hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+                                                                    title="Imprimir constancia de esta práctica"
+                                                                >
+                                                                    <Printer className="h-3.5 w-3.5 text-green-700 dark:text-green-400" />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}
