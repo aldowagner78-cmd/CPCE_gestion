@@ -7,11 +7,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { createClient } from '@/lib/supabase';
 import {
-    Search, User, Calendar, Filter, Download,
-    ChevronDown, ChevronUp, Clock, FileText,
-    BarChart3, ArrowLeft, X, Loader2,
-    CheckCircle, AlertCircle, AlertTriangle,
-    DollarSign, History,
+    Search, User, Filter, Download,
+    ChevronDown, ChevronUp, Clock,
+    ArrowLeft, X, Loader2,
+    CheckCircle, AlertCircle,
+    History,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { Affiliate } from '@/types/database';
@@ -78,7 +78,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
 // ════════════════════════════════════════════════════════
 
 export default function HistoryPage() {
-    const { user } = useAuth();
+    const { } = useAuth();
     const { activeJurisdiction } = useJurisdiction();
 
     // Estado: Búsqueda de afiliado
@@ -233,9 +233,15 @@ export default function HistoryPage() {
 
     // Auto-cargar al seleccionar afiliado
     useEffect(() => {
+        let cancelled = false;
         if (affiliate && !loaded) {
-            fetchHistory();
+            const run = async () => {
+                await fetchHistory();
+                if (cancelled) return;
+            };
+            run();
         }
+        return () => { cancelled = true; };
     }, [affiliate, loaded, fetchHistory]);
 
     // ═══════════════════════════════════════════
