@@ -22,7 +22,7 @@ import {
     ChevronDown, ChevronUp, User,
     ShieldCheck, Package, DollarSign,
     BarChart3, Smile, Calendar, Phone, Mail,
-    MapPin, FileText, AlertTriangle,
+    MapPin, FileText, AlertTriangle, Lock, Megaphone, MessageSquare, Loader2
     Zap, ShieldAlert, Eye, Loader2,
     MessageSquare, Filter, Clock, Star,
 } from 'lucide-react';
@@ -1376,21 +1376,46 @@ export default function NewExpedientPage() {
                         {/* Mensajes previos (si hay) */}
                         {chatMessages.length > 0 && (
                             <div className="max-h-40 overflow-y-auto bg-muted/20 p-3 space-y-2 border-b">
-                                {chatMessages.map((msg, i) => (
-                                    <div key={i} className={`flex ${msg.from === 'self' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${msg.from === 'self'
-                                            ? 'bg-primary text-primary-foreground rounded-br-md'
-                                            : 'bg-muted rounded-bl-md'
-                                            }`}>
-                                            <p>{msg.text}</p>
-                                            <p className={`text-[10px] mt-0.5 ${msg.from === 'self' ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
-                                                {msg.date}
-                                            </p>
+                                {chatMessages.map((msg, i) => {
+                                    const isInternal = msg.channel === 'interna';
+                                    return (
+                                        <div key={i} className="flex justify-end">
+                                            <div className={`max-w-[85%] px-3 py-2 text-sm ${isInternal
+                                                ? 'bg-muted text-foreground border border-border rounded-2xl rounded-tr-sm'
+                                                : 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm'
+                                                }`}>
+                                                <div className="flex items-center gap-1.5 mb-1 opacity-70">
+                                                    {isInternal ? <Lock className="h-3 w-3" /> : <Megaphone className="h-3 w-3" />}
+                                                    <span className="text-[10px] font-medium uppercase tracking-wider">
+                                                        {isInternal ? 'Interno' : 'Para Afiliado'}
+                                                    </span>
+                                                </div>
+                                                <p>{msg.text}</p>
+                                                <p className={`text-[10px] mt-1 text-right ${isInternal ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}>
+                                                    {msg.date}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
+
+                        {/* Respuestas rápidas */}
+                        <div className="flex gap-1.5 px-2 py-1.5 overflow-x-auto hide-scrollbar bg-muted/10 border-b">
+                            {commChannel === 'para_afiliado' ? (
+                                <>
+                                    <button onClick={() => setNotes('Falta orden médica original.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📎 Faltan adjuntos</button>
+                                    <button onClick={() => setNotes('Se necesita ampliación de historia clínica.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📋 Historia Clínica</button>
+                                </>
+                            ) : (
+                                <>
+                                    <button onClick={() => setNotes('Prioridad médica urgente confirmada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">⭐ Prioridad urgente</button>
+                                    <button onClick={() => setNotes('Requiere junta médica.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">👥 Junta médica</button>
+                                </>
+                            )}
+                        </div>
+
                         {/* Input de mensaje */}
                         <div className="flex items-end gap-2 p-2 bg-background">
                             <textarea
