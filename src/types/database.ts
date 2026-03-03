@@ -824,3 +824,173 @@ export type AuditRuleConfig = {
     created_at: string
     updated_at: string
 }
+
+// ── Auditoría Posterior (Facturación) ──
+
+export type PostAuditStatus =
+    | 'pendiente'
+    | 'en_revision'
+    | 'aprobada'
+    | 'con_debitos'
+    | 'en_disputa'
+    | 'cerrada'
+
+export type PostAuditCheckResult = 'ok' | 'warning' | 'error'
+
+export type PostAuditItemMatchStatus =
+    | 'pendiente'
+    | 'ok'
+    | 'cantidad_excedida'
+    | 'precio_excedido'
+    | 'sin_autorizacion'
+    | 'autorizacion_vencida'
+    | 'duplicada'
+    | 'aprobado_manual'
+    | 'debitado'
+
+export type PostAuditItemAction = 'aprobar' | 'debitar' | 'rechazar' | 'ajustar'
+
+export type DebitNoteStatus =
+    | 'borrador'
+    | 'emitida'
+    | 'aceptada'
+    | 'disputada'
+    | 'resuelta'
+    | 'anulada'
+
+export type DebitType =
+    | 'precio_excedido'
+    | 'cantidad_excedida'
+    | 'sin_autorizacion'
+    | 'autorizacion_vencida'
+    | 'duplicada'
+    | 'otro'
+
+export type PostAuditIssue = {
+    type: string
+    message: string
+    severity: 'info' | 'warning' | 'error'
+}
+
+export type PostAudit = {
+    id: string
+    audit_number?: string
+    invoice_id: number
+    provider_id?: number
+    period_month?: number
+    period_year?: number
+    status: PostAuditStatus
+    invoiced_total: number
+    authorized_total: number
+    difference: number
+    debit_total: number
+    approved_total: number
+    auto_check_result?: PostAuditCheckResult
+    auto_check_messages: PostAuditIssue[]
+    auto_check_at?: string
+    resolution_notes?: string
+    resolved_by?: string
+    resolved_at?: string
+    assigned_to?: string
+    created_by: string
+    jurisdiction_id: number
+    created_at: string
+    updated_at: string
+
+    // Joins
+    items?: PostAuditItem[]
+    invoice?: Invoice
+    provider?: { id: number; name: string; cuit?: string; type?: string }
+    assigned_user?: { full_name?: string }
+    resolved_user?: { full_name?: string }
+}
+
+export type PostAuditItem = {
+    id: string
+    post_audit_id: string
+    invoice_detail_id?: number
+    authorization_id?: number
+    authorization_detail_id?: number
+    expedient_practice_id?: string
+    practice_id?: number
+    practice_description?: string
+    affiliate_id?: string
+    invoiced_quantity: number
+    invoiced_unit_price?: number
+    invoiced_total?: number
+    authorized_quantity?: number
+    authorized_unit_price?: number
+    authorized_total?: number
+    authorized_coverage_percent?: number
+    match_status: PostAuditItemMatchStatus
+    issues: PostAuditIssue[]
+    debit_amount: number
+    debit_reason?: string
+    auditor_action?: PostAuditItemAction
+    auditor_notes?: string
+    resolved_by?: string
+    resolved_at?: string
+    sort_order: number
+    created_at: string
+    updated_at: string
+
+    // Joins
+    practice?: { id: number; code?: string; description?: string }
+    affiliate?: { id: string; name?: string; affiliate_number?: string }
+    authorization?: { authorization_number?: string; status?: string; request_date?: string }
+}
+
+export type DebitNote = {
+    id: string
+    debit_number?: string
+    post_audit_id: string
+    invoice_id: number
+    provider_id?: number
+    total_amount: number
+    detail_count: number
+    status: DebitNoteStatus
+    reason?: string
+    dispute_reason?: string
+    dispute_date?: string
+    dispute_resolution?: string
+    dispute_resolved_by?: string
+    dispute_resolved_at?: string
+    created_by: string
+    emitted_by?: string
+    emitted_at?: string
+    jurisdiction_id: number
+    created_at: string
+    updated_at: string
+
+    // Joins
+    items?: DebitNoteItem[]
+    provider?: { id: number; name: string; cuit?: string }
+    post_audit?: PostAudit
+}
+
+export type DebitNoteItem = {
+    id: string
+    debit_note_id: string
+    post_audit_item_id?: string
+    practice_id?: number
+    practice_description?: string
+    invoiced_amount?: number
+    authorized_amount?: number
+    debit_amount: number
+    reason?: string
+    debit_type?: DebitType
+    sort_order: number
+    created_at: string
+}
+
+export type PostAuditLog = {
+    id: string
+    post_audit_id: string
+    action: string
+    details: Record<string, unknown>
+    performed_by: string
+    created_at: string
+
+    // Join
+    user?: { full_name?: string }
+}

@@ -60,6 +60,7 @@ const toolItems: MenuItem[] = [
 const auditItems: MenuItem[] = [
     { icon: Clock, label: 'Pendientes', href: '/audits/requests', permission: 'audits.view' },
     { icon: FileCheck, label: 'Realizadas', href: '/audits', permission: 'audits.view' },
+    { icon: CreditCard, label: 'Facturación', href: '/audits/post', permission: 'audits.view' },
 ];
 
 // Items de administración (colapsable, por rol)
