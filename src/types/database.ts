@@ -593,3 +593,234 @@ export type AuditRequestLog = {
     performed_at: string
     performer?: { full_name: string }
 }
+
+// ── Expedientes Digitales (Circuito C+B) ──
+
+export type ExpedientType =
+    | 'ambulatoria'
+    | 'bioquimica'
+    | 'internacion'
+    | 'odontologica'
+    | 'programas_especiales'
+    | 'elementos'
+    | 'reintegros'
+
+export type ExpedientStatus =
+    | 'borrador'
+    | 'pendiente'
+    | 'en_revision'
+    | 'parcialmente_resuelto'
+    | 'resuelto'
+    | 'observada'
+    | 'en_apelacion'
+    | 'anulada'
+
+export type PracticeResolutionStatus =
+    | 'pendiente'
+    | 'en_revision'
+    | 'autorizada'
+    | 'denegada'
+    | 'observada'
+    | 'autorizada_parcial'
+    | 'diferida'
+
+export type RulesResult = 'verde' | 'amarillo' | 'rojo'
+
+export type ExpedientPriority = 'normal' | 'urgente'
+
+export type ExpedientDocumentType =
+    | 'orden_medica'
+    | 'receta'
+    | 'estudio'
+    | 'informe'
+    | 'consentimiento'
+    | 'factura'
+    | 'historia_clinica'
+    | 'otro'
+
+export type ExpedientNoteType = 'interna' | 'para_afiliado' | 'sistema' | 'resolucion'
+
+export type Expedient = {
+    id: string
+    expedient_number: string
+    type: ExpedientType
+    priority: ExpedientPriority
+
+    // Afiliado
+    affiliate_id: string
+    affiliate_plan_id?: number
+    family_member_relation?: string
+
+    // Prestador
+    provider_id?: number
+    requesting_doctor_id?: number
+
+    // Estado
+    status: ExpedientStatus
+
+    // Internación
+    hospitalization_id?: number
+    estimated_days?: number
+
+    // Notas
+    request_notes?: string
+    resolution_notes?: string
+
+    // Mesa de control
+    requires_control_desk: boolean
+    control_desk_status?: 'pendiente' | 'aprobado' | 'rechazado'
+    control_desk_by?: string
+    control_desk_at?: string
+
+    // Motor de reglas
+    rules_result?: RulesResult
+
+    // Trazabilidad
+    created_by: string
+    assigned_to?: string
+    resolved_by?: string
+    resolved_at?: string
+    jurisdiction_id: number
+
+    // Timestamps
+    created_at: string
+    updated_at: string
+
+    // Relaciones expandidas (joins)
+    affiliate?: Affiliate
+    plan?: Plan
+    provider?: Provider
+    requesting_doctor?: Provider
+    practices?: ExpedientPractice[]
+    creator?: { full_name: string; role: string }
+    assignee?: { full_name: string; role: string }
+    resolver?: { full_name: string; role: string }
+}
+
+export type ExpedientPractice = {
+    id: string
+    expedient_id: string
+
+    // Práctica
+    practice_id: number
+    quantity: number
+    practice_value?: number
+
+    // Resolución
+    status: PracticeResolutionStatus
+
+    // Autorización
+    authorization_id?: number
+    authorization_code?: string
+    authorization_expiry?: string
+
+    // Cobertura
+    coverage_percent?: number
+    covered_amount?: number
+    copay_amount?: number
+    copay_percent?: number
+
+    // Diagnóstico
+    disease_id?: number
+    diagnosis_code?: string
+    diagnosis_description?: string
+
+    // Resolución
+    resolution_notes?: string
+    resolved_by?: string
+    resolved_at?: string
+
+    // Diferida
+    review_date?: string
+
+    // Motor de reglas
+    rule_result?: RulesResult
+    rule_messages?: string[]
+
+    // Orden
+    sort_order: number
+
+    // Timestamps
+    created_at: string
+    updated_at: string
+
+    // Relaciones expandidas (joins)
+    practice?: Practice
+    disease?: Disease
+    resolver?: { full_name: string; role: string }
+}
+
+export type ExpedientNote = {
+    id: string
+    expedient_id: string
+    author_id: string
+    content: string
+    note_type: ExpedientNoteType
+    status_from?: string
+    status_to?: string
+    practice_id?: string
+    created_at: string
+    author?: { full_name: string; role: string }
+}
+
+export type ExpedientAttachment = {
+    id: string
+    expedient_id: string
+    file_name: string
+    file_type?: string
+    file_size?: number
+    storage_path: string
+    document_type: ExpedientDocumentType
+    uploaded_by: string
+    created_at: string
+    uploader?: { full_name: string }
+}
+
+export type ExpedientLog = {
+    id: number
+    expedient_id: string
+    action: string
+    details: Record<string, unknown>
+    practice_id?: string
+    performed_by: string
+    performed_at: string
+    performer?: { full_name: string }
+}
+
+// ── Reglas de Auditoría Configurables ──
+
+export type AuditRuleType =
+    | 'auto_approve'
+    | 'frequency_limit'
+    | 'amount_limit'
+    | 'requires_authorization'
+    | 'copay_override'
+    | 'control_desk'
+
+export type AuditRuleConfig = {
+    id: number
+    jurisdiction_id: number
+    rule_type: AuditRuleType
+    practice_type_id?: number
+    practice_id?: number
+
+    // Parámetros
+    auto_approve: boolean
+    max_amount_auto?: number
+    max_per_month?: number
+    max_per_year?: number
+    min_days_between?: number
+    copay_percent?: number
+    requires_control_desk: boolean
+
+    // Vigencia
+    valid_from: string
+    valid_to?: string
+    is_active: boolean
+
+    // Metadata
+    description?: string
+    created_by?: string
+    created_at: string
+    updated_at: string
+}
