@@ -616,14 +616,14 @@ export default function AuditRequestsPage() {
                             <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                         </Link>
                         <div>
-                            <h1 className="text-xl font-bold">Solicitudes de Auditoría</h1>
+                            <h1 className="text-xl font-bold">Pendientes de Auditoría</h1>
                             <p className="text-sm text-muted-foreground">
                                 {pendingTotal} pendiente{pendingTotal !== 1 ? 's' : ''} de resolución
                             </p>
                         </div>
                     </div>
                     <Link href="/audits/requests/new">
-                        <Button size="sm">
+                        <Button size="sm" className="bg-primary hover:bg-primary/90 shadow-sm font-semibold">
                             <Plus className="h-4 w-4 mr-1" />
                             Nueva Solicitud
                         </Button>

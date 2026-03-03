@@ -21,6 +21,8 @@ import {
     Wrench,
     ClipboardCheck,
     ShieldCheck,
+    FilePlus2,
+    Clock,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -56,7 +58,7 @@ const toolItems: MenuItem[] = [
 
 // Auditoría (colapsable)
 const auditItems: MenuItem[] = [
-    { icon: FileText, label: 'Solicitudes', href: '/audits/requests', permission: 'audits.view' },
+    { icon: Clock, label: 'Pendientes', href: '/audits/requests', permission: 'audits.view' },
     { icon: FileCheck, label: 'Realizadas', href: '/audits', permission: 'audits.view' },
 ];
 
@@ -221,27 +223,47 @@ export function Sidebar() {
                                 <span className="text-xs font-bold uppercase tracking-widest">Auditoría</span>
                             </button>
 
-                            {auditOpen && auditItems.map((item) => {
-                                if (item.permission && !hasPermission(item.permission)) return null;
-                                const isActive = pathname.startsWith(item.href);
-                                return (
-                                    <Link
-                                        key={item.href}
-                                        href={item.href}
-                                        className={cn(
-                                            "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ml-2",
-                                            isActive
-                                                ? "bg-primary/20 text-primary shadow-sm"
-                                                : "text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
-                                        )}
-                                    >
-                                        <item.icon size={18} className={cn(
-                                            isActive ? "text-primary" : "text-slate-600 dark:text-slate-400 group-hover:text-foreground"
-                                        )} />
-                                        <span>{item.label}</span>
-                                    </Link>
-                                );
-                            })}
+                            {auditOpen && (
+                                <>
+                                    {/* Botón Nueva Solicitud destacado */}
+                                    {(!auditItems[0].permission || hasPermission(auditItems[0].permission)) && (
+                                        <Link
+                                            href="/audits/requests/new"
+                                            className={cn(
+                                                "flex items-center gap-2.5 mx-2 ml-4 px-3 py-2 text-sm font-semibold rounded-lg transition-all duration-200",
+                                                pathname === '/audits/requests/new'
+                                                    ? "bg-primary text-primary-foreground shadow-md"
+                                                    : "bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
+                                            )}
+                                        >
+                                            <FilePlus2 size={16} />
+                                            <span>Nueva Solicitud</span>
+                                        </Link>
+                                    )}
+
+                                    {auditItems.map((item) => {
+                                        if (item.permission && !hasPermission(item.permission)) return null;
+                                        const isActive = pathname === item.href || (pathname.startsWith(item.href) && pathname !== '/audits/requests/new');
+                                        return (
+                                            <Link
+                                                key={item.href}
+                                                href={item.href}
+                                                className={cn(
+                                                    "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ml-2",
+                                                    isActive
+                                                        ? "bg-primary/20 text-primary shadow-sm"
+                                                        : "text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                                                )}
+                                            >
+                                                <item.icon size={18} className={cn(
+                                                    isActive ? "text-primary" : "text-slate-600 dark:text-slate-400 group-hover:text-foreground"
+                                                )} />
+                                                <span>{item.label}</span>
+                                            </Link>
+                                        );
+                                    })}
+                                </>
+                            )}
                         </>
                     )}
 

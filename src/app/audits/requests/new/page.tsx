@@ -18,6 +18,7 @@ import {
     BarChart3, Smile, Calendar, Phone, Mail,
     MapPin, FileText, AlertTriangle,
     Zap, ShieldAlert, Eye, Loader2,
+    MessageSquare,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -142,7 +143,9 @@ export default function NewExpedientPage() {
 
     // ── Estado: Extras ──
     const [priority, setPriority] = useState<ExpedientPriority>('normal');
+    const [diagnosis, setDiagnosis] = useState('');
     const [notes, setNotes] = useState('');
+    const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string }[]>([]);
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [docType, setDocType] = useState<ExpedientDocumentType>('orden_medica');
     const [compressing, setCompressing] = useState(false);
@@ -151,6 +154,7 @@ export default function NewExpedientPage() {
     const [rulesEvaluated, setRulesEvaluated] = useState(false);
     const [rulesResult, setRulesResult] = useState<ExpedientRuleResult | null>(null);
     const [evaluating, setEvaluating] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
 
     // ── Estado: Submit ──
     const [submitting, setSubmitting] = useState(false);
@@ -448,7 +452,7 @@ export default function NewExpedientPage() {
     if (!hasOrdenMedica) validationErrors.push('Orden médica obligatoria — adjuntá el archivo');
 
     const canEvaluate = !!affiliate && isAffiliateActive && practiceItems.length > 0 && !!affiliatePlan && !evaluating;
-    const canSubmit = canEvaluate && hasOrdenMedica && rulesEvaluated && !submitting;
+    const canSubmit = !!affiliate && isAffiliateActive && practiceItems.length > 0 && hasOrdenMedica && !submitting;
 
     const greenCount = practiceItems.filter(pi => pi.ruleResult?.result === 'verde').length;
     const yellowCount = practiceItems.filter(pi => pi.ruleResult?.result === 'amarillo').length;
@@ -462,28 +466,58 @@ export default function NewExpedientPage() {
         if (!canSubmit || !user || !activeJurisdiction || !affiliate) return;
         setSubmitting(true);
         setError('');
+
+        // Evaluar reglas silenciosamente antes de enviar
+        let finalRulesResult = rulesResult;
+        if (!rulesEvaluated && affiliatePlan) {
+            try {
+                const result = await RulesEngine.evaluate({
+                    type: expedientType,
+                    affiliate,
+                    plan: affiliatePlan,
+                    practices: practiceItems.map(pi => ({
+                        practice_id: pi.practice.id,
+                        practice: pi.practice,
+                        quantity: pi.quantity,
+                    })),
+                    jurisdiction_id: activeJurisdiction.id,
+                });
+                finalRulesResult = result;
+                setRulesResult(result);
+                setRulesEvaluated(true);
+            } catch {
+                // Si falla el motor, enviar igual sin auto-aprobación
+            }
+        }
         try {
+            // Combinar mensajes del chat + nota actual
+            const allNotes = [
+                ...chatMessages.map(m => m.text),
+                ...(notes.trim() ? [notes.trim()] : []),
+            ].join('\n');
+
             const expedient = await ExpedientService.create({
                 type: expedientType,
                 priority,
                 affiliate_id: String(affiliate.id),
                 affiliate_plan_id: affiliate.plan_id,
                 family_member_relation: affiliate.relationship,
-                request_notes: notes || undefined,
-                requires_control_desk: rulesResult?.requires_control_desk || false,
-                rules_result: rulesResult?.overall,
+                request_notes: allNotes || undefined,
+                diagnosis_description: diagnosis || undefined,
+                requires_control_desk: finalRulesResult?.requires_control_desk || false,
+                rules_result: finalRulesResult?.overall,
                 created_by: user.id,
                 jurisdiction_id: activeJurisdiction.id,
                 practices: practiceItems.map((pi, idx) => ({
                     practice_id: pi.practice.id,
                     quantity: pi.quantity,
                     practice_value: pi.practice.financial_value,
-                    coverage_percent: pi.ruleResult?.coverage_percent,
-                    covered_amount: pi.ruleResult?.covered_amount,
-                    copay_amount: pi.ruleResult?.copay_amount,
-                    copay_percent: pi.ruleResult?.copay_percent,
-                    rule_result: pi.ruleResult?.result,
-                    rule_messages: pi.ruleResult?.messages,
+                    coverage_percent: pi.ruleResult?.coverage_percent ?? finalRulesResult?.practices[idx]?.coverage_percent,
+                    covered_amount: pi.ruleResult?.covered_amount ?? finalRulesResult?.practices[idx]?.covered_amount,
+                    copay_amount: pi.ruleResult?.copay_amount ?? finalRulesResult?.practices[idx]?.copay_amount,
+                    copay_percent: pi.ruleResult?.copay_percent ?? finalRulesResult?.practices[idx]?.copay_percent,
+                    rule_result: pi.ruleResult?.result ?? finalRulesResult?.practices[idx]?.result,
+                    rule_messages: pi.ruleResult?.messages ?? finalRulesResult?.practices[idx]?.messages,
                     sort_order: idx,
                 })),
             });
@@ -497,7 +531,8 @@ export default function NewExpedientPage() {
 
             // Auto-aprobar prácticas VERDES si corresponde
             const codes: string[] = [];
-            if (greenCount > 0 && rulesResult?.overall !== 'rojo') {
+            const gCount = finalRulesResult?.practices.filter(p => p.result === 'verde').length || 0;
+            if (gCount > 0 && finalRulesResult?.overall !== 'rojo') {
                 const autoResult = await ExpedientService.autoApprovePractices(expedient.id, user.id);
                 codes.push(...autoResult.authorized.map(a => a.authorization_code));
             }
@@ -512,12 +547,12 @@ export default function NewExpedientPage() {
     };
 
     const resetForm = () => {
-        setAffiliate(null); setPracticeItems([]); setFiles([]); setNotes('');
+        setAffiliate(null); setPracticeItems([]); setFiles([]); setNotes(''); setDiagnosis('');
         setPriority('normal'); setSubmitted(false); setSubmittedExpNumber('');
         setAutoApprovedCodes([]); setAffSearch(''); setPracSearch('');
         setShowConsumptions(false); setConsumptions([]); setPlanName('');
         setAffiliatePlan(null); setRulesEvaluated(false); setRulesResult(null);
-        setExpedientType('ambulatoria');
+        setExpedientType('ambulatoria'); setShowPreview(false); setChatMessages([]);
     };
 
     // ═══════════════════════════════════════════
@@ -573,8 +608,8 @@ export default function NewExpedientPage() {
                     )}
 
                     <div className="flex gap-3 justify-center pt-2">
-                        <Button onClick={resetForm}>Nuevo Expediente</Button>
-                        <Link href="/audits/requests"><Button variant="outline">Ver Bandeja</Button></Link>
+                        <Button onClick={resetForm}>Nueva Solicitud</Button>
+                        <Link href="/audits/requests"><Button variant="outline">Ver Pendientes</Button></Link>
                     </div>
                 </div>
             </div>
@@ -598,7 +633,7 @@ export default function NewExpedientPage() {
                     <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                 </Link>
                 <div>
-                    <h1 className="text-xl font-bold">Nuevo Expediente</h1>
+                    <h1 className="text-xl font-bold">Solicitud Nueva</h1>
                     <p className="text-xs text-muted-foreground">Apertura de expediente digital de auditoría</p>
                 </div>
             </div>
@@ -989,11 +1024,75 @@ export default function NewExpedientPage() {
                     </div>
                 </div>
 
-                <Input
-                    placeholder="Observaciones para el auditor (opcional)"
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                />
+                {/* Diagnóstico */}
+                <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1 block">
+                        Diagnóstico presuntivo
+                    </label>
+                    <Input
+                        placeholder="Ej: Fractura de fémur, Diabetes tipo 2, Control de rutina..."
+                        value={diagnosis}
+                        onChange={e => setDiagnosis(e.target.value)}
+                    />
+                </div>
+
+                {/* Comunicación — estilo chat */}
+                <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Comunicación con auditoría
+                    </label>
+                    <div className="border rounded-xl overflow-hidden">
+                        {/* Mensajes previos (si hay) */}
+                        {chatMessages.length > 0 && (
+                            <div className="max-h-40 overflow-y-auto bg-muted/20 p-3 space-y-2 border-b">
+                                {chatMessages.map((msg, i) => (
+                                    <div key={i} className={`flex ${msg.from === 'self' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
+                                            msg.from === 'self'
+                                                ? 'bg-primary text-primary-foreground rounded-br-md'
+                                                : 'bg-muted rounded-bl-md'
+                                        }`}>
+                                            <p>{msg.text}</p>
+                                            <p className={`text-[10px] mt-0.5 ${msg.from === 'self' ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
+                                                {msg.date}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* Input de mensaje */}
+                        <div className="flex items-end gap-2 p-2 bg-background">
+                            <textarea
+                                placeholder="Escribí un mensaje para el auditor..."
+                                value={notes}
+                                onChange={e => setNotes(e.target.value)}
+                                rows={2}
+                                className="flex-1 resize-none rounded-xl border border-input bg-muted/30 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                            <button
+                                onClick={() => {
+                                    if (!notes.trim()) return;
+                                    setChatMessages(prev => [...prev, {
+                                        from: 'self',
+                                        text: notes.trim(),
+                                        date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+                                    }]);
+                                    setNotes('');
+                                }}
+                                disabled={!notes.trim()}
+                                className="shrink-0 p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Agregar mensaje"
+                            >
+                                <Send className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <p className="px-3 pb-2 text-[10px] text-muted-foreground">
+                            Los mensajes quedan registrados como comunicación formal entre administrativos y auditores.
+                        </p>
+                    </div>
+                </div>
 
                 {/* Adjuntos */}
                 <div className="space-y-2">
@@ -1079,52 +1178,52 @@ export default function NewExpedientPage() {
             )}
 
             {/* ══════════════════════════════════════ */}
-            {/* ═  RESUMEN DE EVALUACIÓN             ═ */}
+            {/* ═  PREVISUALIZACIÓN                  ═ */}
             {/* ══════════════════════════════════════ */}
-            {rulesEvaluated && rulesResult && (
-                <div className={`rounded-lg border p-4 space-y-2 ${
-                    rulesResult.overall === 'verde' ? 'bg-green-50 border-green-300' :
-                    rulesResult.overall === 'amarillo' ? 'bg-yellow-50 border-yellow-300' :
-                    'bg-red-50 border-red-300'
-                }`}>
-                    <div className="flex items-center gap-2">
-                        {rulesResult.overall === 'verde' ? (
-                            <>
-                                <Zap className="h-5 w-5 text-green-600" />
-                                <span className="font-semibold text-green-800">
-                                    Todas las prácticas se auto-aprobarán al enviar
-                                </span>
-                            </>
-                        ) : rulesResult.overall === 'amarillo' ? (
-                            <>
-                                <Eye className="h-5 w-5 text-yellow-600" />
-                                <span className="font-semibold text-yellow-800">
-                                    {greenCount > 0
-                                        ? `${greenCount} auto-aprobable(s), ${yellowCount + redCount} requieren auditor`
-                                        : 'Todas requieren revisión del auditor'}
-                                </span>
-                            </>
-                        ) : (
-                            <>
-                                <ShieldAlert className="h-5 w-5 text-red-600" />
-                                <span className="font-semibold text-red-800">
-                                    Requiere revisión del auditor
-                                </span>
-                            </>
+            {showPreview && affiliate && practiceItems.length > 0 && (
+                <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4 space-y-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2">
+                        <Eye className="h-4 w-4" /> Previsualización de la solicitud
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                        <div><span className="text-muted-foreground">Tipo:</span> <span className="font-medium">{EXPEDIENT_TYPES.find(t => t.value === expedientType)?.label}</span></div>
+                        <div><span className="text-muted-foreground">Prioridad:</span> <span className={`font-medium ${priority === 'urgente' ? 'text-red-600' : ''}`}>{priority === 'urgente' ? '🔴 Urgente' : 'Normal'}</span></div>
+                        <div className="col-span-2"><span className="text-muted-foreground">Afiliado:</span> <span className="font-medium">{affiliate.full_name}</span> <span className="text-muted-foreground">· DNI {affiliate.document_number}</span></div>
+                        <div><span className="text-muted-foreground">Plan:</span> <span className="font-medium">{planName}</span></div>
+                        <div><span className="text-muted-foreground">Estado:</span> <span className="font-medium">{affiliate.status}</span></div>
+                        {diagnosis && (
+                            <div className="col-span-2"><span className="text-muted-foreground">Diagnóstico:</span> <span className="font-medium">{diagnosis}</span></div>
                         )}
                     </div>
 
-                    {rulesResult.requires_control_desk && (
-                        <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            Este expediente pasará por mesa de control antes del auditor
+                    <div className="border-t pt-2">
+                        <p className="text-xs font-semibold text-muted-foreground mb-1">
+                            {practiceItems.length} práctica(s) — Total: ${totalValue.toLocaleString()}
                         </p>
+                        {practiceItems.map(pi => (
+                            <p key={pi.practice.id} className="text-xs">
+                                <span className="font-mono">{pi.practice.code}</span> {pi.practice.description} ×{pi.quantity}
+                            </p>
+                        ))}
+                    </div>
+
+                    {files.length > 0 && (
+                        <div className="border-t pt-2">
+                            <p className="text-xs font-semibold text-muted-foreground mb-0.5">{files.length} adjunto(s)</p>
+                            {files.map((f, i) => (
+                                <p key={i} className="text-xs text-muted-foreground">
+                                    [{DOC_TYPES.find(d => d.value === f.documentType)?.label}] {f.file.name}
+                                </p>
+                            ))}
+                        </div>
                     )}
 
-                    {rulesResult.messages.length > 0 && (
-                        <div className="text-xs space-y-0.5">
-                            {rulesResult.messages.map((msg, i) => (
-                                <p key={i} className="text-red-700">• {msg}</p>
+                    {chatMessages.length > 0 && (
+                        <div className="border-t pt-2">
+                            <p className="text-xs font-semibold text-muted-foreground mb-0.5">Mensajes ({chatMessages.length})</p>
+                            {chatMessages.map((m, i) => (
+                                <p key={i} className="text-xs text-muted-foreground">• {m.text}</p>
                             ))}
                         </div>
                     )}
@@ -1132,51 +1231,40 @@ export default function NewExpedientPage() {
             )}
 
             {/* ══════════════════════════════════════ */}
-            {/* ═  BOTONES: EVALUAR + ENVIAR         ═ */}
+            {/* ═  BOTONES: PREVISUALIZAR + ENVIAR   ═ */}
             {/* ══════════════════════════════════════ */}
             <div className="space-y-2">
-                {!rulesEvaluated && (
+                {!showPreview && (
                     <Button
-                        onClick={handleEvaluate}
-                        disabled={!canEvaluate}
+                        onClick={() => setShowPreview(true)}
+                        disabled={!canSubmit}
                         variant="outline"
                         className="w-full h-11 text-base border-2"
                     >
-                        {evaluating ? (
-                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Evaluando reglas...</>
-                        ) : (
-                            <><Eye className="h-4 w-4 mr-2" /> Evaluar Expediente</>
-                        )}
+                        <Eye className="h-4 w-4 mr-2" /> Previsualizar antes de enviar
                     </Button>
                 )}
 
-                {rulesEvaluated && (
-                    <Button
-                        onClick={handleSubmit}
-                        disabled={!canSubmit}
-                        className={`w-full h-11 text-base ${
-                            rulesResult?.overall === 'verde'
-                                ? 'bg-green-600 hover:bg-green-700'
-                                : 'bg-blue-600 hover:bg-blue-700'
-                        }`}
-                    >
-                        {submitting ? (
-                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando expediente...</>
-                        ) : rulesResult?.overall === 'verde' ? (
-                            <><Zap className="h-4 w-4 mr-2" /> Enviar y Auto-aprobar ({practiceItems.length} práctica{practiceItems.length > 1 ? 's' : ''})</>
-                        ) : (
-                            <><Send className="h-4 w-4 mr-2" /> Enviar a Auditoría ({practiceItems.length} práctica{practiceItems.length > 1 ? 's' : ''})</>
-                        )}
-                    </Button>
-                )}
-
-                {rulesEvaluated && (
-                    <button
-                        onClick={() => { setRulesEvaluated(false); setRulesResult(null); setPracticeItems(prev => prev.map(item => ({ ...item, ruleResult: undefined }))); }}
-                        className="text-xs text-muted-foreground hover:text-foreground mx-auto block"
-                    >
-                        ↻ Re-evaluar
-                    </button>
+                {showPreview && (
+                    <>
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={!canSubmit}
+                            className="w-full h-12 text-base bg-primary hover:bg-primary/90 font-semibold shadow-md"
+                        >
+                            {submitting ? (
+                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando solicitud...</>
+                            ) : (
+                                <><Send className="h-4 w-4 mr-2" /> Enviar para evaluación</>
+                            )}
+                        </Button>
+                        <button
+                            onClick={() => setShowPreview(false)}
+                            className="text-xs text-muted-foreground hover:text-foreground mx-auto block"
+                        >
+                            ← Volver a editar
+                        </button>
+                    </>
                 )}
             </div>
         </div>

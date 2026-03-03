@@ -59,6 +59,8 @@ interface CreateExpedientInput {
     provider_id?: number;
     requesting_doctor_id?: number;
     request_notes?: string;
+    diagnosis_code?: string;
+    diagnosis_description?: string;
     estimated_days?: number;
     requires_control_desk?: boolean;
     rules_result?: RulesResult;
@@ -112,6 +114,8 @@ export const ExpedientService = {
                 provider_id: input.provider_id,
                 requesting_doctor_id: input.requesting_doctor_id,
                 request_notes: input.request_notes,
+                diagnosis_code: input.diagnosis_code,
+                diagnosis_description: input.diagnosis_description,
                 estimated_days: input.estimated_days,
                 requires_control_desk: input.requires_control_desk || false,
                 rules_result: input.rules_result,
