@@ -51,6 +51,20 @@
 
 ---
 
+## 2026-03-04 — Cambios en Buscador
+
+- El buscador ahora adapta el título y el ícono según la pestaña activa:
+    - "Buscador de Prácticas" (ícono libro) o "Buscador de Patologías" (ícono estetoscopio)
+- Eliminado el badge "Supabase" y el texto "ESC para limpiar"
+- Todas las pestañas arrancan vacías: solo se muestra el header, las pestañas y la barra de búsqueda
+- No se muestran resultados ni ítems hasta que el usuario escribe al menos 2 caracteres
+- El botón "Limpiar búsqueda" es más visible (outline rojo, aparece siempre que hay texto)
+- Al limpiar, todo vuelve al estado vacío (sin resultados ni ítems)
+- Cambiar de pestaña limpia búsqueda y resultados de ambas
+- ESC limpia búsqueda y resultados en ambas pestañas
+
+---
+
 ## 1. Visión general
 
 **CPCE Salud** es una aplicación web de gestión de auditorías médicas para el Consejo Profesional de Ciencias Económicas. Corre en producción en Vercel, conecta a Supabase (PostgreSQL + Auth + Storage + Realtime).
