@@ -157,10 +157,10 @@ export default function NewExpedientPage() {
     const [detailedConsumptions, setDetailedConsumptions] = useState<DetailedConsumption[]>([]);
     const [showConsumptions, setShowConsumptions] = useState(false);
     const [loadingConsumptions, setLoadingConsumptions] = useState(false);
-    const [consumptionTab, setConsumptionTab] = useState<'same' | 'all'>('all');
     const [consumptionDateFrom, setConsumptionDateFrom] = useState('');
     const [consumptionDateTo, setConsumptionDateTo] = useState('');
     const [showConsumptionFilters, setShowConsumptionFilters] = useState(false);
+    const [viewingHistoryFor, setViewingHistoryFor] = useState<{ id: number; name: string } | null>(null);
 
     // ── Estado: Prácticas (múltiples) ──
     const [pracSearch, setPracSearch] = useState('');
@@ -371,11 +371,10 @@ export default function NewExpedientPage() {
         setDetailedConsumptions([]);
         setPlanName('');
         setAffiliatePlan(null);
-        setRulesEvaluated(false);
         setRulesResult(null);
-        setConsumptionTab('all');
         setConsumptionDateFrom('');
         setConsumptionDateTo('');
+        setViewingHistoryFor(null);
     }, []);
 
     // ═══════════════════════════════════════════
@@ -1064,23 +1063,8 @@ export default function NewExpedientPage() {
                             {showConsumptions && (
                                 <div className="px-4 pb-3 space-y-2">
                                     {/* Tabs */}
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex gap-1 bg-muted/40 rounded-lg p-0.5 flex-1">
-                                            <button
-                                                onClick={() => setConsumptionTab('same')}
-                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${consumptionTab === 'same' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                                                    }`}
-                                            >
-                                                Misma práctica
-                                            </button>
-                                            <button
-                                                onClick={() => setConsumptionTab('all')}
-                                                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${consumptionTab === 'all' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                                                    }`}
-                                            >
-                                                Todos los consumos
-                                            </button>
-                                        </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Historial completo</span>
                                         <button
                                             onClick={() => setShowConsumptionFilters(prev => !prev)}
                                             className={`p-1.5 rounded-md border text-xs ${showConsumptionFilters ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
@@ -1106,22 +1090,15 @@ export default function NewExpedientPage() {
                                         </div>
                                     )}
 
-                                    {/* Contenido según tab */}
+                                    {/* Contenido general */}
                                     {(() => {
-                                        const currentPracticeIds = practiceItems.map(pi => pi.practice.id);
-                                        let filtered = consumptionTab === 'same'
-                                            ? detailedConsumptions.filter(d => currentPracticeIds.includes(d.practiceId))
-                                            : detailedConsumptions;
+                                        let filtered = detailedConsumptions;
 
                                         if (consumptionDateFrom) filtered = filtered.filter(d => d.date >= consumptionDateFrom);
                                         if (consumptionDateTo) filtered = filtered.filter(d => d.date <= consumptionDateTo + 'T23:59:59');
 
-                                        if (consumptionTab === 'same' && currentPracticeIds.length === 0) {
-                                            return <p className="text-xs text-muted-foreground py-2">Agregá prácticas al expediente para ver consumos de la misma práctica.</p>;
-                                        }
-
                                         if (filtered.length === 0) {
-                                            return <p className="text-xs text-muted-foreground py-2">Sin consumos registrados{consumptionTab === 'same' ? ' para estas prácticas' : ''}.</p>;
+                                            return <p className="text-xs text-muted-foreground py-2">Sin consumos registrados.</p>;
                                         }
 
                                         return (
@@ -1276,6 +1253,13 @@ export default function NewExpedientPage() {
                                                 className="w-14 h-7 text-center text-sm"
                                             />
                                         </div>
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); setViewingHistoryFor({ id: pi.practice.id, name: pi.practice.description }); }}
+                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                            title="Ver consumos previos de esta práctica"
+                                        >
+                                            <Clock className="h-4 w-4" />
+                                        </button>
                                         <button onClick={() => removePractice(idx)} className="text-muted-foreground hover:text-red-500 p-1">
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </button>
@@ -1736,6 +1720,91 @@ export default function NewExpedientPage() {
                     </>
                 )}
             </div>
+
+            {/* Modal Historial de Práctica Específica */}
+            {viewingHistoryFor && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-background rounded-xl p-5 w-full max-w-2xl shadow-xl flex flex-col max-h-[80vh]">
+                        <div className="flex justify-between items-center mb-4 pb-3 border-b">
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                <Clock className="h-5 w-5 text-blue-600" />
+                                Historial: <span className="text-muted-foreground">{viewingHistoryFor.name}</span>
+                            </h3>
+                            <button onClick={() => setViewingHistoryFor(null)} className="p-1 hover:bg-muted rounded transition-colors"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="overflow-y-auto flex-1">
+                            {(() => {
+                                const filtered = detailedConsumptions.filter(d => d.practiceId === viewingHistoryFor.id);
+                                if (detailedConsumptions.length === 0 && !showConsumptions) {
+                                    return (
+                                        <div className="text-center py-6">
+                                            <p className="text-sm text-muted-foreground mb-3">Los consumos aún no han sido cargados.</p>
+                                            <button
+                                                onClick={() => { fetchConsumptions(); }}
+                                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm disabled:opacity-50"
+                                                disabled={loadingConsumptions}
+                                            >
+                                                {loadingConsumptions ? 'Cargando consumos...' : 'Cargar consumos previos'}
+                                            </button>
+                                        </div>
+                                    );
+                                }
+                                if (filtered.length === 0) return <p className="text-base text-center text-muted-foreground my-8">El afiliado no tiene registros previos para esta práctica.</p>;
+
+                                return (
+                                    <div className="space-y-2">
+                                        {filtered.map(c => {
+                                            const statusColors: Record<string, string> = {
+                                                autorizada: 'bg-green-100 text-green-700',
+                                                autorizada_parcial: 'bg-yellow-100 text-yellow-700',
+                                                denegada: 'bg-red-100 text-red-700',
+                                                pendiente: 'bg-blue-100 text-blue-700',
+                                                en_revision: 'bg-purple-100 text-purple-700',
+                                            };
+                                            return (
+                                                <div key={c.id} className="flex items-center gap-3 text-sm bg-muted/30 border border-border/50 rounded-lg px-3 py-2.5">
+                                                    <div className="flex items-center gap-1.5 text-muted-foreground shrink-0 w-24">
+                                                        <Clock className="h-3.5 w-3.5" />
+                                                        {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="font-mono font-medium">{c.practiceCode}</span>
+                                                        {c.quantity > 1 && <span className="text-muted-foreground ml-2 rounded bg-muted px-1">×{c.quantity}</span>}
+                                                    </div>
+                                                    <span className={`px-2 py-0.5 rounded text-[11px] font-medium shrink-0 uppercase tracking-wide ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
+                                                        {c.status.replace(/_/g, ' ')}
+                                                    </span>
+                                                    {c.coveredAmount > 0 && (
+                                                        <span className="text-green-700 font-mono shrink-0">
+                                                            ${c.coveredAmount.toLocaleString()}
+                                                        </span>
+                                                    )}
+                                                    {c.copayAmount > 0 && (
+                                                        <span className="text-orange-600 font-mono text-xs shrink-0">
+                                                            (Cos: ${c.copayAmount.toLocaleString()})
+                                                        </span>
+                                                    )}
+                                                    {c.expedientNumber && (
+                                                        <span className="text-muted-foreground font-mono text-xs shrink-0 bg-background px-1.5 py-0.5 rounded border">
+                                                            #{c.expedientNumber}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 mt-2 border-t">
+                                            <span className="font-medium text-foreground">{filtered.length} registro(s) encontrado(s)</span>
+                                            <span>
+                                                Total cubierto: ${filtered.reduce((s, c) => s + c.coveredAmount, 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
