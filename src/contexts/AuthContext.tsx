@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AuthUser, UserRole, Permission, ROLE_PERMISSIONS } from '@/types/auth'
 import { getUserPermissions } from '@/services/roleService'
@@ -22,7 +22,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null)
     const [loading, setLoading] = useState(true)
     const [permissions, setPermissions] = useState<Permission[]>([])
-    const supabase = createClient()
+    // Create supabase client ONCE, not on every render
+    const supabase = useMemo(() => createClient(), [])
 
     const fetchUserProfile = async (authUser: SupabaseUser): Promise<AuthUser | null> => {
         try {
