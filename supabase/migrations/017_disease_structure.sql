@@ -1,5 +1,5 @@
 -- =====================================================
--- MIGRACIÓN 014: CLASIFICACIÓN DE ENFERMEDADES
+-- MIGRACIÓN 017: CLASIFICACIÓN DE ENFERMEDADES
 -- Agrega columna 'classification' para distinguir entre
 -- CIE-10, CIE-11 y DSM-5-TR
 -- =====================================================
