@@ -42,3 +42,23 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# accesorios - datos pesados y PDFs (no necesarios en el repo)
+/accesorios/CIE 10 volume1.pdf
+/accesorios/CIE10-2013-Vol2_en2.pdf
+/accesorios/DSM5.pdf
+/accesorios/MICRO_CIE11/
+/accesorios/CIE11_SUBIDA_MANUAL/
+/accesorios/split_cie11/
+/accesorios/split_cie11_mini/
+/accesorios/DIAGNOSTICOS/
+/accesorios/scripts_migracion/
+
+# archivos temporales de Claude/IA
+tmpclaude-*
+
+# supabase CLI temp
+/supabase/.temp/
+
+# supabase CLI temp
+/supabase/.temp/
