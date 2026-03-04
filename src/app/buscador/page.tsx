@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import {
     Search, BookOpen, Loader2, Copy, FileText, Pencil, Sparkles,
-    Check, X, Database, ChevronDown, ChevronUp,
+    Check, X, Database, ChevronDown, ChevronUp, Stethoscope, AlertCircle,
 } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
@@ -35,6 +35,17 @@ interface Practice {
     coseguro: string | null
     unit_quantity: number
     practice_type_id: number | null
+}
+
+interface DiseaseRecord {
+    id: number
+    code: string
+    name: string
+    classification: string   // CIE-10 | CIE-11 | DSM-5
+    level: string | null
+    description: string | null
+    is_chronic: boolean | null
+    requires_authorization: boolean | null
 }
 
 // ── Tab colors per type ──
@@ -85,6 +96,21 @@ const TYPE_THEME: Record<string, {
     },
 }
 
+const PAT_THEME = {
+    bg: "hover:bg-indigo-50 dark:hover:bg-indigo-900/20",
+    text: "text-indigo-600 dark:text-indigo-400",
+    activeBg: "bg-indigo-100 dark:bg-indigo-900/40",
+    activeText: "text-indigo-700 dark:text-indigo-300",
+    cardRing: "ring-indigo-400",
+    badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+}
+
+const CLASSIFICATION_THEME: Record<string, { bg: string; text: string; border: string }> = {
+    'CIE-10': { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-700' },
+    'CIE-11': { bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-200 dark:border-violet-700' },
+    'DSM-5':  { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-700' },
+}
+
 const DEFAULT_THEME = TYPE_THEME.MED
 
 function getTheme(code: string) {
@@ -105,7 +131,7 @@ export default function BuscadorPage() {
     const [totalCount, setTotalCount] = useState(0)
 
     // UI state
-    const [activeTab, setActiveTab] = useState<number | null>(null)
+    const [activeTab, setActiveTab] = useState<number | 'pat' | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
     const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null)
     const [editMode, setEditMode] = useState(false)
@@ -113,6 +139,14 @@ export default function BuscadorPage() {
     const [saving, setSaving] = useState(false)
     const [copied, setCopied] = useState<string | null>(null)
     const [structurePreview, setStructurePreview] = useState<NormativaStructured | null>(null)
+
+    // Patologías
+    const [diseaseResults, setDiseaseResults] = useState<DiseaseRecord[]>([])
+    const [diseaseSearchTerm, setDiseaseSearchTerm] = useState('')
+    const [diseaseSearching, setDiseaseSearching] = useState(false)
+    const [diseaseTotal, setDiseaseTotal] = useState(0)
+    const [selectedDisease, setSelectedDisease] = useState<DiseaseRecord | null>(null)
+    const diseaseInputRef = useRef<HTMLInputElement>(null)
 
     const searchInputRef = useRef<HTMLInputElement>(null)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -131,6 +165,37 @@ export default function BuscadorPage() {
             setLoading(false)
         })()
     }, [supabase])
+
+    // Search diseases (patologías)
+    const doSearchDiseases = useCallback(async (query: string) => {
+        if (query.length > 0 && query.length < 2) return
+        setDiseaseSearching(true)
+        try {
+            const isCode = /^[A-Za-z]\d/.test(query.trim())
+            const nameFilter = `name.ilike.%${query}%`
+            const codeFilter = isCode ? `code.ilike.${query}%` : `code.ilike.%${query}%`
+            const filter = query.length >= 2 ? `${nameFilter},${codeFilter}` : ''
+            let q = supabase
+                .from('diseases' as any)
+                .select('id, code, name, classification, level, description, is_chronic, requires_authorization', { count: 'exact' })
+            if (filter) q = (q as any).or(filter)
+            const { data, count } = await (q as any).order('code').limit(30)
+            setDiseaseResults((data ?? []) as DiseaseRecord[])
+            setDiseaseTotal(count ?? 0)
+        } catch {
+            setDiseaseResults([])
+        }
+        setDiseaseSearching(false)
+    }, [supabase])
+
+    // Debounced disease search
+    const diseaseDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    useEffect(() => {
+        if (activeTab !== 'pat') return
+        if (diseaseDebounceRef.current) clearTimeout(diseaseDebounceRef.current)
+        diseaseDebounceRef.current = setTimeout(() => doSearchDiseases(diseaseSearchTerm), 200)
+        return () => { if (diseaseDebounceRef.current) clearTimeout(diseaseDebounceRef.current) }
+    }, [activeTab, diseaseSearchTerm, doSearchDiseases])
 
     // Search practices
     const doSearch = useCallback(async (typeId: number, query: string) => {
@@ -157,28 +222,32 @@ export default function BuscadorPage() {
         setSearching(false)
     }, [supabase, activeJurisdiction])
 
-    // Debounced search
+    // Debounced search (prácticas — skip si es la pestaña de patologías)
     useEffect(() => {
-        if (activeTab === null) return
+        if (activeTab === null || activeTab === 'pat') return
         if (debounceRef.current) clearTimeout(debounceRef.current)
-        debounceRef.current = setTimeout(() => doSearch(activeTab, searchTerm), 200)
+        debounceRef.current = setTimeout(() => doSearch(activeTab as number, searchTerm), 200)
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
     }, [activeTab, searchTerm, doSearch])
 
     // Tab change
-    const handleTabChange = (typeId: number) => {
+    const handleTabChange = (typeId: number | 'pat') => {
         setActiveTab(typeId)
         setSearchTerm("")
         setResults([])
-        searchInputRef.current?.focus()
+        if (typeId === 'pat') {
+            setTimeout(() => diseaseInputRef.current?.focus(), 50)
+        } else {
+            searchInputRef.current?.focus()
+        }
     }
 
     // Active type info
     const activeType = useMemo(
-        () => practiceTypes.find(t => t.id === activeTab),
+        () => activeTab === 'pat' ? null : practiceTypes.find(t => t.id === activeTab),
         [practiceTypes, activeTab]
     )
-    const theme = activeType ? getTheme(activeType.code) : DEFAULT_THEME
+    const theme = activeTab === 'pat' ? PAT_THEME : (activeType ? getTheme(activeType.code) : DEFAULT_THEME)
 
     // ── Detail Modal ──
 
@@ -260,7 +329,7 @@ export default function BuscadorPage() {
             {/* Glass Container */}
             <Card className="overflow-hidden border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
                 {/* Tabs */}
-                <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-slate-800/50">
+                <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-slate-800/50 overflow-x-auto">
                     {practiceTypes.map(t => {
                         const th = getTheme(t.code)
                         const isActive = t.id === activeTab
@@ -268,7 +337,7 @@ export default function BuscadorPage() {
                             <button
                                 key={t.id}
                                 onClick={() => handleTabChange(t.id)}
-                                className={`flex-1 py-3 text-center font-semibold text-xs md:text-sm uppercase transition-all duration-200 border-b-2 ${
+                                className={`flex-1 min-w-[80px] py-3 text-center font-semibold text-xs md:text-sm uppercase transition-all duration-200 border-b-2 ${
                                     isActive
                                         ? `${th.activeBg} ${th.activeText} border-current`
                                         : `text-slate-500 border-transparent ${th.bg}`
@@ -279,9 +348,23 @@ export default function BuscadorPage() {
                             </button>
                         )
                     })}
+                    {/* Pestaña Patologías */}
+                    <button
+                        onClick={() => handleTabChange('pat')}
+                        className={`flex-1 min-w-[90px] py-3 text-center font-semibold text-xs md:text-sm uppercase transition-all duration-200 border-b-2 flex items-center justify-center gap-1 ${
+                            activeTab === 'pat'
+                                ? `${PAT_THEME.activeBg} ${PAT_THEME.activeText} border-current`
+                                : `text-slate-500 border-transparent ${PAT_THEME.bg}`
+                        }`}
+                    >
+                        <Stethoscope className="h-3.5 w-3.5" />
+                        <span className="hidden md:inline">Patologías</span>
+                        <span className="md:hidden">PAT</span>
+                    </button>
                 </div>
 
-                {/* Search Bar */}
+                {/* Search Bar — prácticas */}
+                {activeTab !== 'pat' && (
                 <div className="p-4 md:p-6 bg-white/30 dark:bg-slate-800/30">
                     <div className="relative">
                         <Search className={`absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 ${theme.text} transition-colors`} />
@@ -313,13 +396,151 @@ export default function BuscadorPage() {
                                 'Sin resultados'
                             ) : null}
                         </span>
-                        <span className="text-xs text-slate-400 hidden md:block">
-                            ESC para limpiar
-                        </span>
+                        <div className="flex items-center gap-3">
+                            {results.length > 0 && (
+                                <button
+                                    onClick={() => { setSearchTerm(''); setResults([]); searchInputRef.current?.focus() }}
+                                    className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors"
+                                >
+                                    <X className="h-3 w-3" /> Limpiar
+                                </button>
+                            )}
+                            <span className="text-xs text-slate-400 hidden md:block">ESC para limpiar</span>
+                        </div>
                     </div>
                 </div>
+                )}
 
-                {/* Results */}
+                {/* Search Bar — patologías */}
+                {activeTab === 'pat' && (
+                <div className="p-4 md:p-6 bg-white/30 dark:bg-slate-800/30">
+                    <div className="relative">
+                        <Stethoscope className={`absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 ${PAT_THEME.text} transition-colors`} />
+                        <Input
+                            ref={diseaseInputRef}
+                            type="search"
+                            placeholder="Buscar diagnóstico por código o nombre (ej: diabetes, J45, fractura...)" 
+                            className="pl-12 pr-12 py-5 text-base rounded-xl shadow-sm"
+                            value={diseaseSearchTerm}
+                            onChange={e => setDiseaseSearchTerm(e.target.value)}
+                            autoFocus
+                        />
+                        {diseaseSearchTerm && (
+                            <button
+                                onClick={() => { setDiseaseSearchTerm(''); diseaseInputRef.current?.focus() }}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex justify-between items-center mt-2 px-1">
+                        <span className={`text-sm font-medium ${PAT_THEME.text}`}>
+                            {diseaseSearching ? (
+                                <><Loader2 className="inline h-3 w-3 animate-spin mr-1" />Buscando...</>
+                            ) : diseaseResults.length > 0 ? (
+                                `${diseaseResults.length}${diseaseTotal > diseaseResults.length ? ` de ${diseaseTotal}` : ''} resultados · CIE-10 / CIE-11 / DSM-5`
+                            ) : diseaseSearchTerm.length >= 2 ? (
+                                'Sin resultados'
+                            ) : null}
+                        </span>
+                        <div className="flex items-center gap-3">
+                            {diseaseResults.length > 0 && (
+                                <button
+                                    onClick={() => { setDiseaseSearchTerm(''); setDiseaseResults([]); diseaseInputRef.current?.focus() }}
+                                    className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors"
+                                >
+                                    <X className="h-3 w-3" /> Limpiar
+                                </button>
+                            )}
+                            <span className="text-xs text-slate-400 hidden md:block">ESC para limpiar</span>
+                        </div>
+                    </div>
+                </div>
+                )}
+
+                {/* Results — Patologías */}
+                {activeTab === 'pat' && (
+                <div className="min-h-[300px] max-h-[60vh] overflow-y-auto p-4 md:p-6 space-y-3">
+                    {diseaseResults.length === 0 && !diseaseSearching && (
+                        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                            <Stethoscope className="h-12 w-12 mb-3 opacity-50" />
+                            <p className="text-base">
+                                {diseaseSearchTerm.length < 2
+                                    ? 'Escriba al menos 2 caracteres — busca en CIE-10, CIE-11 y DSM-5'
+                                    : `No se encontraron patologías para "${diseaseSearchTerm}"`}
+                            </p>
+                        </div>
+                    )}
+                    {diseaseResults.map((d, idx) => {
+                        const clsTheme = CLASSIFICATION_THEME[d.classification] ?? CLASSIFICATION_THEME['CIE-10']
+                        return (
+                            <div
+                                key={d.id}
+                                className={`p-4 rounded-xl border border-slate-200 dark:border-slate-700
+                                    transition-all duration-200 hover:shadow-md hover:scale-[1.01]
+                                    bg-white dark:bg-slate-800 border-l-4 border-l-indigo-400`}
+                                style={{ animationDelay: `${idx * 20}ms` }}
+                            >
+                                {/* Top row */}
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <span className="font-mono font-bold text-lg text-indigo-600 dark:text-indigo-400">
+                                        {d.code}
+                                    </span>
+                                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${clsTheme.bg} ${clsTheme.text} ${clsTheme.border}`}>
+                                        {d.classification}
+                                    </span>
+                                    {d.level && (
+                                        <span className="text-xs text-muted-foreground ml-auto">
+                                            {d.level}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Nombre */}
+                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-snug mb-2">
+                                    {d.name}
+                                </p>
+
+                                {/* Descripción preview */}
+                                {d.description && (
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 pt-1 border-t border-slate-100 dark:border-slate-700/50 mb-2">
+                                        {d.description}
+                                    </p>
+                                )}
+
+                                {/* Acciones */}
+                                <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(d.code); setCopied(`dis-code-${d.id}`); setTimeout(() => setCopied(null), 1500) }}
+                                        className="text-xs px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                    >
+                                        {copied === `dis-code-${d.id}` ? <Check className="inline h-3 w-3 mr-1" /> : <Copy className="inline h-3 w-3 mr-1" />}
+                                        Código
+                                    </button>
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(`${d.code} ${d.name}`); setCopied(`dis-full-${d.id}`); setTimeout(() => setCopied(null), 1500) }}
+                                        className="text-xs px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                    >
+                                        {copied === `dis-full-${d.id}` ? <Check className="inline h-3 w-3 mr-1" /> : <Copy className="inline h-3 w-3 mr-1" />}
+                                        + Nombre
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedDisease(d)}
+                                        className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 font-medium hover:opacity-80 transition-opacity ml-auto"
+                                    >
+                                        <FileText className="inline h-3 w-3 mr-1" />
+                                        Detalle
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+                )}
+
+                {/* Results — Prácticas */}
+                {activeTab !== 'pat' && (
                 <div className="min-h-[300px] max-h-[60vh] overflow-y-auto p-4 md:p-6 space-y-3">
                     {results.length === 0 && !searching && (
                         <div className="flex flex-col items-center justify-center py-16 text-slate-400">
@@ -416,7 +637,81 @@ export default function BuscadorPage() {
                         )
                     })}
                 </div>
+                )}
             </Card>
+
+            {/* ── Modal Detalle Patología ── */}
+            <Dialog open={selectedDisease !== null} onOpenChange={open => { if (!open) setSelectedDisease(null) }}>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                    {selectedDisease && (() => {
+                        const cls = selectedDisease.classification
+                        const clsTh = CLASSIFICATION_THEME[cls] ?? CLASSIFICATION_THEME['CIE-10']
+                        return (
+                            <>
+                                <DialogHeader>
+                                    <DialogTitle className="text-center text-lg">Detalle de Patología</DialogTitle>
+                                </DialogHeader>
+
+                                {/* Code + Classification */}
+                                <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-center">
+                                    <span className="block text-3xl md:text-4xl font-mono font-bold tracking-widest select-all text-indigo-600 dark:text-indigo-400">
+                                        {selectedDisease.code}
+                                    </span>
+                                    <span className={`inline-block mt-2 text-xs font-semibold px-3 py-1 rounded-full border ${clsTh.bg} ${clsTh.text} ${clsTh.border}`}>
+                                        {cls}
+                                    </span>
+                                </div>
+
+                                {/* Nombre */}
+                                <p className="text-sm text-slate-700 dark:text-slate-300 text-center font-semibold px-2 leading-snug">
+                                    {selectedDisease.name}
+                                </p>
+
+                                {/* Meta chips */}
+                                <div className="flex justify-center gap-2 flex-wrap">
+                                    {selectedDisease.level && (
+                                        <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">
+                                            {selectedDisease.level}
+                                        </span>
+                                    )}
+                                    {selectedDisease.is_chronic && (
+                                        <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 px-2 py-1 rounded-full">
+                                            Crónica
+                                        </span>
+                                    )}
+                                    {selectedDisease.requires_authorization && (
+                                        <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-2 py-1 rounded-full flex items-center gap-1">
+                                            <AlertCircle className="h-3 w-3" /> Req. autorización
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Descripción */}
+                                {selectedDisease.description && (
+                                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm leading-relaxed border border-slate-200 dark:border-slate-600">
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Descripción</p>
+                                        <p className="text-slate-700 dark:text-slate-300">{selectedDisease.description}</p>
+                                    </div>
+                                )}
+
+                                {/* Acciones */}
+                                <div className="flex gap-2 flex-wrap pt-2 border-t">
+                                    <Button variant="outline" size="sm" className="text-xs"
+                                        onClick={() => { navigator.clipboard.writeText(selectedDisease.code); setCopied('dis-modal-code'); setTimeout(() => setCopied(null), 1500) }}>
+                                        {copied === 'dis-modal-code' ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                                        Código
+                                    </Button>
+                                    <Button variant="outline" size="sm" className="text-xs"
+                                        onClick={() => { navigator.clipboard.writeText(`${selectedDisease.code} ${selectedDisease.name}`); setCopied('dis-modal-full'); setTimeout(() => setCopied(null), 1500) }}>
+                                        {copied === 'dis-modal-full' ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                                        Código + Nombre
+                                    </Button>
+                                </div>
+                            </>
+                        )
+                    })()}
+                </DialogContent>
+            </Dialog>
 
             {/* ── Detail / Edit Modal ── */}
             <Dialog open={selectedPractice !== null} onOpenChange={(open) => { if (!open) setSelectedPractice(null) }}>
