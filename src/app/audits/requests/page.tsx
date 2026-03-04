@@ -259,12 +259,6 @@ function ExpedientDetail({
     const [commChannel, setCommChannel] = useState<'interna' | 'para_afiliado'>('interna');
     const [newNoteInterna, setNewNoteInterna] = useState('');
     const [newNoteAfiliado, setNewNoteAfiliado] = useState('');
-    // Helpers por canal activo
-    const newNote = commChannel === 'para_afiliado' ? newNoteAfiliado : newNoteInterna;
-    const setNewNote = (val: string) => {
-        if (commChannel === 'para_afiliado') setNewNoteAfiliado(val);
-        else setNewNoteInterna(val);
-    };
     const [aiLoading, setAiLoading] = useState(false);
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -1345,7 +1339,7 @@ function ExpedientDetail({
                                             {(['📎 Adjuntar pedido médico', '📋 Adjuntar Historia Clínica', '🔬 Adjuntar estudios complementarios'] as const).map(txt => (
                                                 <button
                                                     key={txt}
-                                                    onClick={() => setNewNote(txt)}
+                                                    onClick={() => setNewNoteAfiliado(txt)}
                                                     className="text-[10px] px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full hover:bg-purple-200 dark:hover:bg-purple-800/40 transition-colors"
                                                 >
                                                     {txt}
@@ -1367,25 +1361,37 @@ function ExpedientDetail({
                                     )}
                                 </div>
 
-                                {/* Input de mensaje */}
+                                {/* Input de mensaje — un Input por canal para evitar que el texto se traspase */}
                                 <div className="flex gap-2 mt-3">
-                                    <Input
-                                        value={newNote}
-                                        onChange={e => setNewNote(e.target.value)}
-                                        placeholder={commChannel === 'para_afiliado' ? 'Mensaje para el afiliado...' : 'Nota interna del equipo...'}
-                                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAddNote()}
-                                        className="h-9"
-                                    />
+                                    {commChannel === 'para_afiliado' ? (
+                                        <Input
+                                            key="input-afiliado"
+                                            value={newNoteAfiliado}
+                                            onChange={e => setNewNoteAfiliado(e.target.value)}
+                                            placeholder="Mensaje para el afiliado..."
+                                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAddNote()}
+                                            className="h-9"
+                                        />
+                                    ) : (
+                                        <Input
+                                            key="input-interna"
+                                            value={newNoteInterna}
+                                            onChange={e => setNewNoteInterna(e.target.value)}
+                                            placeholder="Nota interna del equipo..."
+                                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAddNote()}
+                                            className="h-9"
+                                        />
+                                    )}
                                     {/* Botón IA: pulir texto */}
                                     <button
                                         onClick={handlePolishText}
-                                        disabled={!newNote.trim() || aiLoading}
+                                        disabled={!(commChannel === 'para_afiliado' ? newNoteAfiliado : newNoteInterna).trim() || aiLoading}
                                         title="Pulir texto con IA"
                                         className="h-9 w-9 flex items-center justify-center rounded-md border border-border hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
                                     >
                                         <span className="text-sm">✨</span>
                                     </button>
-                                    <Button size="icon" onClick={handleAddNote} disabled={!newNote.trim()} className="h-9 w-9 shrink-0">
+                                    <Button size="icon" onClick={handleAddNote} disabled={!(commChannel === 'para_afiliado' ? newNoteAfiliado : newNoteInterna).trim()} className="h-9 w-9 shrink-0">
                                         <Send className="h-4 w-4" />
                                     </Button>
                                 </div>

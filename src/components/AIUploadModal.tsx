@@ -6,10 +6,19 @@ import { Loader2, Sparkles, Upload, FileText, CheckCircle, X } from 'lucide-reac
 import { compressImage } from '@/lib/imageCompressor';
 
 interface AIParsedData {
+    // Campos originales (compatibilidad hacia atrás)
     affiliate?: string;
     doctor?: string;
-    practices?: string[];
-    diagnosis?: string;
+    practices?: string[] | Array<{ name: string; code?: string | null; quantity?: number }>;
+    diagnosis?: string; // alias de diagnosisText para compatibilidad
+    // Campos nuevos (prompt enriquecido)
+    affiliateName?: string | null;
+    doctorRegistration?: string | null;
+    diagnosisText?: string;
+    diagnosisCIE?: string | null;
+    diagnosisSearchTerms?: string[];
+    prescriptionDate?: string | null;
+    notes?: string | null;
 }
 
 interface AIUploadModalProps {

@@ -31,16 +31,81 @@ export async function POST(req: Request) {
         const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
         const prompt = `
-Eres un asistente experto en auditoría médica. Tu tarea es extraer la información clave de esta orden médica manuscrita o receta escaneada y devolverla estrictamente en formato JSON válido, sin caracteres adicionales ni bloques de código markdown, solo el JSON raw. 
+Eres un asistente experto en auditoría médica argentina, especializado en interpretar órdenes médicas, recetas y prescripciones manuscritas o escaneadas.
 
-Los campos requeridos en el JSON son:
-- "affiliate": El número de afiliado, credencial o DNI del paciente (string).
-- "doctor": El nombre del médico prescriptor y/o su matrícula (string).
-- "practices": Un array de strings con los nombres o códigos de las prácticas médicas solicitadas (string[]).
-- "diagnosis": El diagnóstico clínico o motivo de la orden (string).
+Tu tarea es extraer la información clave del documento y devolver ÚNICAMENTE un objeto JSON válido (sin texto adicional, sin bloques markdown, sin comentarios).
 
-Si no puedes detectar un campo con certeza, déjalo vacío o usa una frase corta. Presta mucha atención a la caligrafía médica, infiriendo términos comunes (ej. "eco abd" -> "Ecografía Abdominal").
-        `;
+## CAMPOS REQUERIDOS:
+
+### "affiliate"
+- Número de afiliado, credencial, o DNI del paciente.
+- Busca: número de credencial, N° socio, DNI, CUIL, número de afiliado.
+- Si no puedes leerlo con certeza, haz tu mejor deducción y agrégalo igual.
+- Valor: string (solo el número o texto identificatorio).
+
+### "affiliateName"
+- Nombre completo del paciente/afiliado si está visible.
+- Valor: string o null.
+
+### "doctor"
+- Nombre completo del médico prescriptor Y su número de matrícula (MP, MN, etc.).
+- Formato ideal: "Dr. Nombre Apellido / MN 12345" o "MN 98765 - Dr. Apellido".
+- Si la matrícula es ilegible, incluye el nombre solo.
+- Valor: string.
+
+### "doctorRegistration"
+- Solo el número de matrícula (sin letras) si fue claramente visible.
+- Valor: string o null.
+
+### "practices"
+- Array de objetos con las prácticas médicas solicitadas.
+- Cada práctica tiene: { "name": string, "code": string|null, "quantity": number }
+- Interpreta abreviaturas comunes:
+  * "eco abd" → "Ecografía Abdominal"
+  * "hemo c/c" → "Hemograma con Recuento Diferencial"
+  * "rx tórax" → "Radiografía de Tórax"
+  * "RM cerebro" → "Resonancia Magnética de Cerebro"
+  * "TAC" → "Tomografía Axial Computada"
+  * "RMN/RMI" → "Resonancia Magnética"
+  * coagulación, eritrosedimentación, glucemia, orina completa, etc.
+- Si hay un código de nomenclador (ej: "30101", "43-01-01"), inclúyelo en "code".
+- Valor: array de objetos (puede ser vacío si no hay prácticas visibles).
+
+### "diagnosisText"
+- Diagnóstico clínico literal tal como aparece en la receta/orden.
+- Puede ser un texto corto ("HTA", "Diabetes tipo 2", "Artritis reumatoide").
+- Interpreta caligrafía médica: "DM2" → "Diabetes Mellitus tipo 2", "IRC" → "Insuficiencia Renal Crónica".
+- NUNCA dejes este campo vacío si hay texto médico en el documento. Hace tu mejor interpretación.
+- Valor: string (vacío "" solo si el documento no tiene absolutamente ningún diagnóstico).
+
+### "diagnosisCIE"
+- Código CIE-10 más probable para el diagnóstico detectado (ej: "E11", "I10", "J45.0").
+- Usa tu conocimiento de CIE-10 para asignarlo aunque no esté escrito en la receta.
+- Solo deja null si el diagnóstico es demasiado vago para asignar código.
+- Valor: string o null.
+
+### "diagnosisSearchTerms"
+- Array de 2-4 términos de búsqueda alternativos para encontrar el diagnóstico en una base de datos.
+- Incluye sinónimos, nombre oficial en español, abreviatura oficial.
+- Ej para "HTA": ["hipertensión arterial", "hipertensión esencial", "I10", "presión arterial elevada"]
+- Valor: string[] (al menos 1 término siempre).
+
+### "prescriptionDate"
+- Fecha de la prescripción si es visible (formato ISO "YYYY-MM-DD" o texto libre).
+- Valor: string o null.
+
+### "notes"
+- Cualquier información clínica adicional relevante que no encaje en los campos anteriores.
+- Ej: indicaciones de urgencia, especialidad del médico, estabelcimiento o sanatorio.
+- Valor: string o null.
+
+## REGLAS CRÍTICAS:
+1. Devuelve ÚNICAMENTE JSON válido, sin ningún texto antes o después.
+2. Nunca uses caracteres de control ni saltos de línea dentro de strings.
+3. Si la caligrafía es difícil de leer, intenta inferir. Incluye tu mejor interpretación — es preferible una inferencia marcada como incierta a dejar el campo vacío.
+4. Para prácticas, aunque no puedas leer el nombre exacto, incluye lo que puedas inferir.
+5. El campo "diagnosisText" es el MÁS IMPORTANTE — nunca lo dejes vacío si hay texto médico visible.
+`;
 
         const result = await model.generateContent([
             prompt,

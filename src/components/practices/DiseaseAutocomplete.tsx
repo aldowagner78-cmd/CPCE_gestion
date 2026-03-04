@@ -96,15 +96,26 @@ export function DiseaseAutocomplete({
         }, 10);
 
         // Llamada a API solo cuando hay suficientes caracteres
+        // Con el índice GIN pg_trgm (migración 021) los ILIKE con % inicial
+        // pasan de ~400 ms (full-scan 46k rows) a < 10 ms.
+        const isCodeSearch = /^[A-Za-z]\d/.test(search.trim()); // ej: J45, A00, F32
+        // Para búsquedas de código usamos prefijo (sin % inicial) que aprovecha btree
+        const nameFilter = `name.ilike.%${search}%`;
+        const codeFilter = isCodeSearch
+            ? `code.ilike.${search}%`          // prefix sin comodín inicial → btree
+            : `code.ilike.%${search}%`;        // contiene → trigrama GIN
+
+        const debounce = isCodeSearch ? 80 : 200; // códigos: respuesta casi inmediata
+
         const searchTimer = setTimeout(async () => {
-            if (search.length < 2) return; // ya manejado arriba
+            if (search.length < 2) return;
             setSearching(true);
             try {
                 const { data } = await db('diseases')
                     .select('id, code, name, classification, level, description, is_chronic, requires_authorization')
-                    .or(`name.ilike.%${search}%,code.ilike.%${search}%`)
+                    .or(`${nameFilter},${codeFilter}`)
                     .order('code')
-                    .limit(15);
+                    .limit(20);
                 const items = (data || []) as DiseaseRecord[];
                 setResults(items);
                 setIsOpen(items.length > 0);
@@ -113,7 +124,7 @@ export function DiseaseAutocomplete({
                 setResults([]);
             }
             setSearching(false);
-        }, 300);
+        }, debounce);
 
         return () => {
             clearTimeout(clearTimer);

@@ -148,14 +148,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const signOut = async () => {
-        try {
-            await supabase.auth.signOut({ scope: 'local' })
-        } catch {
-            // Si falla el signOut remoto, igual limpiamos localmente
-        } finally {
-            setUser(null)
-            setPermissions([])
-        }
+        // Limpiar estado local inmediatamente (sin esperar red)
+        setUser(null)
+        setPermissions([])
+        // Invalidar sesión en el servidor en segundo plano (no bloquea la UI)
+        supabase.auth.signOut({ scope: 'local' }).catch(() => {})
     }
 
     const hasPermissionFn = (permission: Permission): boolean => {

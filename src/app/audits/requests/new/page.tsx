@@ -211,27 +211,64 @@ export default function NewExpedientPage() {
 
     // Handler cuando Gemini devuelve datos de un documento
     const handleAIParsed = useCallback((
-        data: { affiliate?: string; doctor?: string; practices?: string[]; diagnosis?: string },
+        data: {
+            affiliate?: string; affiliateName?: string | null;
+            doctor?: string; doctorRegistration?: string | null;
+            practices?: string[] | Array<{ name: string; code?: string | null; quantity?: number }>;
+            diagnosis?: string; // alias legacy
+            diagnosisText?: string;
+            diagnosisCIE?: string | null;
+            diagnosisSearchTerms?: string[];
+            prescriptionDate?: string | null;
+            notes?: string | null;
+        },
         file: File
     ) => {
-        // 1. Auto-fill the affiliate search field
-        if (data.affiliate) {
-            setAffSearch(data.affiliate);
+        // 1. Auto-fill el campo de búsqueda del afiliado
+        const affiliateId = data.affiliate?.trim();
+        if (affiliateId) {
+            setAffSearch(affiliateId);
         }
-        // 2. Auto-fill the diagnosis field
-        if (data.diagnosis) {
-            setDiagnosis(data.diagnosis);
-            setDiagInitialSearch(data.diagnosis.substring(0, 30));
+
+        // 2. Diagnóstico: usar código CIE si está disponible, sino texto, sino primer término
+        const diagText = data.diagnosisText || data.diagnosis || '';
+        const diagCIE = data.diagnosisCIE || '';
+        const diagTerms = data.diagnosisSearchTerms || [];
+        if (diagText || diagCIE) {
+            // Prioridad: código CIE (búsqueda exacta y rápida) > primer término > texto
+            const bestSearch = diagCIE || diagTerms[0] || diagText.substring(0, 40);
+            setDiagInitialSearch(bestSearch);
         }
-        // 3. Save file for attachment
+
+        // 3. Guardar archivo como adjunto
         setAiDocumentFile(file);
-        // 4. Set a note summarizing what the AI detected
-        const practicesList = data.practices?.length ? data.practices.join(', ') : '';
-        const noteLines = [
-            data.doctor ? `[IA] Médico prescriptor detectado: ${data.doctor}` : '',
-            practicesList ? `[IA] Prácticas detectadas: ${practicesList}` : '',
-        ].filter(Boolean).join('\n');
-        if (noteLines) setNotes(prev => (prev ? prev + '\n' + noteLines : noteLines));
+
+        // 4. Construir nota informativa con todo lo detectado por la IA
+        const practicesRaw = data.practices || [];
+        const practiceNames = practicesRaw.map(p =>
+            typeof p === 'string' ? p : p.name
+        );
+
+        const noteLines: string[] = [
+            '[IA] — Datos extraídos del documento cargado:',
+        ];
+
+        if (data.doctor) noteLines.push(`• Médico prescriptor: ${data.doctor}`);
+        if (data.affiliateName) noteLines.push(`• Paciente detectado: ${data.affiliateName}`);
+        if (data.prescriptionDate) noteLines.push(`• Fecha prescripción: ${data.prescriptionDate}`);
+        if (diagText) noteLines.push(`• Diagnóstico detectado: ${diagText}${diagCIE ? ` (${diagCIE})` : ''}`);
+        if (practiceNames.length > 0) {
+            noteLines.push(`• Prácticas solicitadas:`);
+            practiceNames.forEach(pn => { noteLines.push(`  – ${pn}`); });
+        }
+        if (data.notes) noteLines.push(`• Info adicional: ${data.notes}`);
+        if (diagTerms.length > 1) {
+            noteLines.push(`• Términos de búsqueda diagnóstico: ${diagTerms.join(', ')}`);
+        }
+
+        if (noteLines.length > 1) {
+            setNotes(prev => (prev ? prev + '\n\n' + noteLines.join('\n') : noteLines.join('\n')));
+        }
     }, []);
 
     // When aiDocumentFile is set, add it to the files list automatically

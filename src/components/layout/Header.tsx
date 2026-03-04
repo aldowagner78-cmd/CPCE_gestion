@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useActiveAlerts } from "@/lib/useAlerts"
 import { Bell, Moon, Sun, Home, ChevronRight, MessageCircle, HelpCircle, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
@@ -36,11 +36,11 @@ export function Header() {
     const { activeJurisdiction, isDarkMode, toggleDarkMode } = useJurisdiction()
     const { user, signOut } = useAuth()
     const pathname = usePathname()
-    const router = useRouter()
 
-    const handleLogout = async () => {
-        await signOut()
-        router.push('/welcome')
+    const handleLogout = () => {
+        signOut() // limpia estado local inmediatamente
+        // Forzar recarga completa para evitar conflictos con el router de Next.js
+        window.location.replace('/welcome')
     }
     const pageTitle = pageTitles[pathname] || 'CPCE Salud'
     const activeAlerts = useActiveAlerts(activeJurisdiction?.id)
