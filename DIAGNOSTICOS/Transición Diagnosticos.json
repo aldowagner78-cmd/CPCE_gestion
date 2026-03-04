@@ -1,0 +1,128 @@
+[
+  {
+    "codigo": "F64.0",
+    "descripcion": "[-] Transexualismo (Reubicado a Incongruencia de género)",
+    "categoria": "Trastornos de la personalidad y del comportamiento en adultos",
+    "fuente": "CIE-10 (Deprecado/Movido)"
+  },
+  {
+    "codigo": "HA60",
+    "descripcion": "[+] Incongruencia de género en la adolescencia o la edad adulta",
+    "categoria": "Condiciones relacionadas con la salud sexual (Capítulo 17)",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "F51.0",
+    "descripcion": "[-] Insomnio no orgánico (Reubicado a Trastornos del sueño y vigilia)",
+    "categoria": "Trastornos del sueño",
+    "fuente": "CIE-10 (Deprecado/Movido)"
+  },
+  {
+    "codigo": "7A00",
+    "descripcion": "[+] Insomnio crónico",
+    "categoria": "Trastornos del sueño y vigilia (Capítulo 7)",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "I63",
+    "descripcion": "[-] Infarto cerebral (Reubicado a Enfermedades del sistema nervioso)",
+    "categoria": "Enfermedades del sistema circulatorio",
+    "fuente": "CIE-10 (Movido)"
+  },
+  {
+    "codigo": "8B20",
+    "descripcion": "[+] Infarto cerebral",
+    "categoria": "Enfermedades del sistema nervioso (Capítulo 8)",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "E84",
+    "descripcion": "[-] Fibrosis quística (Reubicado a Enfermedades del sistema respiratorio)",
+    "categoria": "Enfermedades endocrinas, nutricionales y metabólicas",
+    "fuente": "CIE-10 (Movido)"
+  },
+  {
+    "codigo": "CA25",
+    "descripcion": "[+] Fibrosis quística",
+    "categoria": "Enfermedades del sistema respiratorio (Capítulo 12)",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "D50-D89",
+    "descripcion": "[-] Enfermedades de la sangre y de los órganos hematopoyéticos, y ciertos trastornos que afectan el mecanismo de la inmunidad (Separado en Capítulos 3 y 4)",
+    "categoria": "Enfermedades de la sangre",
+    "fuente": "CIE-10 (Deprecado/Movido)"
+  },
+  {
+    "codigo": "3A00",
+    "descripcion": "[+] Anemia por deficiencia de hierro",
+    "categoria": "Enfermedades de la sangre y de los órganos hematopoyéticos (Capítulo 3)",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "4A00",
+    "descripcion": "[+] Inmunodeficiencias primarias",
+    "categoria": "Enfermedades del sistema inmunitario (Capítulo 4)",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "SA00",
+    "descripcion": "[+] Trastorno de deficiencia de Qi",
+    "categoria": "Condiciones de Medicina Tradicional - Módulo I (Capítulo 26)",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "F43.8",
+    "descripcion": "[-] Otros trastornos de adaptación especificados (Reemplazado por categorización de estrés)",
+    "categoria": "Trastornos neuróticos, secundarios a situaciones estresantes y somatomorfos",
+    "fuente": "CIE-10 (Deprecado)"
+  },
+  {
+    "codigo": "6B42",
+    "descripcion": "[+] Trastorno por duelo prolongado",
+    "categoria": "Trastornos específicamente asociados con el estrés",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "298.8 (F28)",
+    "descripcion": "Trastorno del espectro de la esquizofrenia y otros trastornos psicóticos especificados",
+    "categoria": "Espectro de la esquizofrenia y otros trastornos psicóticos",
+    "fuente": "DSM-5-TR"
+  },
+  {
+    "codigo": "296.99 (F34.81)",
+    "descripcion": "Trastorno de desregulación destructiva del estado de ánimo",
+    "categoria": "Trastornos depresivos",
+    "fuente": "DSM-5-TR"
+  },
+  {
+    "codigo": "296.21 (F32.0)",
+    "descripcion": "Trastorno depresivo mayor, episodio único, leve",
+    "categoria": "Trastornos depresivos",
+    "fuente": "DSM-5-TR"
+  },
+  {
+    "codigo": "309.89 (F43.8)",
+    "descripcion": "Trastorno de duelo prolongado",
+    "categoria": "Trastornos relacionados con traumas y factores de estrés",
+    "fuente": "DSM-5-TR"
+  },
+  {
+    "codigo": "6A02",
+    "descripcion": "[+] Trastorno del espectro autista (Agrupa Asperger, Autismo infantil, etc. de CIE-10 F84)",
+    "categoria": "Trastornos del neurodesarrollo",
+    "fuente": "CIE-11"
+  },
+  {
+    "codigo": "F84.5",
+    "descripcion": "[-] Síndrome de Asperger (Consolidado en Trastorno del espectro autista)",
+    "categoria": "Trastornos generalizados del desarrollo",
+    "fuente": "CIE-10 (Deprecado/Movido)"
+  },
+  {
+    "codigo": "6C51",
+    "descripcion": "[+] Trastorno por uso de videojuegos (Nueva adición)",
+    "categoria": "Trastornos debidos a comportamientos adictivos",
+    "fuente": "CIE-11"
+  }
+]
