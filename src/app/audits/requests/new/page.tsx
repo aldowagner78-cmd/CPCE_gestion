@@ -24,7 +24,7 @@ import {
     BarChart3, Smile, Calendar, Phone, Mail,
     MapPin, FileText, AlertTriangle, Lock, Megaphone,
     Zap, ShieldAlert, Eye, Loader2,
-    MessageSquare, Filter, Clock, Star, Plus,
+    MessageSquare, Filter, Clock, Star, Plus, ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -83,6 +83,7 @@ interface DetailedConsumption {
     coveredAmount: number;
     copayAmount: number;
     expedientNumber: string;
+    expedientId: string;
     auditorName: string;
     providerName: string;
     quantity: number;
@@ -159,6 +160,7 @@ export default function NewExpedientPage() {
     const [loadingConsumptions, setLoadingConsumptions] = useState(false);
     const [consumptionDateFrom, setConsumptionDateFrom] = useState('');
     const [consumptionDateTo, setConsumptionDateTo] = useState('');
+    const [consumptionPracticeFilter, setConsumptionPracticeFilter] = useState('');
     const [showConsumptionFilters, setShowConsumptionFilters] = useState(false);
     const [viewingHistoryFor, setViewingHistoryFor] = useState<{ id: number; name: string } | null>(null);
 
@@ -374,6 +376,7 @@ export default function NewExpedientPage() {
         setRulesResult(null);
         setConsumptionDateFrom('');
         setConsumptionDateTo('');
+        setConsumptionPracticeFilter('');
         setViewingHistoryFor(null);
     }, []);
 
@@ -436,6 +439,7 @@ export default function NewExpedientPage() {
                     coveredAmount: (ep.covered_amount as number) || 0,
                     copayAmount: (ep.copay_amount as number) || 0,
                     expedientNumber: ((exp as Record<string, unknown>).expedient_number as string) || '',
+                    expedientId: (ep.expedient_id as string) || '',
                     auditorName: auditorMap.get((exp as Record<string, unknown>).resolved_by) || '',
                     providerName: '',
                     quantity: (ep.quantity as number) || 1,
@@ -1074,18 +1078,25 @@ export default function NewExpedientPage() {
                                         </button>
                                     </div>
 
-                                    {/* Filtros */}
                                     {showConsumptionFilters && (
                                         <div className="flex gap-2 items-center flex-wrap bg-muted/20 rounded-lg p-2">
-                                            <label className="text-xs text-muted-foreground">Desde:</label>
+                                            <label className="text-xs text-muted-foreground">Práctica:</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Código o nombre..."
+                                                value={consumptionPracticeFilter}
+                                                onChange={e => setConsumptionPracticeFilter(e.target.value)}
+                                                className="border rounded px-2 py-1 text-xs bg-background min-w-[120px]"
+                                            />
+                                            <label className="text-xs text-muted-foreground ml-2">Desde:</label>
                                             <input type="date" value={consumptionDateFrom} onChange={e => setConsumptionDateFrom(e.target.value)}
                                                 className="border rounded px-2 py-1 text-xs bg-background" />
                                             <label className="text-xs text-muted-foreground">Hasta:</label>
                                             <input type="date" value={consumptionDateTo} onChange={e => setConsumptionDateTo(e.target.value)}
                                                 className="border rounded px-2 py-1 text-xs bg-background" />
-                                            {(consumptionDateFrom || consumptionDateTo) && (
-                                                <button onClick={() => { setConsumptionDateFrom(''); setConsumptionDateTo(''); }}
-                                                    className="text-xs text-red-500 hover:text-red-700">Limpiar</button>
+                                            {(consumptionDateFrom || consumptionDateTo || consumptionPracticeFilter) && (
+                                                <button onClick={() => { setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter(''); }}
+                                                    className="text-xs text-red-500 hover:text-red-700 ml-1">Limpiar</button>
                                             )}
                                         </div>
                                     )}
@@ -1096,6 +1107,13 @@ export default function NewExpedientPage() {
 
                                         if (consumptionDateFrom) filtered = filtered.filter(d => d.date >= consumptionDateFrom);
                                         if (consumptionDateTo) filtered = filtered.filter(d => d.date <= consumptionDateTo + 'T23:59:59');
+                                        if (consumptionPracticeFilter) {
+                                            const lowerFilter = consumptionPracticeFilter.toLowerCase();
+                                            filtered = filtered.filter(d =>
+                                                d.practiceCode.toLowerCase().includes(lowerFilter) ||
+                                                d.practiceName.toLowerCase().includes(lowerFilter)
+                                            );
+                                        }
 
                                         if (filtered.length === 0) {
                                             return <p className="text-xs text-muted-foreground py-2">Sin consumos registrados.</p>;
@@ -1112,39 +1130,57 @@ export default function NewExpedientPage() {
                                                         en_revision: 'bg-purple-100 text-purple-700',
                                                     };
                                                     return (
-                                                        <div key={c.id} className="flex items-center gap-2 text-xs bg-muted/30 rounded px-2.5 py-2 hover:bg-muted/50 transition-colors">
-                                                            <div className="flex items-center gap-1 text-muted-foreground shrink-0 w-20">
-                                                                <Clock className="h-3 w-3" />
-                                                                {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
+                                                        <div key={c.id} className="flex flex-col gap-1 text-xs bg-muted/30 rounded px-2.5 py-2 hover:bg-muted/50 transition-colors">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex items-center gap-1 text-muted-foreground shrink-0 w-20">
+                                                                    <Clock className="h-3 w-3" />
+                                                                    {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0 flex items-center gap-1">
+                                                                    <span className="font-mono font-medium">{c.practiceCode}</span>
+                                                                    <span className="truncate" title={c.practiceName}>{c.practiceName}</span>
+                                                                    {c.quantity > 1 && <span className="text-muted-foreground"> ×{c.quantity}</span>}
+                                                                </div>
+                                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
+                                                                    {c.status.replace(/_/g, ' ')}
+                                                                </span>
                                                             </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <span className="font-mono font-medium">{c.practiceCode}</span>
-                                                                <span className="ml-1 truncate">{c.practiceName}</span>
-                                                                {c.quantity > 1 && <span className="text-muted-foreground"> ×{c.quantity}</span>}
+                                                            <div className="flex items-center justify-between mt-1 text-muted-foreground pl-[84px]">
+                                                                <div className="flex items-center gap-3">
+                                                                    {c.coveredAmount > 0 && (
+                                                                        <span className="text-green-700 font-mono" title="Monto cubierto">
+                                                                            ${c.coveredAmount.toLocaleString()}
+                                                                        </span>
+                                                                    )}
+                                                                    {c.copayAmount > 0 && (
+                                                                        <span className="text-orange-600 font-mono" title="Coseguro">
+                                                                            cos.${c.copayAmount.toLocaleString()}
+                                                                        </span>
+                                                                    )}
+                                                                    {c.auditorName && (
+                                                                        <span className="truncate max-w-[120px]" title={`Auditor: ${c.auditorName}`}>
+                                                                            👤 {c.auditorName}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {c.expedientNumber && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="font-mono" title="Nro. expediente">
+                                                                            #{c.expedientNumber}
+                                                                        </span>
+                                                                        {c.expedientId && (
+                                                                            <Link
+                                                                                href={`/audits/requests/${c.expedientId}`}
+                                                                                target="_blank"
+                                                                                className="text-primary hover:text-primary/80 transition-colors p-0.5 rounded hover:bg-primary/10"
+                                                                                title="Ver solicitud en nueva pestaña"
+                                                                            >
+                                                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                                            </Link>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                                {c.status.replace(/_/g, ' ')}
-                                                            </span>
-                                                            {c.coveredAmount > 0 && (
-                                                                <span className="text-green-700 font-mono shrink-0" title="Monto cubierto">
-                                                                    ${c.coveredAmount.toLocaleString()}
-                                                                </span>
-                                                            )}
-                                                            {c.copayAmount > 0 && (
-                                                                <span className="text-orange-600 font-mono shrink-0" title="Coseguro">
-                                                                    cos.${c.copayAmount.toLocaleString()}
-                                                                </span>
-                                                            )}
-                                                            {c.expedientNumber && (
-                                                                <span className="text-muted-foreground font-mono shrink-0" title="Nro. expediente">
-                                                                    #{c.expedientNumber}
-                                                                </span>
-                                                            )}
-                                                            {c.auditorName && (
-                                                                <span className="text-muted-foreground shrink-0 truncate max-w-[80px]" title={`Auditor: ${c.auditorName}`}>
-                                                                    👤 {c.auditorName.split(' ')[0]}
-                                                                </span>
-                                                            )}
                                                         </div>
                                                     );
                                                 })}
