@@ -37,8 +37,8 @@ export function Header() {
     const { user, signOut } = useAuth()
     const pathname = usePathname()
 
-    const handleLogout = () => {
-        signOut() // limpia estado local inmediatamente
+    const handleLogout = async () => {
+        await signOut() // invalida sesión global (cookies + token)
         // Forzar recarga completa para evitar conflictos con el router de Next.js
         window.location.replace('/welcome')
     }

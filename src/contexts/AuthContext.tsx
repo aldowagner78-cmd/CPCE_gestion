@@ -148,11 +148,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const signOut = async () => {
-        // Limpiar estado local inmediatamente (sin esperar red)
+        // 1) Limpiar estado local inmediatamente
         setUser(null)
         setPermissions([])
-        // Invalidar sesión en el servidor en segundo plano (no bloquea la UI)
-        supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+        // 2) Invalidar sesión GLOBAL (borra cookies + token del servidor)
+        try {
+            await supabase.auth.signOut({ scope: 'global' })
+        } catch {
+            // Si falla la red, intentar al menos limpiar localmente
+            await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+        }
     }
 
     const hasPermissionFn = (permission: Permission): boolean => {

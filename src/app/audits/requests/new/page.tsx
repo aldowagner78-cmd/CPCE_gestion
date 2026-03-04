@@ -26,6 +26,7 @@ import {
     MapPin, FileText, AlertTriangle, Lock, Megaphone,
     Zap, ShieldAlert, Eye, Loader2,
     MessageSquare, Filter, Clock, Star, Plus, ExternalLink,
+    Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -187,6 +188,18 @@ export default function NewExpedientPage() {
     const [compressing, setCompressing] = useState(false);
     const [showQuickReplies, setShowQuickReplies] = useState(false);
 
+    // ── Estado: Médico / Prestador / Prescripción ──
+    const [doctorName, setDoctorName] = useState('');
+    const [doctorRegistration, setDoctorRegistration] = useState('');
+    const [doctorSpecialty, setDoctorSpecialty] = useState('');
+    const [providerName, setProviderName] = useState('');
+    const [prescriptionDate, setPrescriptionDate] = useState('');
+    const [prescriptionNumber, setPrescriptionNumber] = useState('');
+    const [orderExpiryDate, setOrderExpiryDate] = useState('');
+
+    // ── Estado: Asignación de auditor ──
+    const [assignedAuditorId, setAssignedAuditorId] = useState('');
+    const [auditorsList, setAuditorsList] = useState<{ id: string; full_name: string; role: string }[]>([]);
     // ── Estado: Motor de reglas ──
     const [rulesEvaluated, setRulesEvaluated] = useState(false);
     const [rulesResult, setRulesResult] = useState<ExpedientRuleResult | null>(null);
@@ -239,6 +252,11 @@ export default function NewExpedientPage() {
             const bestSearch = diagCIE || diagTerms[0] || diagText.substring(0, 40);
             setDiagInitialSearch(bestSearch);
         }
+
+        // 2b. Auto-fill médico, matrícula, fecha prescripción desde Gemini
+        if (data.doctor) setDoctorName(data.doctor);
+        if (data.doctorRegistration) setDoctorRegistration(data.doctorRegistration);
+        if (data.prescriptionDate) setPrescriptionDate(data.prescriptionDate);
 
         // 3. Guardar archivo como adjunto
         setAiDocumentFile(file);
@@ -388,6 +406,19 @@ export default function NewExpedientPage() {
         const t = setTimeout(() => { if (pracSearch) searchPracs(pracSearch); }, 300);
         return () => clearTimeout(t);
     }, [pracSearch, searchPracs]);
+
+    // Cargar auditores disponibles
+    useEffect(() => {
+        (async () => {
+            const { data } = await supabase
+                .from('users')
+                .select('id, full_name, role')
+                .in('role', ['auditor', 'supervisor'])
+                .eq('is_active', true)
+                .order('full_name');
+            if (data) setAuditorsList(data);
+        })();
+    }, []);
 
     // ── Handlers del DiseaseAutocomplete ──
     const handleDiseaseSelect = useCallback((sel: DiseaseSelection) => {
@@ -781,9 +812,23 @@ export default function NewExpedientPage() {
                 affiliate_id: beneficiaryId,
                 affiliate_plan_id: affiliate.plan_id,
                 family_member_relation: beneficiaryRelation,
-                request_notes: notes.trim() || undefined, // La nota principal es la que está en el textarea
+                // Médico prescriptor
+                requesting_doctor_name: doctorName.trim() || undefined,
+                requesting_doctor_registration: doctorRegistration.trim() || undefined,
+                requesting_doctor_specialty: doctorSpecialty.trim() || undefined,
+                // Prestador
+                provider_name: providerName.trim() || undefined,
+                // Prescripción
+                prescription_date: prescriptionDate || undefined,
+                prescription_number: prescriptionNumber.trim() || undefined,
+                order_expiry_date: orderExpiryDate || undefined,
+                // Diagnóstico
                 diagnosis_code: diagnosisCode || undefined,
                 diagnosis_description: diagnosis || undefined,
+                // Asignación
+                assigned_to: assignedAuditorId || undefined,
+                // Notas
+                request_notes: notes.trim() || undefined,
                 requires_control_desk: finalRulesResult?.requires_control_desk || false,
                 rules_result: finalRulesResult?.overall,
                 created_by: user.id,
@@ -850,6 +895,10 @@ export default function NewExpedientPage() {
         setShowConsumptions(false); setConsumptions([]); setPlanName('');
         setAffiliatePlan(null); setRulesEvaluated(false); setRulesResult(null);
         setExpedientType('ambulatoria'); setShowPreview(false); setChatMessages([]);
+        // Médico prescriptor y prestador
+        setDoctorName(''); setDoctorRegistration(''); setDoctorSpecialty('');
+        setProviderName(''); setPrescriptionDate(''); setPrescriptionNumber('');
+        setOrderExpiryDate(''); setAssignedAuditorId('');
     };
 
     // ═══════════════════════════════════════════
@@ -1486,6 +1535,132 @@ export default function NewExpedientPage() {
             </div>
 
             {/* ══════════════════════════════════════ */}
+            {/* ═  MÉDICO / PRESTADOR / PRESCRIPCIÓN ═ */}
+            {/* ══════════════════════════════════════ */}
+            <div className="border rounded-xl overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <Stethoscope className="h-3.5 w-3.5" />
+                        Médico prescriptor y prestador
+                    </p>
+                </div>
+                <div className="p-4 space-y-3">
+                    {/* Fila 1: Médico + Matrícula */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Médico solicitante</label>
+                            <Input
+                                placeholder="Dr./Dra. nombre completo"
+                                value={doctorName}
+                                onChange={e => setDoctorName(e.target.value)}
+                                className="text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Matrícula (MN/MP)</label>
+                            <Input
+                                placeholder="Ej: MN 12345 o MP 67890"
+                                value={doctorRegistration}
+                                onChange={e => setDoctorRegistration(e.target.value)}
+                                className="text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Fila 2: Especialidad + Prestador */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Especialidad</label>
+                            <Input
+                                placeholder="Ej: Cardiología, Traumatología"
+                                value={doctorSpecialty}
+                                onChange={e => setDoctorSpecialty(e.target.value)}
+                                className="text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Prestador / Efector</label>
+                            <Input
+                                placeholder="Clínica, sanatorio, laboratorio"
+                                value={providerName}
+                                onChange={e => setProviderName(e.target.value)}
+                                className="text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Fila 3: Fecha prescripción + Nro receta + Vencimiento */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Fecha prescripción</label>
+                            <Input
+                                type="date"
+                                value={prescriptionDate}
+                                onChange={e => setPrescriptionDate(e.target.value)}
+                                className="text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Nro. receta / orden</label>
+                            <Input
+                                placeholder="Nro. referencia"
+                                value={prescriptionNumber}
+                                onChange={e => setPrescriptionNumber(e.target.value)}
+                                className="text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Vencimiento orden</label>
+                            <Input
+                                type="date"
+                                value={orderExpiryDate}
+                                onChange={e => setOrderExpiryDate(e.target.value)}
+                                className="text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Indicador IA si se llenó automáticamente */}
+                    {doctorName && prescriptionDate && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <Sparkles className="h-3 w-3" /> Datos detectados por IA — verificar antes de enviar
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            {/* ══════════════════════════════════════ */}
+            {/* ═  ASIGNACIÓN DE AUDITOR             ═ */}
+            {/* ══════════════════════════════════════ */}
+            {auditorsList.length > 0 && (
+                <div className="border rounded-xl overflow-hidden">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5" />
+                            Asignar auditor
+                        </p>
+                    </div>
+                    <div className="p-4">
+                        <select
+                            value={assignedAuditorId}
+                            onChange={e => setAssignedAuditorId(e.target.value)}
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            <option value="">— Sin asignar (se asignará después) —</option>
+                            {auditorsList.map(a => (
+                                <option key={a.id} value={a.id}>
+                                    {a.full_name} ({a.role === 'supervisor' ? 'Supervisor' : 'Auditor'})
+                                </option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-muted-foreground mt-1.5">
+                            Opcional. Si no se asigna, quedará pendiente para asignación posterior.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════ */}
             {/* ═  PRIORIDAD + NOTAS + ADJUNTOS      ═ */}
             {/* ══════════════════════════════════════ */}
             <div className="space-y-3">
@@ -1781,6 +1956,42 @@ export default function NewExpedientPage() {
                             <div className="col-span-2"><span className="text-muted-foreground">Diagnóstico:</span> <span className="font-mono font-medium">{diagnosisCode}</span> <span className="font-medium">{diagnosis}</span></div>
                         )}
                     </div>
+
+                    {/* Médico prescriptor y prestador */}
+                    {(doctorName || providerName || prescriptionDate) && (
+                        <div className="border-t pt-2">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">Prescripción</p>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                {doctorName && (
+                                    <div><span className="text-muted-foreground">Médico:</span> <span className="font-medium">{doctorName}</span></div>
+                                )}
+                                {doctorRegistration && (
+                                    <div><span className="text-muted-foreground">Matrícula:</span> <span className="font-mono font-medium">{doctorRegistration}</span></div>
+                                )}
+                                {doctorSpecialty && (
+                                    <div><span className="text-muted-foreground">Especialidad:</span> <span className="font-medium">{doctorSpecialty}</span></div>
+                                )}
+                                {providerName && (
+                                    <div><span className="text-muted-foreground">Prestador:</span> <span className="font-medium">{providerName}</span></div>
+                                )}
+                                {prescriptionDate && (
+                                    <div><span className="text-muted-foreground">Fecha prescripción:</span> <span className="font-medium">{prescriptionDate}</span></div>
+                                )}
+                                {prescriptionNumber && (
+                                    <div><span className="text-muted-foreground">Nro. receta:</span> <span className="font-mono font-medium">{prescriptionNumber}</span></div>
+                                )}
+                                {orderExpiryDate && (
+                                    <div><span className="text-muted-foreground">Vencimiento orden:</span> <span className="font-medium">{orderExpiryDate}</span></div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {assignedAuditorId && (
+                        <div className="border-t pt-2">
+                            <p className="text-xs"><span className="text-muted-foreground">Auditor asignado:</span> <span className="font-medium">{auditorsList.find(a => a.id === assignedAuditorId)?.full_name || '—'}</span></p>
+                        </div>
+                    )}
 
                     <div className="border-t pt-2">
                         <p className="text-xs font-semibold text-muted-foreground mb-1">

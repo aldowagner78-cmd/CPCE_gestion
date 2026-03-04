@@ -58,9 +58,24 @@ interface CreateExpedientInput {
     family_member_relation?: string;
     provider_id?: number;
     requesting_doctor_id?: number;
-    request_notes?: string;
+    // Médico prescriptor (texto libre)
+    requesting_doctor_name?: string;
+    requesting_doctor_registration?: string;
+    requesting_doctor_specialty?: string;
+    // Prestador / Efector (texto libre)
+    provider_name?: string;
+    // Prescripción
+    prescription_date?: string;
+    prescription_number?: string;
+    order_expiry_date?: string;
+    // Diagnóstico
     diagnosis_code?: string;
     diagnosis_description?: string;
+    disease_id?: number;
+    // Asignación
+    assigned_to?: string;
+    // Otros
+    request_notes?: string;
     estimated_days?: number;
     requires_control_desk?: boolean;
     rules_result?: RulesResult;
@@ -117,9 +132,24 @@ export const ExpedientService = {
                 family_member_relation: input.family_member_relation,
                 provider_id: input.provider_id,
                 requesting_doctor_id: input.requesting_doctor_id,
+                // Médico prescriptor (texto libre)
+                requesting_doctor_name: input.requesting_doctor_name || null,
+                requesting_doctor_registration: input.requesting_doctor_registration || null,
+                requesting_doctor_specialty: input.requesting_doctor_specialty || null,
+                // Prestador (texto libre)
+                provider_name: input.provider_name || null,
+                // Prescripción
+                prescription_date: input.prescription_date || null,
+                prescription_number: input.prescription_number || null,
+                order_expiry_date: input.order_expiry_date || null,
+                // Diagnóstico
+                diagnosis_code: input.diagnosis_code || null,
+                diagnosis_description: input.diagnosis_description || null,
+                disease_id: input.disease_id || null,
+                // Asignación
+                assigned_to: input.assigned_to || null,
+                // Otros
                 request_notes: input.request_notes,
-                diagnosis_code: input.diagnosis_code,
-                diagnosis_description: input.diagnosis_description,
                 estimated_days: input.estimated_days,
                 requires_control_desk: input.requires_control_desk || false,
                 rules_result: input.rules_result,

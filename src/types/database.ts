@@ -673,6 +673,24 @@ export type Expedient = {
     provider_id?: number
     requesting_doctor_id?: number
 
+    // Médico prescriptor (texto libre)
+    requesting_doctor_name?: string
+    requesting_doctor_registration?: string   // MN/MP
+    requesting_doctor_specialty?: string
+
+    // Prestador / Efector (texto libre)
+    provider_name?: string
+
+    // Prescripción
+    prescription_date?: string
+    prescription_number?: string
+    order_expiry_date?: string
+
+    // Diagnóstico en cabecera
+    diagnosis_code?: string
+    diagnosis_description?: string
+    disease_id?: number
+
     // Estado
     status: ExpedientStatus
 

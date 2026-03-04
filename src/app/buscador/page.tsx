@@ -53,6 +53,85 @@ interface DiseaseRecord {
     requires_authorization: boolean | null
 }
 
+// ── Capítulos CIE-10 (derivados del código) ──
+const CIE10_CHAPTERS: [string, string, string][] = [
+    ['A', 'B', 'Enfermedades infecciosas y parasitarias'],
+    ['C', 'D4', 'Neoplasias [tumores]'],
+    ['D5', 'D8', 'Enfermedades de la sangre y órganos hematopoyéticos'],
+    ['E', 'E', 'Enfermedades endocrinas, nutricionales y metabólicas'],
+    ['F', 'F', 'Trastornos mentales y del comportamiento'],
+    ['G', 'G', 'Enfermedades del sistema nervioso'],
+    ['H0', 'H5', 'Enfermedades del ojo y sus anexos'],
+    ['H6', 'H9', 'Enfermedades del oído y de la apófisis mastoides'],
+    ['I', 'I', 'Enfermedades del sistema circulatorio'],
+    ['J', 'J', 'Enfermedades del sistema respiratorio'],
+    ['K', 'K', 'Enfermedades del sistema digestivo'],
+    ['L', 'L', 'Enfermedades de la piel y del tejido subcutáneo'],
+    ['M', 'M', 'Enfermedades del sistema osteomuscular y del tejido conectivo'],
+    ['N', 'N', 'Enfermedades del sistema genitourinario'],
+    ['O', 'O', 'Embarazo, parto y puerperio'],
+    ['P', 'P', 'Ciertas afecciones originadas en el período perinatal'],
+    ['Q', 'Q', 'Malformaciones congénitas y anomalías cromosómicas'],
+    ['R', 'R', 'Síntomas, signos y hallazgos anormales de laboratorio'],
+    ['S', 'T', 'Traumatismos y envenenamientos'],
+    ['V', 'Y', 'Causas externas de morbilidad y mortalidad'],
+    ['Z', 'Z', 'Factores que influyen en el estado de salud'],
+    ['U', 'U', 'Códigos para propósitos especiales'],
+]
+
+const CIE11_BLOCKS: [string, string, string][] = [
+    ['1', '1', 'Enfermedades infecciosas y parasitarias'],
+    ['2', '2', 'Neoplasias'],
+    ['3', '3', 'Enfermedades de la sangre y órganos hematopoyéticos'],
+    ['4', '4', 'Enfermedades del sistema inmunitario'],
+    ['5', '5', 'Enfermedades endocrinas, nutricionales y metabólicas'],
+    ['6', '6', 'Trastornos mentales, del comportamiento y del neurodesarrollo'],
+    ['7', '7', 'Trastornos del sueño-vigilia'],
+    ['8', '8', 'Enfermedades del sistema nervioso'],
+    ['9', '9', 'Enfermedades del sistema visual'],
+    ['A', 'A', 'Enfermedades del oído o de la apófisis mastoides'],
+    ['B', 'B', 'Enfermedades del sistema circulatorio'],
+    ['C', 'C', 'Enfermedades del sistema respiratorio'],
+    ['D', 'D', 'Enfermedades del sistema digestivo'],
+    ['E', 'E', 'Enfermedades de la piel'],
+    ['F', 'F', 'Enfermedades del sistema osteomuscular o del tejido conectivo'],
+    ['G', 'G', 'Enfermedades del sistema genitourinario'],
+    ['J', 'J', 'Embarazo, parto y puerperio'],
+    ['K', 'K', 'Ciertas afecciones originadas en el período perinatal'],
+    ['L', 'L', 'Anomalías del desarrollo'],
+    ['M', 'M', 'Síntomas, signos o hallazgos clínicos no clasificados'],
+    ['N', 'N', 'Traumatismos y envenenamientos'],
+    ['V', 'V', 'Causas externas de morbilidad o mortalidad'],
+    ['X', 'X', 'Factores que influyen en el estado de salud'],
+]
+
+function getCIEChapter(code: string, classification: string): string | null {
+    if (!code) return null
+    const upper = code.toUpperCase()
+    if (classification === 'CIE-10') {
+        for (const [from, to, label] of CIE10_CHAPTERS) {
+            if (from.length === 1 && to.length === 1) {
+                if (upper[0] >= from && upper[0] <= to) return label
+            } else {
+                // partial prefix match: e.g. D5-D8
+                const prefix = upper.slice(0, to.length)
+                if (prefix >= from && prefix <= (to + 'Z')) return label
+            }
+        }
+        return null
+    }
+    if (classification === 'CIE-11') {
+        // CIE-11 codes start with a digit (block number) then letter
+        const firstChar = upper[0]
+        for (const [from, to, label] of CIE11_BLOCKS) {
+            if (firstChar >= from && firstChar <= to) return label
+        }
+        return null
+    }
+    if (classification === 'DSM-5') return 'Manual Diagnóstico y Estadístico de los Trastornos Mentales'
+    return null
+}
+
 // ── Tab colors per type ──
 
 const TYPE_THEME: Record<string, {
@@ -479,6 +558,7 @@ export default function BuscadorPage() {
                     )}
                     {diseaseResults.map((d, idx) => {
                         const clsTheme = CLASSIFICATION_THEME[d.classification] ?? CLASSIFICATION_THEME['CIE-10']
+                        const chapter = d.category || getCIEChapter(d.code, d.classification)
                         return (
                             <div
                                 key={d.id}
@@ -500,12 +580,24 @@ export default function BuscadorPage() {
                                             {d.level}
                                         </span>
                                     )}
-                                    {d.category && (
-                                        <span className="text-xs font-medium text-indigo-500 dark:text-indigo-400 ml-auto">
-                                            {d.category}
+                                    {d.is_chronic && (
+                                        <span className="text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded-full font-medium">
+                                            Crónica
+                                        </span>
+                                    )}
+                                    {d.requires_authorization && (
+                                        <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                                            <AlertCircle className="h-2.5 w-2.5" /> Req. aut.
                                         </span>
                                     )}
                                 </div>
+
+                                {/* Capítulo / Categoría */}
+                                {chapter && (
+                                    <p className="text-[11px] font-medium text-indigo-500 dark:text-indigo-400 mb-1">
+                                        {chapter}
+                                    </p>
+                                )}
 
                                 {/* Nombre */}
                                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-snug mb-1">
@@ -701,12 +793,15 @@ export default function BuscadorPage() {
                                     {selectedDisease.name}
                                 </p>
 
-                                {/* Categoría */}
-                                {selectedDisease.category && (
-                                    <p className="text-center text-xs font-medium text-indigo-500 dark:text-indigo-400">
-                                        {selectedDisease.category}
-                                    </p>
-                                )}
+                                {/* Categoría / Capítulo */}
+                                {(() => {
+                                    const ch = selectedDisease.category || getCIEChapter(selectedDisease.code, selectedDisease.classification)
+                                    return ch ? (
+                                        <p className="text-center text-xs font-medium text-indigo-500 dark:text-indigo-400">
+                                            {ch}
+                                        </p>
+                                    ) : null
+                                })()}
 
                                 {/* Descripción */}
                                 {selectedDisease.description && (
@@ -786,11 +881,55 @@ export default function BuscadorPage() {
                                     </DiseaseSectionBlock>
                                 )}
 
-                                {/* Mensaje si no hay datos enriquecidos */}
+                                {/* Información derivada cuando no hay datos enriquecidos */}
                                 {!selectedDisease.description && !selectedDisease.criteria?.length && !selectedDisease.exclusions?.length && !selectedDisease.synonyms?.length && !selectedDisease.clinical_notes && (
-                                    <div className="text-center text-xs text-slate-400 py-2 italic">
-                                        Sin información clínica detallada aún. Puede enriquecer este registro desde la base de datos.
-                                    </div>
+                                    <DiseaseSectionBlock
+                                        title="Clasificación"
+                                        color="text-slate-600 dark:text-slate-400"
+                                        bg="bg-slate-50 dark:bg-slate-900/20"
+                                        border="border-slate-200 dark:border-slate-700"
+                                    >
+                                        <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                                            <p>
+                                                <span className="font-semibold">Código {cls}:</span>{' '}
+                                                {selectedDisease.code} — {selectedDisease.name}
+                                            </p>
+                                            {(() => {
+                                                const ch = getCIEChapter(selectedDisease.code, cls)
+                                                return ch ? (
+                                                    <p>
+                                                        <span className="font-semibold">Capítulo:</span>{' '}{ch}
+                                                    </p>
+                                                ) : null
+                                            })()}
+                                            {selectedDisease.level && (
+                                                <p><span className="font-semibold">Nivel:</span> {selectedDisease.level}</p>
+                                            )}
+                                            <div className="flex gap-2 flex-wrap pt-1">
+                                                {selectedDisease.is_chronic && (
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-medium">
+                                                        Patología crónica
+                                                    </span>
+                                                )}
+                                                {selectedDisease.requires_authorization && (
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium">
+                                                        Requiere autorización previa
+                                                    </span>
+                                                )}
+                                                {!selectedDisease.is_chronic && !selectedDisease.requires_authorization && (
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium">
+                                                        Sin restricciones especiales
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 dark:text-slate-500 italic pt-1 border-t border-slate-100 dark:border-slate-800">
+                                                Fuente: {cls === 'CIE-10' ? 'Clasificación Internacional de Enfermedades, 10.ª revisión (OMS)'
+                                                    : cls === 'CIE-11' ? 'Clasificación Internacional de Enfermedades, 11.ª revisión (OMS, 2019)'
+                                                    : cls === 'DSM-5' ? 'Manual Diagnóstico y Estadístico de los Trastornos Mentales, 5.ª ed. (APA)'
+                                                    : cls}
+                                            </p>
+                                        </div>
+                                    </DiseaseSectionBlock>
                                 )}
 
                                 {/* Acciones */}
