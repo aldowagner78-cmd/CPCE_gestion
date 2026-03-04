@@ -24,7 +24,7 @@ import {
     BarChart3, Smile, Calendar, Phone, Mail,
     MapPin, FileText, AlertTriangle, Lock, Megaphone,
     Zap, ShieldAlert, Eye, Loader2,
-    MessageSquare, Filter, Clock, Star,
+    MessageSquare, Filter, Clock, Star, Plus,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -180,6 +180,7 @@ export default function NewExpedientPage() {
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [docType, setDocType] = useState<ExpedientDocumentType>('orden_medica');
     const [compressing, setCompressing] = useState(false);
+    const [showQuickReplies, setShowQuickReplies] = useState(false);
 
     // ── Estado: Motor de reglas ──
     const [rulesEvaluated, setRulesEvaluated] = useState(false);
@@ -1386,7 +1387,7 @@ export default function NewExpedientPage() {
                     )}
                 </div>
 
-{/* Comunicación — dual column chat */}
+                {/* Comunicación — dual column chat */}
                 <div>
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                         <MessageSquare className="h-3.5 w-3.5" />
@@ -1412,26 +1413,44 @@ export default function NewExpedientPage() {
                                     </div>
                                 ))}
                             </div>
-                            {/* Quick replies — wrapping grid */}
-                            <div className="px-2 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border-t border-b flex flex-wrap gap-1">
-                                {[
-                                    { emoji: '📎', label: 'Orden médica', text: 'Se requiere adjuntar orden médica original firmada por el médico tratante.' },
-                                    { emoji: '📋', label: 'Hria. clínica', text: 'Se necesita adjuntar historia clínica completa y actualizada.' },
-                                    { emoji: '🧪', label: 'Laboratorio', text: 'Se requiere adjuntar últimos resultados de laboratorio.' },
-                                    { emoji: '🔬', label: 'Imágenes', text: 'Se requiere adjuntar estudios por imágenes (radiografías, ecografías, resonancias, etc.).' },
-                                    { emoji: '📄', label: 'Estudios', text: 'Se requiere adjuntar estudios complementarios recientes.' },
-                                    { emoji: '✅', label: 'Aprobada', text: 'Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.', color: 'text-green-600 hover:bg-green-50' },
-                                    { emoji: '⚠️', label: 'Parcial', text: 'Su solicitud ha sido aprobada parcialmente. Algunas prácticas requieren documentación adicional.', color: 'text-amber-600 hover:bg-amber-50' },
-                                    { emoji: '⏳', label: 'Evaluación', text: 'Su solicitud se encuentra en proceso de evaluación.', color: 'text-blue-600 hover:bg-blue-50' },
-                                    { emoji: '❌', label: 'Falta doc.', text: 'Su solicitud ha sido denegada por falta de documentación respaldatoria.', color: 'text-red-600 hover:bg-red-50' },
-                                    { emoji: '❌', label: 'Presc. vencida', text: 'Su solicitud ha sido denegada por prescripción médica vencida.', color: 'text-red-600 hover:bg-red-50' },
-                                    { emoji: '❌', label: 'Sin cobertura', text: 'Su solicitud ha sido denegada por no encontrarse dentro de las coberturas del plan.', color: 'text-red-600 hover:bg-red-50' },
-                                ].map((qr, qi) => (
-                                    <button key={qi} type="button"
-                                        onClick={() => { setCommChannel('para_afiliado'); setNotes(qr.text); }}
-                                        className={`px-2 py-0.5 rounded-full bg-background border text-[9px] transition-colors whitespace-nowrap ${qr.color || 'text-muted-foreground hover:bg-muted'}`}
-                                    >{qr.emoji} {qr.label}</button>
-                                ))}
+                            {/* Quick replies — dropdown toggle */}
+                            <div className="px-2 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border-t border-b relative">
+                                <button
+                                    onClick={() => setShowQuickReplies(!showQuickReplies)}
+                                    className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-400 font-medium hover:underline"
+                                >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                    Mensajes predefinidos
+                                    {showQuickReplies ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                </button>
+
+                                {showQuickReplies && (
+                                    <div className="absolute top-full left-0 mt-1 w-[300px] z-50 bg-background border shadow-lg rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                        <div className="max-h-[250px] overflow-y-auto flex flex-col">
+                                            {[
+                                                { emoji: '📎', label: 'Orden médica', text: 'Se requiere adjuntar orden médica original firmada por el médico tratante.' },
+                                                { emoji: '📋', label: 'Hria. clínica', text: 'Se necesita adjuntar historia clínica completa y actualizada.' },
+                                                { emoji: '🧪', label: 'Laboratorio', text: 'Se requiere adjuntar últimos resultados de laboratorio.' },
+                                                { emoji: '🔬', label: 'Imágenes', text: 'Se requiere adjuntar estudios por imágenes (radiografías, ecografías, resonancias, etc.).' },
+                                                { emoji: '📄', label: 'Estudios', text: 'Se requiere adjuntar estudios complementarios recientes.' },
+                                                { emoji: '✅', label: 'Aprobada', text: 'Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.', color: 'text-green-600 hover:bg-green-50' },
+                                                { emoji: '⚠️', label: 'Parcial', text: 'Su solicitud ha sido aprobada parcialmente. Algunas prácticas requieren documentación adicional.', color: 'text-amber-600 hover:bg-amber-50' },
+                                                { emoji: '⏳', label: 'Evaluación', text: 'Su solicitud se encuentra en proceso de evaluación.', color: 'text-blue-600 hover:bg-blue-50' },
+                                                { emoji: '❌', label: 'Falta doc.', text: 'Su solicitud ha sido denegada por falta de documentación respaldatoria.', color: 'text-red-600 hover:bg-red-50' },
+                                                { emoji: '❌', label: 'Presc. vencida', text: 'Su solicitud ha sido denegada por prescripción médica vencida.', color: 'text-red-600 hover:bg-red-50' },
+                                                { emoji: '❌', label: 'Sin cobertura', text: 'Su solicitud ha sido denegada por no encontrarse dentro de las coberturas del plan.', color: 'text-red-600 hover:bg-red-50' },
+                                            ].map((qr, qi) => (
+                                                <button key={qi} type="button"
+                                                    onClick={() => { setCommChannel('para_afiliado'); setNotes(qr.text); setShowQuickReplies(false); }}
+                                                    className={`px-3 py-2 text-left border-b last:border-0 text-xs transition-colors ${qr.color || 'text-muted-foreground hover:bg-muted'}`}
+                                                >
+                                                    <span className="font-medium mr-1">{qr.emoji} {qr.label}:</span>
+                                                    <span className="opacity-80">{qr.text.slice(0, 40)}{qr.text.length > 40 ? '...' : ''}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             {/* Input afiliado */}
                             <div className="flex items-end gap-1.5 p-2 bg-background">
@@ -1540,19 +1559,19 @@ export default function NewExpedientPage() {
                                     disabled={compressing}
                                     className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all
                                         ${hasThis
-                                            ? 'bg-green-50 border-green-300 text-green-700 dark:bg-green-950/30 dark:border-green-700 dark:text-green-300'
+                                            ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-300'
                                             : 'bg-background hover:bg-muted/50 text-foreground border-border'
                                         }
                                         ${compressing ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:shadow-sm'}
                                     `}
-                                    title={isOrden && !hasThis ? 'Documento obligatorio: debe adjuntar la orden médica' : `Adjuntar ${d.label}`}
+                                    title={isOrden && !hasThis ? 'Documento obligatorio: debe adjuntar la orden médica' : hasThis ? `Añadir más ${d.label}` : `Adjuntar ${d.label}`}
                                 >
                                     {isOrden && !hasThis && (
                                         <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold" title="Obligatorio">!</span>
                                     )}
                                     <Upload className="h-3 w-3" />
                                     {d.label}
-                                    {hasThis && <CheckCircle className="h-3 w-3 text-green-600" />}
+                                    {hasThis && <Plus className="h-3 w-3 text-blue-600" />}
                                 </button>
                             );
                         })}
