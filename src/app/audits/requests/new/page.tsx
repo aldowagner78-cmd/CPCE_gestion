@@ -34,6 +34,7 @@ import type {
 } from '@/types/database';
 import { compressImage, formatBytes, validateFileSize } from '@/lib/imageCompressor';
 import type { CompressResult } from '@/lib/imageCompressor';
+import { DiseaseAutocomplete, type DiseaseSelection } from '@/components/practices/DiseaseAutocomplete';
 
 const supabase = createClient();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,9 +179,7 @@ export default function NewExpedientPage() {
     const [priority, setPriority] = useState<ExpedientPriority>('normal');
     const [diagnosis, setDiagnosis] = useState('');
     const [diagnosisCode, setDiagnosisCode] = useState('');
-    const [diagSearch, setDiagSearch] = useState('');
-    const [diagResults, setDiagResults] = useState<{ id: number; code: string; name: string; chapter: string }[]>([]);
-    const [searchingDiag, setSearchingDiag] = useState(false);
+    const [diagInitialSearch, setDiagInitialSearch] = useState('');
     const [notes, setNotes] = useState('');
     const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string; channel: ExpedientNoteType }[]>([]);
     const [files, setFiles] = useState<PendingFile[]>([]);
@@ -222,7 +221,7 @@ export default function NewExpedientPage() {
         // 2. Auto-fill the diagnosis field
         if (data.diagnosis) {
             setDiagnosis(data.diagnosis);
-            setDiagSearch(data.diagnosis.substring(0, 30));
+            setDiagInitialSearch(data.diagnosis.substring(0, 30));
         }
         // 3. Save file for attachment
         setAiDocumentFile(file);
@@ -353,23 +352,17 @@ export default function NewExpedientPage() {
         return () => clearTimeout(t);
     }, [pracSearch, searchPracs]);
 
-    // Debounce CIE-10
-    useEffect(() => {
-        if (diagSearch.length < 2) { setDiagResults([]); return; }
-        const t = setTimeout(async () => {
-            setSearchingDiag(true);
-            try {
-                const { data } = await db('diseases')
-                    .select('id, code, name, chapter')
-                    .or(`code.ilike.%${diagSearch}%,name.ilike.%${diagSearch}%`)
-                    .order('code')
-                    .limit(15);
-                setDiagResults((data || []) as { id: number; code: string; name: string; chapter: string }[]);
-            } catch { setDiagResults([]); }
-            setSearchingDiag(false);
-        }, 300);
-        return () => clearTimeout(t);
-    }, [diagSearch]);
+    // ── Handlers del DiseaseAutocomplete ──
+    const handleDiseaseSelect = useCallback((sel: DiseaseSelection) => {
+        setDiagnosisCode(sel.code);
+        setDiagnosis(sel.name);
+    }, []);
+
+    const handleDiseaseClear = useCallback(() => {
+        setDiagnosis('');
+        setDiagnosisCode('');
+        setDiagInitialSearch('');
+    }, []);
 
     // ── IA: chequeo de coherencia al cambiar práctica/diagnóstico ──
     useEffect(() => {
@@ -814,7 +807,7 @@ export default function NewExpedientPage() {
 
     const resetForm = () => {
         setAffiliate(null); setPracticeItems([]); setFiles([]); setNotes(''); setDiagnosis('');
-        setDiagnosisCode(''); setDiagSearch(''); setDiagResults([]);
+        setDiagnosisCode(''); setDiagInitialSearch('');
         setPriority('normal'); setSubmitted(false); setSubmittedExpNumber('');
         setAutoApprovedCodes([]); setAffSearch(''); setPracSearch('');
         setShowConsumptions(false); setConsumptions([]); setPlanName('');
@@ -1475,63 +1468,14 @@ export default function NewExpedientPage() {
                     </div>
                 </div>
 
-                {/* Diagnóstico CIE-10 */}
-                <div className="relative">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1 block">
-                        Diagnóstico presuntivo <span className="normal-case text-muted-foreground/60">(opcional · CIE-10)</span>
-                    </label>
-                    {diagnosis ? (
-                        <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-muted/30">
-                            <Stethoscope className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <div className="flex-1 min-w-0">
-                                <span className="font-mono font-semibold text-sm">{diagnosisCode}</span>
-                                <span className="ml-2 text-sm">{diagnosis}</span>
-                            </div>
-                            <button onClick={() => { setDiagnosis(''); setDiagnosisCode(''); setDiagSearch(''); }}
-                                className="text-muted-foreground hover:text-foreground p-1">
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Buscar diagnóstico CIE-10 (ej: diabetes, J45, fractura...)"
-                                    value={diagSearch}
-                                    onChange={e => setDiagSearch(e.target.value)}
-                                    className="pl-9"
-                                />
-                            </div>
-                            {searchingDiag && (
-                                <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando diagnósticos...</p>
-                            )}
-                            {diagResults.length > 0 && (
-                                <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-56 overflow-y-auto">
-                                    {diagResults.map(d => (
-                                        <button
-                                            key={d.id}
-                                            onClick={() => {
-                                                setDiagnosisCode(d.code);
-                                                setDiagnosis(d.name);
-                                                setDiagSearch('');
-                                                setDiagResults([]);
-                                            }}
-                                            className="w-full px-3 py-2.5 text-left text-sm border-b last:border-0 hover:bg-muted/50 flex items-center gap-2"
-                                        >
-                                            <span className="font-mono font-semibold text-primary shrink-0">{d.code}</span>
-                                            <span className="flex-1 min-w-0 truncate">{d.name}</span>
-                                            <span className="text-xs text-muted-foreground shrink-0">Cap. {d.chapter}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                            {diagSearch.length >= 2 && !searchingDiag && diagResults.length === 0 && (
-                                <p className="text-xs text-muted-foreground mt-1">No se encontraron diagnósticos para &quot;{diagSearch}&quot;</p>
-                            )}
-                        </>
-                    )}
-                </div>
+                {/* Diagnóstico CIE-10 / CIE-11 / DSM-5 */}
+                <DiseaseAutocomplete
+                    value={diagnosis}
+                    code={diagnosisCode}
+                    onSelect={handleDiseaseSelect}
+                    onClear={handleDiseaseClear}
+                    initialSearch={diagInitialSearch}
+                />
 
                 {/* Comunicación — dual column chat */}
                 <div>
