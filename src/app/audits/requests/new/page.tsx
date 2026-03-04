@@ -207,33 +207,34 @@ export default function NewExpedientPage() {
         if (!notes.trim()) return;
         setAiLoading(true);
         const raw = notes.trim();
-        // Ensure first letter uppercase
-        const sentence = raw.charAt(0).toUpperCase() + raw.slice(1);
-        // Ensure ends with period
-        const withPeriod = sentence.endsWith('.') || sentence.endsWith('!') || sentence.endsWith('?')
-            ? sentence : sentence + '.';
 
         let polished: string;
         if (commChannel === 'para_afiliado') {
-            // Formal, empathetic tone for the affiliate
-            const openers = [
-                'Estimado/a afiliado/a, le informamos que ',
-                'Nos comunicamos para informarle que ',
-                'En relación con su solicitud, le comunicamos que ',
-                'A fin de brindarle la mejor atención, le indicamos que ',
-            ];
-            const opener = openers[raw.length % openers.length];
-            polished = opener + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)
-                + ' Quedamos a su disposición ante cualquier consulta.';
+            // ── Reescritura coherente para afiliado ──
+            const lower = raw.toLowerCase();
+            const isRequest = /falta|adjunt|requiere|neces|enviar|present|remit|debe/.test(lower);
+            const isDenial = /deneg|rechaz|no se aprueba|no corresponde/.test(lower);
+            const isApproval = /aprob|autoriz|puede coordinar/.test(lower);
+            const isInfo = /inform|comunic|notific|evaluaci/.test(lower);
+
+            const cleanSentence = raw.charAt(0).toUpperCase() + raw.slice(1);
+            const withPeriod = /[.!?]$/.test(cleanSentence) ? cleanSentence : cleanSentence + '.';
+
+            if (isDenial) {
+                polished = `Estimado/a afiliado/a, lamentamos informarle que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} En caso de desacuerdo, puede presentar una apelación formal.`;
+            } else if (isApproval) {
+                polished = `Estimado/a afiliado/a, nos complace informarle que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Quedamos a su disposición ante cualquier consulta.`;
+            } else if (isRequest) {
+                polished = `Estimado/a afiliado/a, para continuar con el trámite de su solicitud, le informamos que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Agradecemos su colaboración.`;
+            } else if (isInfo) {
+                polished = `Estimado/a afiliado/a, ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Quedamos a su disposición ante cualquier consulta.`;
+            } else {
+                polished = `Estimado/a afiliado/a, le comunicamos que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Quedamos a su disposición.`;
+            }
         } else {
-            // Concise, professional tone for the auditor
-            const openers = [
-                'Nota interna: ',
-                'Para consideración del auditor: ',
-                'Observación: ',
-            ];
-            const opener = openers[raw.length % openers.length];
-            polished = opener + withPeriod;
+            // ── Para auditor: solo formato limpio ──
+            const sentence = raw.charAt(0).toUpperCase() + raw.slice(1);
+            polished = /[.!?]$/.test(sentence) ? sentence : sentence + '.';
         }
         setNotes(polished);
         setAiLoading(false);
@@ -501,7 +502,7 @@ export default function NewExpedientPage() {
     // ═  ARCHIVOS
     // ═══════════════════════════════════════════
 
-    const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>, overrideDocType?: ExpedientDocumentType) => {
         if (!e.target.files || e.target.files.length === 0) return;
         const rawFiles = Array.from(e.target.files);
         e.target.value = '';
@@ -521,9 +522,10 @@ export default function NewExpedientPage() {
             const results: CompressResult[] = await Promise.all(
                 rawFiles.map(f => compressImage(f))
             );
+            const finalDocType = overrideDocType || docType;
             const newFiles: PendingFile[] = results.map(r => ({
                 file: r.file,
-                documentType: docType,
+                documentType: finalDocType,
                 originalSize: r.originalSize,
                 wasCompressed: r.wasCompressed,
                 savingsPercent: r.savingsPercent,
@@ -533,6 +535,18 @@ export default function NewExpedientPage() {
             setError('Error procesando archivos');
         }
         setCompressing(false);
+    };
+
+    const triggerFileUpload = (targetDocType: ExpedientDocumentType) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+        input.multiple = true;
+        input.onchange = (ev) => {
+            const fakeEvent = { target: ev.target } as React.ChangeEvent<HTMLInputElement>;
+            handleFileAdd(fakeEvent, targetDocType);
+        };
+        input.click();
     };
 
     // ═══════════════════════════════════════════
@@ -1372,163 +1386,184 @@ export default function NewExpedientPage() {
                     )}
                 </div>
 
-                {/* Comunicación — estilo chat */}
+{/* Comunicación — dual column chat */}
                 <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            Comunicación
-                        </label>
-                        <div className="flex gap-1 p-0.5 bg-muted/40 rounded-lg">
-                            <button
-                                onClick={() => setCommChannel('interna')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${commChannel === 'interna' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
-                            >🔒 Interna</button>
-                            <button
-                                onClick={() => setCommChannel('para_afiliado')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${commChannel === 'para_afiliado' ? 'bg-background shadow text-primary' : 'text-muted-foreground'}`}
-                            >📢 Afiliado</button>
-                        </div>
-                    </div>
-                    <div className="border rounded-xl overflow-hidden">
-                        {/* Mensajes previos (si hay) */}
-                        {chatMessages.length > 0 && (
-                            <div className="max-h-40 overflow-y-auto bg-muted/20 p-3 space-y-2 border-b">
-                                {chatMessages.map((msg, i) => {
-                                    const isInternal = msg.channel === 'interna';
-                                    return (
-                                        <div key={i} className="flex justify-end">
-                                            <div className={`max-w-[85%] px-3 py-2 text-sm ${isInternal
-                                                ? 'bg-muted text-foreground border border-border rounded-2xl rounded-tr-sm'
-                                                : 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm'
-                                                }`}>
-                                                <div className="flex items-center gap-1.5 mb-1 opacity-70">
-                                                    {isInternal ? <Lock className="h-3 w-3" /> : <Megaphone className="h-3 w-3" />}
-                                                    <span className="text-[10px] font-medium uppercase tracking-wider">
-                                                        {isInternal ? 'Interno' : 'Para Afiliado'}
-                                                    </span>
-                                                </div>
-                                                <p>{msg.text}</p>
-                                                <p className={`text-[10px] mt-1 text-right ${isInternal ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}>
-                                                    {msg.date}
-                                                </p>
-                                            </div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Comunicación
+                    </label>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {/* ── Columna AFILIADO ── */}
+                        <div className="border rounded-xl overflow-hidden flex flex-col">
+                            <div className="bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 border-b flex items-center gap-1.5">
+                                <Megaphone className="h-3.5 w-3.5 text-blue-600" />
+                                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Para Afiliado</span>
+                            </div>
+                            {/* Mensajes afiliado */}
+                            <div className="min-h-[120px] max-h-[180px] overflow-y-auto bg-blue-50/30 dark:bg-blue-950/10 p-2 space-y-1.5 flex-1">
+                                {chatMessages.filter(m => m.channel === 'para_afiliado').length === 0 ? (
+                                    <p className="text-[10px] text-muted-foreground text-center py-6 opacity-50">Sin mensajes para el afiliado</p>
+                                ) : chatMessages.filter(m => m.channel === 'para_afiliado').map((msg, i) => (
+                                    <div key={i} className="flex justify-end">
+                                        <div className="max-w-[90%] px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-2xl rounded-tr-sm">
+                                            <p>{msg.text}</p>
+                                            <p className="text-[9px] mt-0.5 text-right text-primary-foreground/60">{msg.date}</p>
                                         </div>
-                                    );
-                                })}
+                                    </div>
+                                ))}
                             </div>
-                        )}
-
-                        {/* Respuestas rápidas — solo canal afiliado */}
-                        {commChannel === 'para_afiliado' && (
-                            <div className="px-2 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border-b space-y-1">
-                                <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
-                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar orden médica original firmada por el médico tratante.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📎 Orden médica</button>
-                                    <button type="button" onClick={() => setNotes('Se necesita adjuntar historia clínica completa y actualizada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📋 Historia clínica</button>
-                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar últimos resultados de laboratorio.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">🧪 Laboratorio</button>
-                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar estudios por imágenes previos (radiografías, ecografías, resonancias, etc.).')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">🔬 Imágenes</button>
-                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar estudios complementarios recientes que justifiquen la práctica solicitada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">� Estudios previos</button>
-                                </div>
-                                <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
-                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-green-600 hover:bg-green-50 transition-colors whitespace-nowrap">✅ Aprobada</button>
-                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido aprobada parcialmente. Algunas prácticas requieren documentación adicional.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-amber-600 hover:bg-amber-50 transition-colors whitespace-nowrap">⚠️ Aprobada parcial</button>
-                                    <button type="button" onClick={() => setNotes('Su solicitud se encuentra en proceso de evaluación. Le informaremos a la brevedad.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap">⏳ En evaluación</button>
-                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido denegada por falta de documentación respaldatoria.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">❌ Denegada: falta documentación</button>
-                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido denegada por prescripción médica vencida. Se requiere nueva orden vigente.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">❌ Denegada: prescripción vencida</button>
-                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido denegada por no encontrarse dentro de las coberturas del plan.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">❌ Denegada: sin cobertura</button>
-                                </div>
+                            {/* Quick replies — wrapping grid */}
+                            <div className="px-2 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border-t border-b flex flex-wrap gap-1">
+                                {[
+                                    { emoji: '📎', label: 'Orden médica', text: 'Se requiere adjuntar orden médica original firmada por el médico tratante.' },
+                                    { emoji: '📋', label: 'Hria. clínica', text: 'Se necesita adjuntar historia clínica completa y actualizada.' },
+                                    { emoji: '🧪', label: 'Laboratorio', text: 'Se requiere adjuntar últimos resultados de laboratorio.' },
+                                    { emoji: '🔬', label: 'Imágenes', text: 'Se requiere adjuntar estudios por imágenes (radiografías, ecografías, resonancias, etc.).' },
+                                    { emoji: '📄', label: 'Estudios', text: 'Se requiere adjuntar estudios complementarios recientes.' },
+                                    { emoji: '✅', label: 'Aprobada', text: 'Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.', color: 'text-green-600 hover:bg-green-50' },
+                                    { emoji: '⚠️', label: 'Parcial', text: 'Su solicitud ha sido aprobada parcialmente. Algunas prácticas requieren documentación adicional.', color: 'text-amber-600 hover:bg-amber-50' },
+                                    { emoji: '⏳', label: 'Evaluación', text: 'Su solicitud se encuentra en proceso de evaluación.', color: 'text-blue-600 hover:bg-blue-50' },
+                                    { emoji: '❌', label: 'Falta doc.', text: 'Su solicitud ha sido denegada por falta de documentación respaldatoria.', color: 'text-red-600 hover:bg-red-50' },
+                                    { emoji: '❌', label: 'Presc. vencida', text: 'Su solicitud ha sido denegada por prescripción médica vencida.', color: 'text-red-600 hover:bg-red-50' },
+                                    { emoji: '❌', label: 'Sin cobertura', text: 'Su solicitud ha sido denegada por no encontrarse dentro de las coberturas del plan.', color: 'text-red-600 hover:bg-red-50' },
+                                ].map((qr, qi) => (
+                                    <button key={qi} type="button"
+                                        onClick={() => { setCommChannel('para_afiliado'); setNotes(qr.text); }}
+                                        className={`px-2 py-0.5 rounded-full bg-background border text-[9px] transition-colors whitespace-nowrap ${qr.color || 'text-muted-foreground hover:bg-muted'}`}
+                                    >{qr.emoji} {qr.label}</button>
+                                ))}
                             </div>
-                        )}
-
-                        {/* Input de mensaje */}
-                        <div className="flex items-end gap-2 p-2 bg-background">
-                            <textarea
-                                placeholder={commChannel === 'para_afiliado' ? 'Mensaje oficial para el afiliado...' : 'Nota interna para auditoría...'}
-                                value={notes}
-                                onChange={e => setNotes(e.target.value)}
-                                rows={2}
-                                className="flex-1 resize-none rounded-xl border border-input bg-muted/30 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            />
-                            <div className="flex flex-col gap-2">
-                                <button
-                                    onClick={handlePolishText}
-                                    disabled={!notes.trim() || aiLoading}
-                                    className="p-2 rounded-full border hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
-                                    title="Pulir con IA ✨"
-                                >
-                                    <span className="text-sm">✨</span>
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (!notes.trim()) return;
-                                        setChatMessages(prev => [...prev, {
-                                            from: 'self',
-                                            text: notes.trim(),
-                                            date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-                                            // Guardamos el canal en el mensaje para el submit posterior
-                                            channel: commChannel
-                                        }]);
-                                        setNotes('');
-                                    }}
-                                    disabled={!notes.trim()}
-                                    className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                    title="Agregar mensaje"
-                                >
-                                    <Send className="h-4 w-4" />
-                                </button>
+                            {/* Input afiliado */}
+                            <div className="flex items-end gap-1.5 p-2 bg-background">
+                                <textarea
+                                    placeholder="Mensaje para el afiliado..."
+                                    value={commChannel === 'para_afiliado' ? notes : ''}
+                                    onFocus={() => setCommChannel('para_afiliado')}
+                                    onChange={e => { setCommChannel('para_afiliado'); setNotes(e.target.value); }}
+                                    rows={2}
+                                    className="flex-1 resize-none rounded-lg border border-input bg-muted/30 px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                />
+                                <div className="flex flex-col gap-1">
+                                    <button
+                                        onClick={() => { setCommChannel('para_afiliado'); handlePolishText(); }}
+                                        disabled={commChannel !== 'para_afiliado' || !notes.trim() || aiLoading}
+                                        className="p-1.5 rounded-full border hover:bg-amber-50 transition-colors disabled:opacity-30"
+                                        title="Pulir con IA ✨"
+                                    ><span className="text-xs">✨</span></button>
+                                    <button
+                                        onClick={() => {
+                                            if (commChannel !== 'para_afiliado' || !notes.trim()) return;
+                                            setChatMessages(prev => [...prev, {
+                                                from: 'self', text: notes.trim(),
+                                                date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+                                                channel: 'para_afiliado'
+                                            }]);
+                                            setNotes('');
+                                        }}
+                                        disabled={commChannel !== 'para_afiliado' || !notes.trim()}
+                                        className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 transition-colors"
+                                        title="Enviar al afiliado"
+                                    ><Send className="h-3.5 w-3.5" /></button>
+                                </div>
                             </div>
                         </div>
-                        <p className="px-3 pb-2 text-[10px] text-muted-foreground flex justify-between">
-                            <span>{commChannel === 'para_afiliado' ? 'Visible para el Afiliado' : 'Solo visible para personal interno'}</span>
-                            <span className="opacity-50 italic">Canal: {commChannel}</span>
-                        </p>
+
+                        {/* ── Columna AUDITOR (interna) ── */}
+                        <div className="border rounded-xl overflow-hidden flex flex-col">
+                            <div className="bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 border-b flex items-center gap-1.5">
+                                <Lock className="h-3.5 w-3.5 text-slate-500" />
+                                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Nota Interna</span>
+                            </div>
+                            {/* Mensajes internos */}
+                            <div className="min-h-[120px] max-h-[180px] overflow-y-auto bg-slate-50/30 dark:bg-slate-900/10 p-2 space-y-1.5 flex-1">
+                                {chatMessages.filter(m => m.channel === 'interna').length === 0 ? (
+                                    <p className="text-[10px] text-muted-foreground text-center py-6 opacity-50">Sin notas internas</p>
+                                ) : chatMessages.filter(m => m.channel === 'interna').map((msg, i) => (
+                                    <div key={i} className="flex justify-end">
+                                        <div className="max-w-[90%] px-3 py-1.5 text-xs bg-muted text-foreground border border-border rounded-2xl rounded-tr-sm">
+                                            <p>{msg.text}</p>
+                                            <p className="text-[9px] mt-0.5 text-right text-muted-foreground">{msg.date}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Input auditor — solo texto libre */}
+                            <div className="flex items-end gap-1.5 p-2 bg-background border-t">
+                                <textarea
+                                    placeholder="Nota interna para auditoría..."
+                                    value={commChannel === 'interna' ? notes : ''}
+                                    onFocus={() => setCommChannel('interna')}
+                                    onChange={e => { setCommChannel('interna'); setNotes(e.target.value); }}
+                                    rows={2}
+                                    className="flex-1 resize-none rounded-lg border border-input bg-muted/30 px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                />
+                                <div className="flex flex-col gap-1">
+                                    <button
+                                        onClick={() => { setCommChannel('interna'); handlePolishText(); }}
+                                        disabled={commChannel !== 'interna' || !notes.trim() || aiLoading}
+                                        className="p-1.5 rounded-full border hover:bg-amber-50 transition-colors disabled:opacity-30"
+                                        title="Pulir con IA ✨"
+                                    ><span className="text-xs">✨</span></button>
+                                    <button
+                                        onClick={() => {
+                                            if (commChannel !== 'interna' || !notes.trim()) return;
+                                            setChatMessages(prev => [...prev, {
+                                                from: 'self', text: notes.trim(),
+                                                date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+                                                channel: 'interna'
+                                            }]);
+                                            setNotes('');
+                                        }}
+                                        disabled={commChannel !== 'interna' || !notes.trim()}
+                                        className="p-1.5 rounded-full bg-slate-600 text-white hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                                        title="Agregar nota interna"
+                                    ><Send className="h-3.5 w-3.5" /></button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Adjuntos */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <select
-                            value={docType}
-                            onChange={e => setDocType(e.target.value as ExpedientDocumentType)}
-                            className="border rounded px-2 py-1.5 text-sm bg-background"
-                        >
-                            {DOC_TYPES.map(d => (
-                                <option key={d.value} value={d.value}>{d.label}</option>
-                            ))}
-                        </select>
-                        <label className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg cursor-pointer hover:bg-muted/50 text-sm">
-                            <Upload className="h-3.5 w-3.5" />
-                            Adjuntar
-                            <input type="file" className="hidden" onChange={handleFileAdd}
-                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple />
-                        </label>
-                        {compressing && (
-                            <span className="text-xs text-muted-foreground animate-pulse flex items-center gap-1">
-                                <Loader2 className="h-3 w-3 animate-spin" /> Comprimiendo...
-                            </span>
-                        )}
-                        {files.length > 0 && !compressing && (
-                            <span className="text-xs text-muted-foreground">
-                                <Paperclip className="h-3 w-3 inline mr-0.5" />
-                                {files.length} archivo(s) · {formatBytes(files.reduce((s, f) => s + f.file.size, 0))}
-                            </span>
-                        )}
+                {/* Adjuntos — botones individuales por tipo */}
+                <div className="space-y-2 mt-4">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <Paperclip className="h-3.5 w-3.5" />
+                        Documentación adjunta
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                        {DOC_TYPES.map(d => {
+                            const isOrden = d.value === 'orden_medica';
+                            const hasThis = files.some(f => f.documentType === d.value);
+                            return (
+                                <button key={d.value} type="button"
+                                    onClick={() => triggerFileUpload(d.value)}
+                                    disabled={compressing}
+                                    className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all
+                                        ${hasThis
+                                            ? 'bg-green-50 border-green-300 text-green-700 dark:bg-green-950/30 dark:border-green-700 dark:text-green-300'
+                                            : 'bg-background hover:bg-muted/50 text-foreground border-border'
+                                        }
+                                        ${compressing ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:shadow-sm'}
+                                    `}
+                                    title={isOrden && !hasThis ? 'Documento obligatorio: debe adjuntar la orden médica' : `Adjuntar ${d.label}`}
+                                >
+                                    {isOrden && !hasThis && (
+                                        <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold" title="Obligatorio">!</span>
+                                    )}
+                                    <Upload className="h-3 w-3" />
+                                    {d.label}
+                                    {hasThis && <CheckCircle className="h-3 w-3 text-green-600" />}
+                                </button>
+                            );
+                        })}
                     </div>
-
-                    {/* Indicador de orden médica */}
-                    <div className={`flex items-center gap-2 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${hasOrdenMedica
-                        ? 'bg-green-50 border-green-200 text-green-700'
-                        : 'bg-red-50 border-red-200 text-red-700'
-                        }`}>
-                        {hasOrdenMedica
-                            ? <><CheckCircle className="h-3.5 w-3.5" /> Orden médica adjunta</>
-                            : <><AlertCircle className="h-3.5 w-3.5" /> Orden médica obligatoria — seleccioná &quot;Orden médica&quot; y adjuntá el archivo</>
-                        }
-                    </div>
-
+                    {compressing && (
+                        <span className="text-xs text-muted-foreground animate-pulse flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Comprimiendo...
+                        </span>
+                    )}
                     {files.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1.5 mt-2">
                             {files.map((f, i) => (
                                 <span key={i} className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
                                     <span className="text-muted-foreground">[{DOC_TYPES.find(d => d.value === f.documentType)?.label}]</span>
@@ -1537,8 +1572,8 @@ export default function NewExpedientPage() {
                                     {f.wasCompressed && (
                                         <span className="text-green-600 font-medium" title={`Original: ${formatBytes(f.originalSize)}`}>-{f.savingsPercent}%</span>
                                     )}
-                                    <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}>
-                                        <X className="h-3 w-3" />
+                                    <button type="button" onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}>
+                                        <X className="h-3 w-3 cursor-pointer hover:text-red-500" />
                                     </button>
                                 </span>
                             ))}
@@ -1548,6 +1583,7 @@ export default function NewExpedientPage() {
             </div>
 
             {/* ══════════════════════════════════════ */}
+            {/* ═  VALIDACIONES INLINE
             {/* ═  VALIDACIONES INLINE               ═ */}
             {/* ══════════════════════════════════════ */}
             {validationErrors.length > 0 && affiliate && (
