@@ -256,8 +256,15 @@ function ExpedientDetail({
     const [notes, setNotes] = useState<ExpedientNote[]>([]);
     const [attachments, setAttachments] = useState<ExpedientAttachment[]>([]);
     const [log, setLog] = useState<ExpedientLog[]>([]);
-    const [newNote, setNewNote] = useState('');
     const [commChannel, setCommChannel] = useState<'interna' | 'para_afiliado'>('interna');
+    const [newNoteInterna, setNewNoteInterna] = useState('');
+    const [newNoteAfiliado, setNewNoteAfiliado] = useState('');
+    // Helpers por canal activo
+    const newNote = commChannel === 'para_afiliado' ? newNoteAfiliado : newNoteInterna;
+    const setNewNote = (val: string) => {
+        if (commChannel === 'para_afiliado') setNewNoteAfiliado(val);
+        else setNewNoteInterna(val);
+    };
     const [aiLoading, setAiLoading] = useState(false);
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -564,15 +571,18 @@ function ExpedientDetail({
 
     // Agregar nota (usa el canal activo como note_type)
     const handleAddNote = async () => {
-        if (!user || !newNote.trim()) return;
+        const draft = commChannel === 'para_afiliado' ? newNoteAfiliado : newNoteInterna;
+        if (!user || !draft.trim()) return;
         try {
             await ExpedientService.addNote({
                 expedient_id: expedient.id,
                 author_id: user.id,
-                content: newNote,
+                content: draft,
                 note_type: commChannel,
             });
-            setNewNote('');
+            // Limpiar solo el canal que se acaba de enviar
+            if (commChannel === 'para_afiliado') setNewNoteAfiliado('');
+            else setNewNoteInterna('');
             const n = await ExpedientService.fetchNotes(expedient.id);
             setNotes(n);
         } catch {
@@ -594,9 +604,10 @@ function ExpedientDetail({
 
     // ── Asistente IA local (costo cero, sin API externa) ──────────────
     const handlePolishText = () => {
-        if (!newNote.trim()) return;
+        const draft = commChannel === 'para_afiliado' ? newNoteAfiliado : newNoteInterna;
+        if (!draft.trim()) return;
         setAiLoading(true);
-        const raw = newNote.trim();
+        const raw = draft.trim();
         const sentence = raw.charAt(0).toUpperCase() + raw.slice(1);
         const withPeriod = sentence.endsWith('.') || sentence.endsWith('!') || sentence.endsWith('?')
             ? sentence : sentence + '.';
@@ -612,6 +623,7 @@ function ExpedientDetail({
             const opener = openers[raw.length % openers.length];
             polished = opener + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)
                 + ' Quedamos a su disposición ante cualquier consulta.';
+            setNewNoteAfiliado(polished);
         } else {
             const openers = [
                 'Nota interna: ',
@@ -620,8 +632,8 @@ function ExpedientDetail({
             ];
             const opener = openers[raw.length % openers.length];
             polished = opener + withPeriod;
+            setNewNoteInterna(polished);
         }
-        setNewNote(polished);
         setAiLoading(false);
     };
 
@@ -1345,7 +1357,7 @@ function ExpedientDetail({
                                             {(['⭐ Consultar prioridad clínica', '👥 Pedir segunda opinión médica'] as const).map(txt => (
                                                 <button
                                                     key={txt}
-                                                    onClick={() => setNewNote(txt)}
+                                                    onClick={() => setNewNoteInterna(txt)}
                                                     className="text-[10px] px-2 py-1 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                                 >
                                                     {txt}

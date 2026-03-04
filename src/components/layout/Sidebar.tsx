@@ -24,7 +24,9 @@ import {
     Clock,
     BarChart3,
     History,
+    SlidersHorizontal,
 } from 'lucide-react';
+
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -72,8 +74,10 @@ const adminItems: MenuItem[] = [
     { icon: FileText, label: 'Nomencladores Ext.', href: '/practices/external', permission: 'nomenclators.manage' },
     { icon: Users, label: 'Usuarios', href: '/users', permission: 'users.manage' },
     { icon: CreditCard, label: 'Valores', href: '/settings/values', permission: 'config.values' },
+    { icon: SlidersHorizontal, label: 'Parametrización', href: '/parametrizacion', permission: 'config.values' },
     { icon: Database, label: 'Backup', href: '/backup', permission: 'backup.export' },
 ];
+
 
 export function Sidebar() {
     const pathname = usePathname();
