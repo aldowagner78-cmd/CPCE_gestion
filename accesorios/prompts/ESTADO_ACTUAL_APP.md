@@ -24,6 +24,33 @@
 
 ---
 
+## Cambios implementados (marzo 2026)
+
+### 1. Migración de índices trigrama para enfermedades
+- Archivo: `supabase/migrations/021_diseases_search_index.sql`
+- Índices GIN pg_trgm en `diseases.name`, `diseases.code` y combinado para búsquedas mixtas.
+- Permite búsquedas instantáneas en CIE-10, CIE-11 y DSM-5 (46.000 registros).
+
+### 2. Nueva pestaña "Patologías" en Buscador
+- Ubicada en `/buscador` junto a las pestañas de prácticas.
+- Búsqueda live por nombre/código en CIE-10, CIE-11 y DSM-5.
+- Tarjetas con: código, nombre, clasificación, botón de detalle.
+- Modal de detalle con toda la info relevante.
+- Botón "Limpiar" en todas las pestañas para resetear resultados.
+
+### 3. Fixes críticos
+- **Logout:** ahora es instantáneo y nunca se congela. Limpia estado local y recarga con `window.location.replace('/welcome')`.
+- **Chat canales:** dos inputs independientes, nunca se traslada texto entre canales.
+- **DiseaseAutocomplete:** búsqueda optimizada, debounce reducido, prioriza coincidencias exactas de código.
+- **Gemini:** prompt enriquecido, extrae todos los campos relevantes, diagnóstico se busca en la DB y no se copia directo del OCR.
+- **handleAIParsed:** prioriza código CIE y términos alternativos para búsqueda, nota generada con toda la info extraída.
+
+### 4. Commit y push
+- Todos los cambios están en los commits `c63dc87` y `70744ed` en el repo principal.
+- Requiere ejecutar la migración SQL en Supabase para máxima velocidad.
+
+---
+
 ## 1. Visión general
 
 **CPCE Salud** es una aplicación web de gestión de auditorías médicas para el Consejo Profesional de Ciencias Económicas. Corre en producción en Vercel, conecta a Supabase (PostgreSQL + Auth + Storage + Realtime).
