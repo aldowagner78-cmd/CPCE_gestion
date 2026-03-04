@@ -15,6 +15,7 @@ import {
 } from '@/services/aiService';
 import { FamilyMemberSelector } from '@/components/FamilyMemberSelector';
 import { OCRUpload, type OCRResult } from '@/components/OCRUpload';
+import { AIUploadModal } from '@/components/AIUploadModal';
 import {
     Search, Upload, AlertCircle, CheckCircle,
     Stethoscope, FlaskConical, Building2,
@@ -88,6 +89,9 @@ interface DetailedConsumption {
     providerName: string;
     quantity: number;
     source: 'expedient' | 'audit' | 'request';
+    diagnosisCode?: string;
+    diagnosisName?: string;
+    fullPractice?: any; // To store the full practice object for re-request
 }
 
 interface PendingFile {
@@ -196,6 +200,50 @@ export default function NewExpedientPage() {
     const [selectedFamilyMember, setSelectedFamilyMember] = useState<import('@/types/database').Affiliate | null>(null);
     const [ocrResult, setOcrResult] = useState<OCRResult | null>(null);
     const [showOCRUpload, setShowOCRUpload] = useState(false);
+
+    // ── Estado: IA Asistida (Gemini) ──
+    const [aiDocumentFile, setAiDocumentFile] = useState<File | null>(null);
+
+    // Handler cuando Gemini devuelve datos de un documento
+    const handleAIParsed = useCallback((
+        data: { affiliate?: string; doctor?: string; practices?: string[]; diagnosis?: string },
+        file: File
+    ) => {
+        // 1. Auto-fill the affiliate search field
+        if (data.affiliate) {
+            setAffSearch(data.affiliate);
+        }
+        // 2. Auto-fill the diagnosis field
+        if (data.diagnosis) {
+            setDiagnosis(data.diagnosis);
+            setDiagSearch(data.diagnosis.substring(0, 30));
+        }
+        // 3. Save file for attachment
+        setAiDocumentFile(file);
+        // 4. Set a note summarizing what the AI detected
+        const practicesList = data.practices?.length ? data.practices.join(', ') : '';
+        const noteLines = [
+            data.doctor ? `[IA] Médico prescriptor detectado: ${data.doctor}` : '',
+            practicesList ? `[IA] Prácticas detectadas: ${practicesList}` : '',
+        ].filter(Boolean).join('\n');
+        if (noteLines) setNotes(prev => (prev ? prev + '\n' + noteLines : noteLines));
+    }, []);
+
+    // When aiDocumentFile is set, add it to the files list automatically
+    useEffect(() => {
+        if (!aiDocumentFile) return;
+        (async () => {
+            const compressed = aiDocumentFile.type.startsWith('image/')
+                ? await compressImage(aiDocumentFile).catch(() => ({ file: aiDocumentFile, originalSize: aiDocumentFile.size, wasCompressed: false, savingsPercent: 0 }))
+                : { file: aiDocumentFile, originalSize: aiDocumentFile.size, wasCompressed: false, savingsPercent: 0 };
+            setFiles(prev => [
+                ...prev,
+                { file: compressed.file, documentType: 'orden_medica' as ExpedientDocumentType, originalSize: compressed.originalSize, wasCompressed: compressed.wasCompressed, savingsPercent: compressed.savingsPercent },
+            ]);
+            setAiDocumentFile(null);
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [aiDocumentFile]);
 
     // ── Estado: Submit ──
     const [submitting, setSubmitting] = useState(false);
@@ -390,7 +438,7 @@ export default function NewExpedientPage() {
         try {
             // Obtener expedientes con sus prácticas detalladas
             const { data: exps } = await db('expedients')
-                .select('id, expedient_number, created_at, status, resolved_by')
+                .select('id, expedient_number, created_at, status, resolved_by, diagnosis_code, diagnosis_description')
                 .eq('affiliate_id', String(affiliate.id))
                 .order('created_at', { ascending: false })
                 .limit(100);
@@ -410,7 +458,7 @@ export default function NewExpedientPage() {
             const allPracticeIds = [...new Set(expPractices.map(ep => ep.practice_id).filter(Boolean))];
             let practiceMap = new Map<unknown, Record<string, unknown>>();
             if (allPracticeIds.length > 0) {
-                const { data: practices } = await supabase.from('practices').select('id, code, name').in('id', allPracticeIds);
+                const { data: practices } = await supabase.from('practices').select('*').in('id', allPracticeIds);
                 practiceMap = new Map((practices || []).map((p: Record<string, unknown>) => [p.id, p]));
             }
 
@@ -444,6 +492,9 @@ export default function NewExpedientPage() {
                     providerName: '',
                     quantity: (ep.quantity as number) || 1,
                     source: 'expedient' as const,
+                    diagnosisCode: (exp as Record<string, unknown>).diagnosis_code as string || '',
+                    diagnosisName: (exp as Record<string, unknown>).diagnosis_description as string || '',
+                    fullPractice: prac,
                 };
             });
 
@@ -825,6 +876,11 @@ export default function NewExpedientPage() {
             </div>
 
             {/* ══════════════════════════════════════ */}
+            {/* ═  CARGA ASISTIDA CON IA              ═ */}
+            {/* ══════════════════════════════════════ */}
+            <AIUploadModal onDataParsed={handleAIParsed} />
+
+            {/* ══════════════════════════════════════ */}
             {/* ═  TIPO DE EXPEDIENTE                ═ */}
             {/* ══════════════════════════════════════ */}
             <div>
@@ -1119,72 +1175,112 @@ export default function NewExpedientPage() {
                                             return <p className="text-xs text-muted-foreground py-2">Sin consumos registrados.</p>;
                                         }
 
+                                        const currentYear = new Date().getFullYear().toString();
+                                        const groupedByDiagnosis = filtered.reduce((acc, current) => {
+                                            const diag = current.diagnosisName ? `${current.diagnosisCode} - ${current.diagnosisName}` : 'Sin diagnóstico / Varios';
+                                            if (!acc[diag]) acc[diag] = [];
+                                            acc[diag].push(current);
+                                            return acc;
+                                        }, {} as Record<string, DetailedConsumption[]>);
+
                                         return (
-                                            <div className="space-y-1 max-h-52 overflow-y-auto">
-                                                {filtered.map(c => {
-                                                    const statusColors: Record<string, string> = {
-                                                        autorizada: 'bg-green-100 text-green-700',
-                                                        autorizada_parcial: 'bg-yellow-100 text-yellow-700',
-                                                        denegada: 'bg-red-100 text-red-700',
-                                                        pendiente: 'bg-blue-100 text-blue-700',
-                                                        en_revision: 'bg-purple-100 text-purple-700',
-                                                    };
-                                                    return (
-                                                        <div key={c.id} className="flex flex-col gap-1 text-xs bg-muted/30 rounded px-2.5 py-2 hover:bg-muted/50 transition-colors">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="flex items-center gap-1 text-muted-foreground shrink-0 w-20">
-                                                                    <Clock className="h-3 w-3" />
-                                                                    {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0 flex items-center gap-1">
-                                                                    <span className="font-mono font-medium">{c.practiceCode}</span>
-                                                                    <span className="truncate" title={c.practiceName}>{c.practiceName}</span>
-                                                                    {c.quantity > 1 && <span className="text-muted-foreground"> ×{c.quantity}</span>}
-                                                                </div>
-                                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                                    {c.status.replace(/_/g, ' ')}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center justify-between mt-1 text-muted-foreground pl-[84px]">
-                                                                <div className="flex items-center gap-3">
-                                                                    {c.coveredAmount > 0 && (
-                                                                        <span className="text-green-700 font-mono" title="Monto cubierto">
-                                                                            ${c.coveredAmount.toLocaleString()}
-                                                                        </span>
-                                                                    )}
-                                                                    {c.copayAmount > 0 && (
-                                                                        <span className="text-orange-600 font-mono" title="Coseguro">
-                                                                            cos.${c.copayAmount.toLocaleString()}
-                                                                        </span>
-                                                                    )}
-                                                                    {c.auditorName && (
-                                                                        <span className="truncate max-w-[120px]" title={`Auditor: ${c.auditorName}`}>
-                                                                            👤 {c.auditorName}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                {c.expedientNumber && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <span className="font-mono" title="Nro. expediente">
-                                                                            #{c.expedientNumber}
-                                                                        </span>
-                                                                        {c.expedientId && (
-                                                                            <Link
-                                                                                href={`/audits/requests/${c.expedientId}`}
-                                                                                target="_blank"
-                                                                                className="text-primary hover:text-primary/80 transition-colors p-0.5 rounded hover:bg-primary/10"
-                                                                                title="Ver solicitud en nueva pestaña"
-                                                                            >
-                                                                                <ExternalLink className="h-3.5 w-3.5" />
-                                                                            </Link>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                            <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+                                                {Object.entries(groupedByDiagnosis).map(([diag, items]) => (
+                                                    <div key={diag} className="space-y-1.5 border border-border/50 bg-background rounded-lg p-2.5 shadow-sm">
+                                                        <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-border/50">
+                                                            <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                                                            <h4 className="text-xs font-semibold text-foreground">{diag}</h4>
+                                                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full ml-auto">{items.length} consumos</span>
                                                         </div>
-                                                    );
-                                                })}
-                                                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t">
+                                                        <div className="space-y-1.5 pl-1">
+                                                            {items.map(c => {
+                                                                const statusColors: Record<string, string> = {
+                                                                    autorizada: 'bg-green-100 text-green-700',
+                                                                    autorizada_parcial: 'bg-yellow-100 text-yellow-700',
+                                                                    denegada: 'bg-red-100 text-red-700',
+                                                                    pendiente: 'bg-blue-100 text-blue-700',
+                                                                    en_revision: 'bg-purple-100 text-purple-700',
+                                                                };
+                                                                const consumedThisYear = filtered.filter(d => d.practiceId === c.practiceId && d.date.startsWith(currentYear)).reduce((sum, d) => sum + d.quantity, 0);
+                                                                const alreadyInCart = practiceItems.some(pi => pi.practice.id === c.practiceId);
+
+                                                                return (
+                                                                    <div key={c.id} className="flex flex-col gap-1 text-xs bg-muted/20 border border-muted rounded px-2.5 py-2 hover:bg-muted/40 transition-colors">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="flex items-center gap-1 text-muted-foreground shrink-0 w-20">
+                                                                                <Clock className="h-3 w-3" />
+                                                                                {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
+                                                                            </div>
+                                                                            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                                                                                <span className="font-mono font-medium text-primary">{c.practiceCode}</span>
+                                                                                <span className="truncate flex-1" title={c.practiceName}>{c.practiceName}</span>
+                                                                                {c.quantity > 1 && <span className="text-muted-foreground bg-muted px-1 rounded-sm text-[10px]">×{c.quantity}</span>}
+                                                                            </div>
+                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
+                                                                                {c.status.replace(/_/g, ' ')}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between mt-1 pt-1 border-t border-border/30 text-muted-foreground">
+                                                                            <div className="flex items-center gap-3">
+                                                                                {consumedThisYear > 0 && (
+                                                                                    <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-sm" title={`Consumidas este año: ${consumedThisYear}`}>
+                                                                                        Límite: {consumedThisYear} / año
+                                                                                    </span>
+                                                                                )}
+                                                                                {c.coveredAmount > 0 && (
+                                                                                    <span className="text-green-700 font-mono" title="Monto cubierto">
+                                                                                        ${c.coveredAmount.toLocaleString()}
+                                                                                    </span>
+                                                                                )}
+                                                                                {c.copayAmount > 0 && (
+                                                                                    <span className="text-orange-600 font-mono" title="Coseguro">
+                                                                                        cos.${c.copayAmount.toLocaleString()}
+                                                                                    </span>
+                                                                                )}
+                                                                                {c.auditorName && (
+                                                                                    <span className="truncate max-w-[120px]" title={`Auditor: ${c.auditorName}`}>
+                                                                                        👤 {c.auditorName}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                {c.expedientNumber && (
+                                                                                    <div className="flex items-center gap-1 bg-background px-1.5 py-0.5 rounded border shadow-sm">
+                                                                                        <span className="font-mono text-[10px]" title="Nro. expediente">
+                                                                                            #{c.expedientNumber}
+                                                                                        </span>
+                                                                                        {c.expedientId && (
+                                                                                            <Link
+                                                                                                href={`/audits/requests/${c.expedientId}`}
+                                                                                                target="_blank"
+                                                                                                className="text-primary hover:text-primary/80 transition-colors p-[1px]"
+                                                                                                title="Ver solicitud en nueva pestaña"
+                                                                                            >
+                                                                                                <ExternalLink className="h-3 w-3" />
+                                                                                            </Link>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                                {c.fullPractice && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        disabled={alreadyInCart}
+                                                                                        onClick={() => !alreadyInCart && addPractice(c.fullPractice)}
+                                                                                        className={`flex items-center gap-1 ${alreadyInCart ? 'text-green-600 bg-green-50' : 'text-primary bg-primary/10 hover:bg-primary/20'} px-2 py-0.5 rounded transition-colors text-[10px] font-medium`}
+                                                                                        title={alreadyInCart ? "Práctica ya en solicitud" : "Copiar/Re-solicitar práctica"}
+                                                                                    >
+                                                                                        <Plus className="h-3 w-3" /> {alreadyInCart ? 'Agregada' : 'Re-solicitar'}
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t px-1">
                                                     <span>{filtered.length} registro(s)</span>
                                                     <span>
                                                         Cob. total: ${filtered.reduce((s, c) => s + c.coveredAmount, 0).toLocaleString()}
