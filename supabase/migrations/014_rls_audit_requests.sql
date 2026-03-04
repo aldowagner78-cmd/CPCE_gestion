@@ -134,16 +134,14 @@ CREATE POLICY "audit_attachments_storage_insert" ON storage.objects
     FOR INSERT WITH CHECK (
         bucket_id = 'audit-attachments'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
--- DELETE: solo el propietario puede eliminar su archivo
+-- DELETE: solo usuarios autenticados pueden eliminar archivos
 DROP POLICY IF EXISTS "audit_attachments_storage_delete" ON storage.objects;
 CREATE POLICY "audit_attachments_storage_delete" ON storage.objects
     FOR DELETE USING (
         bucket_id = 'audit-attachments'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
 -- =====================================================

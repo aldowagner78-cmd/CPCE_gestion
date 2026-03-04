@@ -1401,20 +1401,16 @@ export default function NewExpedientPage() {
                             </div>
                         )}
 
-                        {/* Respuestas rápidas */}
-                        <div className="flex gap-1.5 px-2 py-1.5 overflow-x-auto hide-scrollbar bg-muted/10 border-b">
-                            {commChannel === 'para_afiliado' ? (
-                                <>
-                                    <button onClick={() => setNotes('Falta orden médica original.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📎 Faltan adjuntos</button>
-                                    <button onClick={() => setNotes('Se necesita ampliación de historia clínica.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📋 Historia Clínica</button>
-                                </>
-                            ) : (
-                                <>
-                                    <button onClick={() => setNotes('Prioridad médica urgente confirmada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">⭐ Prioridad urgente</button>
-                                    <button onClick={() => setNotes('Requiere junta médica.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">👥 Junta médica</button>
-                                </>
-                            )}
-                        </div>
+                        {/* Respuestas rápidas — solo canal afiliado */}
+                        {commChannel === 'para_afiliado' && (
+                            <div className="flex gap-1.5 px-2 py-1.5 overflow-x-auto hide-scrollbar bg-blue-50/50 dark:bg-blue-950/20 border-b">
+                                <button onClick={() => setNotes('Se requiere adjuntar orden médica original.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📎 Orden médica</button>
+                                <button onClick={() => setNotes('Se necesita ampliación de historia clínica y estudios complementarios.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📋 Historia clínica</button>
+                                <button onClick={() => setNotes('Se requieren estudios complementarios recientes que justifiquen la práctica solicitada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">🔬 Estudios</button>
+                                <button onClick={() => setNotes('Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">✅ Aprobada</button>
+                                <button onClick={() => setNotes('Su solicitud se encuentra en proceso de evaluación. Le informaremos a la brevedad.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">⏳ En evaluación</button>
+                            </div>
+                        )}
 
                         {/* Input de mensaje */}
                         <div className="flex items-end gap-2 p-2 bg-background">
@@ -1586,11 +1582,22 @@ export default function NewExpedientPage() {
                     )}
 
                     {chatMessages.length > 0 && (
-                        <div className="border-t pt-2">
-                            <p className="text-xs font-semibold text-muted-foreground mb-0.5">Mensajes ({chatMessages.length})</p>
-                            {chatMessages.map((m, i) => (
-                                <p key={i} className="text-xs text-muted-foreground">• {m.text}</p>
-                            ))}
+                        <div className="border-t pt-2 space-y-1.5">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">Mensajes ({chatMessages.length})</p>
+                            {chatMessages.map((m, i) => {
+                                const isAffiliate = m.channel === 'para_afiliado';
+                                return (
+                                    <div key={i} className={`flex items-start gap-2 px-2 py-1.5 rounded-lg text-xs ${isAffiliate ? 'bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800' : 'bg-muted/50 border border-border'}`}>
+                                        <span className="shrink-0 mt-0.5">{isAffiliate ? '📢' : '🔒'}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <span className={`font-semibold ${isAffiliate ? 'text-blue-700 dark:text-blue-300' : 'text-muted-foreground'}`}>
+                                                {isAffiliate ? 'Para Afiliado' : 'Interno'}:
+                                            </span>{' '}
+                                            <span className="text-foreground">{m.text}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
