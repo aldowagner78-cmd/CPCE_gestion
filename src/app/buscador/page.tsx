@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import {
     Search, BookOpen, Loader2, Copy, FileText, Pencil, Sparkles,
-    Check, X, Database, ChevronDown, ChevronUp, Stethoscope, AlertCircle,
+    Check, X, ChevronDown, ChevronUp, Stethoscope, AlertCircle,
 } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
@@ -252,7 +252,7 @@ export default function BuscadorPage() {
 
     // Search diseases (patologías)
     const doSearchDiseases = useCallback(async (query: string) => {
-        if (query.length > 0 && query.length < 2) return
+        if (query.length < 2) { setDiseaseResults([]); setDiseaseTotal(0); return }
         setDiseaseSearching(true)
         try {
             const isCode = /^[A-Za-z]\d/.test(query.trim())
@@ -283,7 +283,7 @@ export default function BuscadorPage() {
 
     // Search practices
     const doSearch = useCallback(async (typeId: number, query: string) => {
-        if (query.length > 0 && query.length < 2) return
+        if (query.length < 2) { setResults([]); setTotalCount(0); return }
         setSearching(true)
 
         let q = supabase
@@ -317,12 +317,12 @@ export default function BuscadorPage() {
     // Tab change
     const handleTabChange = (typeId: number | 'pat') => {
         setActiveTab(typeId)
-        setSearchTerm("")
-        setResults([])
+        setSearchTerm(""); setResults([]); setTotalCount(0)
+        setDiseaseSearchTerm(''); setDiseaseResults([]); setDiseaseTotal(0)
         if (typeId === 'pat') {
             setTimeout(() => diseaseInputRef.current?.focus(), 50)
         } else {
-            searchInputRef.current?.focus()
+            setTimeout(() => searchInputRef.current?.focus(), 50)
         }
     }
 
@@ -375,14 +375,19 @@ export default function BuscadorPage() {
     // ESC to clear
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && !selectedPractice) {
-                setSearchTerm("")
-                searchInputRef.current?.focus()
+            if (e.key === 'Escape' && !selectedPractice && !selectedDisease) {
+                if (activeTab === 'pat') {
+                    setDiseaseSearchTerm(''); setDiseaseResults([]); setDiseaseTotal(0)
+                    diseaseInputRef.current?.focus()
+                } else {
+                    setSearchTerm(''); setResults([]); setTotalCount(0)
+                    searchInputRef.current?.focus()
+                }
             }
         }
         window.addEventListener('keydown', handler)
         return () => window.removeEventListener('keydown', handler)
-    }, [selectedPractice])
+    }, [selectedPractice, selectedDisease, activeTab])
 
     if (loading) {
         return (
@@ -397,15 +402,20 @@ export default function BuscadorPage() {
             {/* Header */}
             <div className="flex items-center gap-3 px-2 pb-4">
                 <div className="bg-teal-100 dark:bg-teal-900/30 p-2 rounded-lg">
-                    <BookOpen className="h-6 w-6 text-teal-700 dark:text-teal-400" />
+                    {activeTab === 'pat'
+                        ? <Stethoscope className="h-6 w-6 text-teal-700 dark:text-teal-400" />
+                        : <BookOpen className="h-6 w-6 text-teal-700 dark:text-teal-400" />
+                    }
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Buscador de Prácticas</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        {activeTab === 'pat' ? 'Buscador de Patologías' : 'Buscador de Prácticas'}
+                    </h1>
                     <p className="text-muted-foreground text-sm">
-                        Busque por código o descripción — vea la normativa de cada práctica
-                        <span className="ml-2 text-xs text-green-600 dark:text-green-400">
-                            <Database className="inline h-3 w-3 mr-0.5" />Supabase
-                        </span>
+                        {activeTab === 'pat'
+                            ? 'Busque diagnósticos por código o nombre — CIE-10, CIE-11 y DSM-5'
+                            : 'Busque por código o descripción — vea la normativa de cada práctica'
+                        }
                     </p>
                 </div>
             </div>
@@ -480,17 +490,16 @@ export default function BuscadorPage() {
                                 'Sin resultados'
                             ) : null}
                         </span>
-                        <div className="flex items-center gap-3">
-                            {results.length > 0 && (
-                                <button
-                                    onClick={() => { setSearchTerm(''); setResults([]); searchInputRef.current?.focus() }}
-                                    className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors"
-                                >
-                                    <X className="h-3 w-3" /> Limpiar
-                                </button>
-                            )}
-                            <span className="text-xs text-slate-400 hidden md:block">ESC para limpiar</span>
-                        </div>
+                        {searchTerm && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setSearchTerm(''); setResults([]); setTotalCount(0); searchInputRef.current?.focus() }}
+                                className="h-7 text-xs gap-1 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:hover:bg-red-900/30"
+                            >
+                                <X className="h-3 w-3" /> Limpiar búsqueda
+                            </Button>
+                        )}
                     </div>
                 </div>
                 )}
@@ -528,31 +537,28 @@ export default function BuscadorPage() {
                                 'Sin resultados'
                             ) : null}
                         </span>
-                        <div className="flex items-center gap-3">
-                            {diseaseResults.length > 0 && (
-                                <button
-                                    onClick={() => { setDiseaseSearchTerm(''); setDiseaseResults([]); diseaseInputRef.current?.focus() }}
-                                    className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors"
-                                >
-                                    <X className="h-3 w-3" /> Limpiar
-                                </button>
-                            )}
-                            <span className="text-xs text-slate-400 hidden md:block">ESC para limpiar</span>
-                        </div>
+                        {diseaseSearchTerm && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setDiseaseSearchTerm(''); setDiseaseResults([]); setDiseaseTotal(0); diseaseInputRef.current?.focus() }}
+                                className="h-7 text-xs gap-1 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:hover:bg-red-900/30"
+                            >
+                                <X className="h-3 w-3" /> Limpiar búsqueda
+                            </Button>
+                        )}
                     </div>
                 </div>
                 )}
 
                 {/* Results — Patologías */}
-                {activeTab === 'pat' && (
+                {activeTab === 'pat' && diseaseSearchTerm.length >= 2 && (
                 <div className="min-h-[300px] max-h-[60vh] overflow-y-auto p-4 md:p-6 space-y-3">
                     {diseaseResults.length === 0 && !diseaseSearching && (
                         <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                             <Stethoscope className="h-12 w-12 mb-3 opacity-50" />
                             <p className="text-base">
-                                {diseaseSearchTerm.length < 2
-                                    ? 'Escriba al menos 2 caracteres — busca en CIE-10, CIE-11 y DSM-5'
-                                    : `No se encontraron patologías para "${diseaseSearchTerm}"`}
+                                {`No se encontraron patologías para "${diseaseSearchTerm}"`}
                             </p>
                         </div>
                     )}
@@ -649,16 +655,13 @@ export default function BuscadorPage() {
                 )}
 
                 {/* Results — Prácticas */}
-                {activeTab !== 'pat' && (
+                {activeTab !== 'pat' && searchTerm.length >= 2 && (
                 <div className="min-h-[300px] max-h-[60vh] overflow-y-auto p-4 md:p-6 space-y-3">
                     {results.length === 0 && !searching && (
                         <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                             <BookOpen className="h-12 w-12 mb-3 opacity-50" />
                             <p className="text-base">
-                                {searchTerm.length < 2
-                                    ? "Escriba al menos 2 caracteres para buscar"
-                                    : `No se encontraron resultados para "${searchTerm}"`
-                                }
+                                {`No se encontraron resultados para "${searchTerm}"`}
                             </p>
                         </div>
                     )}
