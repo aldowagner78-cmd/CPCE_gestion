@@ -38,31 +38,26 @@ export default function WelcomePage() {
     return (
         <div className="h-screen overflow-hidden relative flex items-center justify-center">
             {/* Animated Background - dims when auth modal appears */}
-            <div className={`absolute inset-0 transition-all duration-1000 ${
-                phase === 'splash'
+            <div className={`absolute inset-0 transition-all duration-1000 ${phase === 'splash'
                     ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700'
                     : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900'
-            }`} />
-            <div className={`absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full blur-3xl transition-opacity duration-1000 ${
-                phase === 'splash' ? 'bg-blue-400/20 animate-pulse' : 'bg-blue-400/5'
-            }`} />
-            <div className={`absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl transition-opacity duration-1000 ${
-                phase === 'splash' ? 'bg-purple-400/20 animate-pulse' : 'bg-purple-400/5'
-            }`} />
-            <div className={`absolute top-[30%] right-[20%] w-[300px] h-[300px] rounded-full blur-2xl transition-opacity duration-1000 ${
-                phase === 'splash' ? 'bg-indigo-300/10 animate-pulse' : 'bg-indigo-300/5'
-            }`} style={{ animationDelay: '1s' }} />
+                }`} />
+            <div className={`absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full blur-3xl transition-opacity duration-1000 ${phase === 'splash' ? 'bg-blue-400/20 animate-pulse' : 'bg-blue-400/5'
+                }`} />
+            <div className={`absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl transition-opacity duration-1000 ${phase === 'splash' ? 'bg-purple-400/20 animate-pulse' : 'bg-purple-400/5'
+                }`} />
+            <div className={`absolute top-[30%] right-[20%] w-[300px] h-[300px] rounded-full blur-2xl transition-opacity duration-1000 ${phase === 'splash' ? 'bg-indigo-300/10 animate-pulse' : 'bg-indigo-300/5'
+                }`} style={{ animationDelay: '1s' }} />
 
             {/* Content Container - centered, no scroll */}
             <div className="relative z-10 w-full max-w-md px-4 flex flex-col items-center">
 
                 {/* SPLASH PHASE: Logo + Title + Message */}
                 <div
-                    className={`flex flex-col items-center text-center transition-all duration-700 ease-in-out ${
-                        phase === 'splash'
+                    className={`flex flex-col items-center text-center transition-all duration-700 ease-in-out ${phase === 'splash'
                             ? 'opacity-100 translate-y-0'
                             : 'opacity-0 -translate-y-8 absolute pointer-events-none'
-                    }`}
+                        }`}
                 >
                     {/* Logo */}
                     <div className="w-28 h-28 p-4 bg-white/95 rounded-full shadow-2xl flex items-center justify-center ring-4 ring-white/30 mb-8">
@@ -99,11 +94,10 @@ export default function WelcomePage() {
 
                 {/* AUTH PHASE: Small logo + Auth Modal */}
                 <div
-                    className={`w-full flex flex-col items-center transition-all duration-700 ease-in-out ${
-                        phase === 'auth'
+                    className={`w-full flex flex-col items-center transition-all duration-700 ease-in-out ${phase === 'auth'
                             ? 'opacity-100 translate-y-0'
                             : 'opacity-0 translate-y-8 absolute pointer-events-none'
-                    }`}
+                        }`}
                 >
                     {/* Auth Modal (logo integrated in card header) */}
                     <AuthModal
@@ -114,7 +108,7 @@ export default function WelcomePage() {
 
                     {/* Footer */}
                     <p className="text-blue-200/60 text-xs mt-6 text-center">
-                        © 2024 CPCE Salud · Acceso restringido
+                        © 2026 CPCE Salud · Acceso restringido
                     </p>
                 </div>
             </div>
