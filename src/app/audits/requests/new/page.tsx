@@ -194,6 +194,12 @@ export default function NewExpedientPage() {
     const [evaluating, setEvaluating] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
 
+    // ── Estado: Linterna Auditor (Adjuntos Históricos) ──
+    const [viewingAttachmentsFor, setViewingAttachmentsFor] = useState<{ expedientId: string, expedientNumber: string } | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [attachments, setAttachments] = useState<any[]>([]);
+    const [loadingAttachments, setLoadingAttachments] = useState(false);
+
     // ── Estado: IA (Etapa 1) ──
     const [aiPriorityResult, setAiPriorityResult] = useState<ClinicalPriorityResult | null>(null);
     const [coherenceResult, setCoherenceResult] = useState<CoherenceCheckResult | null>(null);
@@ -427,6 +433,30 @@ export default function NewExpedientPage() {
         setConsumptionPracticeFilter('');
         setViewingHistoryFor(null);
     }, []);
+
+    // ═══════════════════════════════════════════
+    // ═  ADJUNTOS HISTÓRICOS (LINTERNA AUDITOR)
+    // ═══════════════════════════════════════════
+
+    const viewAttachments = async (expedientId: string, expedientNumber: string) => {
+        setViewingAttachmentsFor({ expedientId, expedientNumber });
+        setLoadingAttachments(true);
+        try {
+            const { data } = await db('audit_request_attachments')
+                .select('*')
+                .eq('request_id', expedientId)
+                .order('created_at', { ascending: false });
+            setAttachments(data || []);
+        } catch {
+            setAttachments([]);
+        }
+        setLoadingAttachments(false);
+    };
+
+    const closeAttachments = () => {
+        setViewingAttachmentsFor(null);
+        setAttachments([]);
+    };
 
     // ═══════════════════════════════════════════
     // ═  CONSUMOS DEL AFILIADO
@@ -1930,9 +1960,18 @@ export default function NewExpedientPage() {
                                                         </span>
                                                     )}
                                                     {c.expedientNumber && (
-                                                        <span className="text-muted-foreground font-mono text-xs shrink-0 bg-background px-1.5 py-0.5 rounded border">
-                                                            #{c.expedientNumber}
-                                                        </span>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <span className="text-muted-foreground font-mono text-xs bg-background px-1.5 py-0.5 rounded border">
+                                                                #{c.expedientNumber}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => viewAttachments(c.expedientId, c.expedientNumber)}
+                                                                title="Ver adjuntos históricos"
+                                                                className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                                            >
+                                                                <Paperclip className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             );
@@ -1946,6 +1985,71 @@ export default function NewExpedientPage() {
                                     </div>
                                 );
                             })()}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Adjuntos Históricos (Linterna Auditor) */}
+            {viewingAttachmentsFor && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-background rounded-xl p-5 w-full max-w-2xl shadow-xl flex flex-col max-h-[80vh]">
+                        <div className="flex justify-between items-center mb-4 pb-3 border-b">
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                <Paperclip className="h-5 w-5 text-blue-600" />
+                                Adjuntos del Expediente: <span className="text-muted-foreground">#{viewingAttachmentsFor.expedientNumber}</span>
+                            </h3>
+                            <button onClick={closeAttachments} className="p-1 hover:bg-muted rounded transition-colors"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-1">
+                            {loadingAttachments ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                                    <span className="text-sm text-muted-foreground">Cargando adjuntos...</span>
+                                </div>
+                            ) : attachments.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+                                    <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm font-medium">Sin adjuntos</p>
+                                    <p className="text-xs">No se encontraron archivos en este expediente histórico.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {attachments.map(att => (
+                                        <div key={att.id} className="border rounded-lg overflow-hidden group bg-card flex flex-col">
+                                            <div className="p-3 bg-muted/40 border-b flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-semibold truncate" title={att.file_name}>{att.file_name}</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">{att.file_type || 'Archivo'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="p-3 flex items-center justify-center flex-1 bg-muted/10">
+                                                {att.file_type?.toLowerCase().includes('pdf') ? (
+                                                    <div className="text-center">
+                                                        <FileText className="h-8 w-8 mx-auto text-red-500 mb-2 opacity-80 group-hover:opacity-100 transition-opacity" />
+                                                        <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Abrir PDF</a>
+                                                    </div>
+                                                ) : att.file_type?.toLowerCase().includes('image') ? (
+                                                    <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full text-center">
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img src={att.file_url} alt={att.file_name} className="max-h-32 mx-auto object-contain rounded border bg-background" />
+                                                        <span className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block">Ampliar imagen</span>
+                                                    </a>
+                                                ) : (
+                                                    <div className="text-center">
+                                                        <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
+                                                        <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Descargar</a>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="p-2 border-t bg-muted/20 text-[10px] text-muted-foreground flex justify-between">
+                                                <span className="truncate">Por: {att.attached_by_name || 'Sistema'}</span>
+                                                <span className="shrink-0">{new Date(att.created_at).toLocaleDateString('es-AR')}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

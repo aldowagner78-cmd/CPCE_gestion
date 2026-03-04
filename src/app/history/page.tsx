@@ -11,7 +11,7 @@ import {
     ChevronDown, ChevronUp, Clock,
     ArrowLeft, X, Loader2,
     CheckCircle, AlertCircle,
-    History,
+    History, Paperclip, FileText, FileImage
 } from 'lucide-react';
 import Link from 'next/link';
 import type { Affiliate } from '@/types/database';
@@ -33,6 +33,7 @@ interface HistoryRecord {
     copayAmount: number;
     practiceValue: number;
     coveragePercent: number;
+    expedientId: string;
     expedientNumber: string;
     expedientType: string;
     auditorName: string;
@@ -105,6 +106,14 @@ export default function HistoryPage() {
     const [viewMode, setViewMode] = useState<'detail' | 'summary'>('detail');
     const [sortField, setSortField] = useState<'date' | 'practice' | 'amount'>('date');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+    // Estado: Adjuntos (Linterna Auditor)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [viewingAttachmentsFor, setViewingAttachmentsFor] = useState<{ expedientId: string, expedientNumber: string } | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [attachments, setAttachments] = useState<any[]>([]);
+    const [loadingAttachments, setLoadingAttachments] = useState(false);
+
 
     // ═══════════════════════════════════════════
     // ═  BÚSQUEDA AFILIADOS
@@ -212,6 +221,7 @@ export default function HistoryPage() {
                     copayAmount: (ep.copay_amount as number) || 0,
                     practiceValue: (ep.practice_value as number) || 0,
                     coveragePercent: (ep.coverage_percent as number) || 0,
+                    expedientId: (ep.expedient_id as string) || '',
                     expedientNumber: (exp.expedient_number as string) || '',
                     expedientType: (exp.type as string) || '',
                     auditorName: auditorMap.get(exp.resolved_by) || '',
@@ -252,8 +262,12 @@ export default function HistoryPage() {
         if (filterDateFrom && r.date < filterDateFrom) return false;
         if (filterDateTo && r.date > filterDateTo + 'T23:59:59') return false;
         if (filterStatus && r.status !== filterStatus) return false;
-        if (filterPractice && !r.practiceCode.toLowerCase().includes(filterPractice.toLowerCase()) &&
-            !r.practiceName.toLowerCase().includes(filterPractice.toLowerCase())) return false;
+        if (filterPractice) {
+            const term = filterPractice.toLowerCase();
+            const matchPractice = r.practiceCode.toLowerCase().includes(term) || r.practiceName.toLowerCase().includes(term);
+            const matchDiagnosis = (r.diagnosisCode || '').toLowerCase().includes(term) || (r.diagnosisDescription || '').toLowerCase().includes(term);
+            if (!matchPractice && !matchDiagnosis) return false;
+        }
         if (filterType && r.expedientType !== filterType) return false;
         return true;
     }).sort((a, b) => {
@@ -322,6 +336,30 @@ export default function HistoryPage() {
         a.download = `historial_${affiliate?.document_number || 'aff'}_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    // ═══════════════════════════════════════════
+    // ═  ADJUNTOS (LINTERNA AUDITOR)
+    // ═══════════════════════════════════════════
+
+    const viewAttachments = async (expedientId: string, expedientNumber: string) => {
+        setViewingAttachmentsFor({ expedientId, expedientNumber });
+        setLoadingAttachments(true);
+        try {
+            const { data } = await db('audit_request_attachments')
+                .select('*')
+                .eq('request_id', expedientId)
+                .order('created_at', { ascending: false });
+            setAttachments(data || []);
+        } catch {
+            setAttachments([]);
+        }
+        setLoadingAttachments(false);
+    };
+
+    const closeAttachments = () => {
+        setViewingAttachmentsFor(null);
+        setAttachments([]);
     };
 
     // ═══════════════════════════════════════════
@@ -548,9 +586,9 @@ export default function HistoryPage() {
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[10px] text-muted-foreground block mb-0.5">Práctica</label>
+                                <label className="text-[10px] text-muted-foreground block mb-0.5">Buscar (Práctica o CIE-10)</label>
                                 <Input value={filterPractice} onChange={e => setFilterPractice(e.target.value)}
-                                    placeholder="Código o nombre" className="h-8 text-xs w-40" />
+                                    placeholder="Palabras clave..." className="h-8 text-xs w-48" />
                             </div>
                             <div>
                                 <label className="text-[10px] text-muted-foreground block mb-0.5">Tipo</label>
@@ -621,7 +659,20 @@ export default function HistoryPage() {
                                                         <td className="px-3 py-2 text-right font-mono">{r.coveragePercent > 0 ? `${r.coveragePercent.toFixed(0)}%` : '-'}</td>
                                                         <td className="px-3 py-2 text-right font-mono text-green-700">{r.coveredAmount > 0 ? `$${r.coveredAmount.toLocaleString()}` : '-'}</td>
                                                         <td className="px-3 py-2 text-right font-mono text-orange-600">{r.copayAmount > 0 ? `$${r.copayAmount.toLocaleString()}` : '-'}</td>
-                                                        <td className="px-3 py-2 font-mono text-muted-foreground">{r.expedientNumber || '-'}</td>
+                                                        <td className="px-3 py-2 font-mono text-muted-foreground">
+                                                            <div className="flex items-center gap-2">
+                                                                {r.expedientNumber || '-'}
+                                                                {r.expedientNumber && (
+                                                                    <button
+                                                                        onClick={() => viewAttachments(r.expedientId, r.expedientNumber)}
+                                                                        className="p-1 hover:bg-muted rounded text-blue-600 dark:text-blue-400"
+                                                                        title="Ver documentos adjuntos de este expediente"
+                                                                    >
+                                                                        <Paperclip className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
                                                         <td className="px-3 py-2 text-muted-foreground capitalize">{r.expedientType || '-'}</td>
                                                         <td className="px-3 py-2 text-muted-foreground truncate max-w-[100px]">{r.auditorName || '-'}</td>
                                                         <td className="px-3 py-2 font-mono text-muted-foreground">{r.diagnosisCode || '-'}</td>
@@ -705,6 +756,71 @@ export default function HistoryPage() {
                         Este módulo muestra todos los consumos registrados con fechas, estados, montos cubiertos,
                         coseguros, auditores y diagnósticos — ideal para análisis y auditoría con IA.
                     </p>
+                </div>
+            )}
+
+            {/* Modal de Adjuntos (Linterna Auditor) */}
+            {viewingAttachmentsFor && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-background rounded-xl p-5 w-full max-w-2xl shadow-xl flex flex-col max-h-[80vh]">
+                        <div className="flex justify-between items-center mb-4 pb-3 border-b">
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                <Paperclip className="h-5 w-5 text-blue-600" />
+                                Adjuntos del Expediente: <span className="text-muted-foreground">#{viewingAttachmentsFor.expedientNumber}</span>
+                            </h3>
+                            <button onClick={closeAttachments} className="p-1 hover:bg-muted rounded transition-colors"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-1">
+                            {loadingAttachments ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                                    <span className="text-sm text-muted-foreground">Cargando adjuntos...</span>
+                                </div>
+                            ) : attachments.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+                                    <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm font-medium">Sin adjuntos</p>
+                                    <p className="text-xs">No se encontraron archivos en este expediente.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {attachments.map(att => (
+                                        <div key={att.id} className="border rounded-lg overflow-hidden group bg-card flex flex-col">
+                                            <div className="p-3 bg-muted/40 border-b flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-semibold truncate" title={att.file_name}>{att.file_name}</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">{att.file_type || 'Archivo'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="p-3 flex items-center justify-center flex-1 bg-muted/10">
+                                                {att.file_type?.toLowerCase().includes('pdf') ? (
+                                                    <div className="text-center">
+                                                        <FileText className="h-8 w-8 mx-auto text-red-500 mb-2 opacity-80 group-hover:opacity-100 transition-opacity" />
+                                                        <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Abrir PDF en pestaña</a>
+                                                    </div>
+                                                ) : att.file_type?.toLowerCase().includes('image') ? (
+                                                    <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full text-center">
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img src={att.file_url} alt={att.file_name} className="max-h-32 mx-auto object-contain rounded border bg-background" />
+                                                        <span className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block">Ampliar imagen</span>
+                                                    </a>
+                                                ) : (
+                                                    <div className="text-center">
+                                                        <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
+                                                        <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Descargar archivo</a>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="p-2 border-t bg-muted/20 text-[10px] text-muted-foreground flex justify-between">
+                                                <span className="truncate">Por: {att.attached_by_name || 'Sistema'}</span>
+                                                <span className="shrink-0">{new Date(att.created_at).toLocaleDateString('es-AR')}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
