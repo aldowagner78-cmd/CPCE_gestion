@@ -119,7 +119,7 @@ function ExpedientList({
         return (
             <div className="text-center py-12 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p>No hay expedientes con estos filtros</p>
+                <p>No hay solicitudes con estos filtros</p>
             </div>
         );
     }
@@ -183,9 +183,22 @@ function ExpedientList({
                             </div>
                         </div>
 
-                        <p className="font-medium mt-1.5 truncate text-sm">
-                            Afiliado #{String(exp.affiliate_id).slice(0, 8)}
-                        </p>
+                        <div className="mt-1.5">
+                            <p className="font-medium truncate text-sm">
+                                {exp.affiliate?.full_name || `Afiliado #${String(exp.affiliate_id).slice(0, 8)}`}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                {exp.affiliate?.affiliate_number && (
+                                    <span className="text-[10px] font-mono text-muted-foreground">N° {exp.affiliate.affiliate_number}</span>
+                                )}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${exp.affiliate?.titular_id ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'}`}>
+                                    {exp.affiliate?.titular_id ? 'Adherente' : 'Titular'}
+                                </span>
+                                {exp.family_member_relation && (
+                                    <span className="text-[10px] text-muted-foreground">({exp.family_member_relation})</span>
+                                )}
+                            </div>
+                        </div>
 
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -583,17 +596,31 @@ function ExpedientDetail({
     const handlePolishText = () => {
         if (!newNote.trim()) return;
         setAiLoading(true);
-        const empathyPhrases = [
-            'Le informamos que ',
-            'Nos comunicamos para indicarle que ',
-            'A fin de brindarle la mejor atención, ',
-            'Con el objetivo de resolver su solicitud, ',
-        ];
-        const closing = commChannel === 'para_afiliado'
-            ? ' Quedamos a su disposición ante cualquier consulta.'
-            : ' Se solicita revisarlo a la brevedad.';
-        const opener = empathyPhrases[newNote.length % empathyPhrases.length];
-        const polished = opener + newNote.trim().charAt(0).toLowerCase() + newNote.trim().slice(1) + closing;
+        const raw = newNote.trim();
+        const sentence = raw.charAt(0).toUpperCase() + raw.slice(1);
+        const withPeriod = sentence.endsWith('.') || sentence.endsWith('!') || sentence.endsWith('?')
+            ? sentence : sentence + '.';
+
+        let polished: string;
+        if (commChannel === 'para_afiliado') {
+            const openers = [
+                'Estimado/a afiliado/a, le informamos que ',
+                'Nos comunicamos para informarle que ',
+                'En relación con su solicitud, le comunicamos que ',
+                'A fin de brindarle la mejor atención, le indicamos que ',
+            ];
+            const opener = openers[raw.length % openers.length];
+            polished = opener + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)
+                + ' Quedamos a su disposición ante cualquier consulta.';
+        } else {
+            const openers = [
+                'Nota interna: ',
+                'Para consideración del auditor: ',
+                'Observación: ',
+            ];
+            const opener = openers[raw.length % openers.length];
+            polished = opener + withPeriod;
+        }
         setNewNote(polished);
         setAiLoading(false);
     };
@@ -697,7 +724,7 @@ function ExpedientDetail({
                             size="sm"
                             className="text-orange-600 border-orange-200 hover:bg-orange-50"
                             onClick={() => setShowExpedientAction(showExpedientAction === 'observar' ? null : 'observar')}
-                            title="Observar expediente"
+                            title="Observar solicitud"
                         >
                             <AlertTriangle className="h-4 w-4 mr-1" /> Observar
                         </Button>
@@ -722,7 +749,7 @@ function ExpedientDetail({
                             size="sm"
                             className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             onClick={() => setShowExpedientAction(showExpedientAction === 'anular' ? null : 'anular')}
-                            title="Anular expediente"
+                            title="Anular solicitud"
                         >
                             <XOctagon className="h-4 w-4" />
                         </Button>
@@ -762,7 +789,7 @@ function ExpedientDetail({
                     <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl space-y-2">
                         <p className="text-xs font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wider">
                             <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
-                            Observar Expediente
+                            Observar Solicitud
                         </p>
                         <p className="text-xs text-orange-700 dark:text-orange-400">
                             Devolver al administrativo con observaciones. Deberá completar documentación.
@@ -793,10 +820,10 @@ function ExpedientDetail({
                     <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl space-y-2">
                         <p className="text-xs font-bold text-red-800 dark:text-red-300 uppercase tracking-wider">
                             <XOctagon className="h-3.5 w-3.5 inline mr-1" />
-                            Anular Expediente
+                            Anular Solicitud
                         </p>
                         <p className="text-xs text-red-700 dark:text-red-400">
-                            Esta acción es irreversible. El expediente quedará anulado permanentemente.
+                            Esta acción es irreversible. La solicitud quedará anulada permanentemente.
                         </p>
                         <textarea
                             value={resolutionNotes}
@@ -823,7 +850,7 @@ function ExpedientDetail({
                 {isObserved && isAdmin && showExpedientAction !== 'anular' && (
                     <div className="mt-3 p-3 border border-orange-200 dark:border-orange-800 rounded-xl bg-orange-50/50 dark:bg-orange-950/20 space-y-2">
                         <p className="text-xs font-bold text-orange-700 uppercase tracking-wider">
-                            📋 Expediente observado por el auditor
+                            ⚠ Solicitud observada por el auditor
                         </p>
                         <p className="text-xs text-muted-foreground">
                             Adjunte documentación adicional y reenvíe a auditoría.
@@ -1511,7 +1538,7 @@ export default function AuditRequestsPage() {
                             <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                         </Link>
                         <div>
-                            <h1 className="text-xl font-bold">Expedientes de Auditoría</h1>
+                            <h1 className="text-xl font-bold">Solicitudes de Auditoría</h1>
                             <p className="text-sm text-muted-foreground">
                                 {pendingTotal} pendiente{pendingTotal !== 1 ? 's' : ''} de resolución
                                 {user && <span className="ml-1">• {user.full_name}</span>}
@@ -1571,7 +1598,7 @@ export default function AuditRequestsPage() {
                     {loading ? (
                         <div className="text-center py-12 text-muted-foreground">
                             <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin opacity-30" />
-                            <p className="text-sm">Cargando expedientes...</p>
+                            <p className="text-sm">Cargando solicitudes...</p>
                         </div>
                     ) : (
                         <ExpedientList
@@ -1598,7 +1625,7 @@ export default function AuditRequestsPage() {
                     <div className="flex-1 hidden md:flex items-center justify-center text-muted-foreground">
                         <div className="text-center">
                             <FileText className="h-16 w-16 mx-auto mb-3 opacity-20" />
-                            <p className="text-lg">Seleccione un expediente</p>
+                            <p className="text-lg">Seleccione una solicitud</p>
                             <p className="text-sm">para ver el detalle y resolver prácticas</p>
                         </div>
                     </div>

@@ -186,7 +186,7 @@ export const ExpedientService = {
         offset?: number;
     }): Promise<{ data: Expedient[]; count: number }> {
         let query = db('expedients')
-            .select('*', { count: 'exact' })
+            .select('*, affiliate:affiliates(*)', { count: 'exact' })
             .order('created_at', { ascending: false });
 
         if (filters?.jurisdiction_id) query = query.eq('jurisdiction_id', filters.jurisdiction_id);
@@ -211,7 +211,7 @@ export const ExpedientService = {
 
     async fetchPending(jurisdictionId: number, type?: ExpedientType): Promise<Expedient[]> {
         let query = db('expedients')
-            .select('*')
+            .select('*, affiliate:affiliates(*)')
             .eq('jurisdiction_id', jurisdictionId)
             .in('status', ['pendiente', 'en_revision', 'parcialmente_resuelto', 'observada'])
             .order('priority', { ascending: true })   // urgente primero

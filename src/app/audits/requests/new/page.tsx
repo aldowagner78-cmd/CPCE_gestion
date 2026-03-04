@@ -206,17 +206,35 @@ export default function NewExpedientPage() {
     const handlePolishText = () => {
         if (!notes.trim()) return;
         setAiLoading(true);
-        const empathyPhrases = [
-            'Le informamos que ',
-            'Nos comunicamos para indicarle que ',
-            'A fin de brindarle la mejor atención, ',
-            'Con el objetivo de resolver su solicitud, ',
-        ];
-        const closing = commChannel === 'para_afiliado'
-            ? ' Quedamos a su disposición ante cualquier consulta.'
-            : ' Se solicita revisarlo a la brevedad.';
-        const opener = empathyPhrases[notes.length % empathyPhrases.length];
-        const polished = opener + notes.trim().charAt(0).toLowerCase() + notes.trim().slice(1) + closing;
+        const raw = notes.trim();
+        // Ensure first letter uppercase
+        const sentence = raw.charAt(0).toUpperCase() + raw.slice(1);
+        // Ensure ends with period
+        const withPeriod = sentence.endsWith('.') || sentence.endsWith('!') || sentence.endsWith('?')
+            ? sentence : sentence + '.';
+
+        let polished: string;
+        if (commChannel === 'para_afiliado') {
+            // Formal, empathetic tone for the affiliate
+            const openers = [
+                'Estimado/a afiliado/a, le informamos que ',
+                'Nos comunicamos para informarle que ',
+                'En relación con su solicitud, le comunicamos que ',
+                'A fin de brindarle la mejor atención, le indicamos que ',
+            ];
+            const opener = openers[raw.length % openers.length];
+            polished = opener + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)
+                + ' Quedamos a su disposición ante cualquier consulta.';
+        } else {
+            // Concise, professional tone for the auditor
+            const openers = [
+                'Nota interna: ',
+                'Para consideración del auditor: ',
+                'Observación: ',
+            ];
+            const opener = openers[raw.length % openers.length];
+            polished = opener + withPeriod;
+        }
         setNotes(polished);
         setAiLoading(false);
     };
@@ -1403,12 +1421,22 @@ export default function NewExpedientPage() {
 
                         {/* Respuestas rápidas — solo canal afiliado */}
                         {commChannel === 'para_afiliado' && (
-                            <div className="flex gap-1.5 px-2 py-1.5 overflow-x-auto hide-scrollbar bg-blue-50/50 dark:bg-blue-950/20 border-b">
-                                <button onClick={() => setNotes('Se requiere adjuntar orden médica original.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📎 Orden médica</button>
-                                <button onClick={() => setNotes('Se necesita ampliación de historia clínica y estudios complementarios.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📋 Historia clínica</button>
-                                <button onClick={() => setNotes('Se requieren estudios complementarios recientes que justifiquen la práctica solicitada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">🔬 Estudios</button>
-                                <button onClick={() => setNotes('Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">✅ Aprobada</button>
-                                <button onClick={() => setNotes('Su solicitud se encuentra en proceso de evaluación. Le informaremos a la brevedad.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">⏳ En evaluación</button>
+                            <div className="px-2 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border-b space-y-1">
+                                <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
+                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar orden médica original firmada por el médico tratante.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📎 Orden médica</button>
+                                    <button type="button" onClick={() => setNotes('Se necesita adjuntar historia clínica completa y actualizada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">📋 Historia clínica</button>
+                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar últimos resultados de laboratorio.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">🧪 Laboratorio</button>
+                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar estudios por imágenes previos (radiografías, ecografías, resonancias, etc.).')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">🔬 Imágenes</button>
+                                    <button type="button" onClick={() => setNotes('Se requiere adjuntar estudios complementarios recientes que justifiquen la práctica solicitada.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-muted-foreground hover:bg-muted transition-colors whitespace-nowrap">� Estudios previos</button>
+                                </div>
+                                <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
+                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-green-600 hover:bg-green-50 transition-colors whitespace-nowrap">✅ Aprobada</button>
+                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido aprobada parcialmente. Algunas prácticas requieren documentación adicional.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-amber-600 hover:bg-amber-50 transition-colors whitespace-nowrap">⚠️ Aprobada parcial</button>
+                                    <button type="button" onClick={() => setNotes('Su solicitud se encuentra en proceso de evaluación. Le informaremos a la brevedad.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap">⏳ En evaluación</button>
+                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido denegada por falta de documentación respaldatoria.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">❌ Denegada: falta documentación</button>
+                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido denegada por prescripción médica vencida. Se requiere nueva orden vigente.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">❌ Denegada: prescripción vencida</button>
+                                    <button type="button" onClick={() => setNotes('Su solicitud ha sido denegada por no encontrarse dentro de las coberturas del plan.')} className="shrink-0 px-2.5 py-1 rounded-full bg-background border text-[10px] text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">❌ Denegada: sin cobertura</button>
+                                </div>
                             </div>
                         )}
 
