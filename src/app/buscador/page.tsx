@@ -43,7 +43,12 @@ interface DiseaseRecord {
     name: string
     classification: string   // CIE-10 | CIE-11 | DSM-5
     level: string | null
+    category: string | null
     description: string | null
+    synonyms: string[] | null
+    criteria: string[] | null
+    exclusions: string[] | null
+    clinical_notes: string | null
     is_chronic: boolean | null
     requires_authorization: boolean | null
 }
@@ -177,7 +182,7 @@ export default function BuscadorPage() {
             const filter = query.length >= 2 ? `${nameFilter},${codeFilter}` : ''
             let q = supabase
                 .from('diseases' as any)
-                .select('id, code, name, classification, level, description, is_chronic, requires_authorization', { count: 'exact' })
+                .select('id, code, name, classification, level, category, description, synonyms, criteria, exclusions, clinical_notes, is_chronic, requires_authorization', { count: 'exact' })
             if (filter) q = (q as any).or(filter)
             const { data, count } = await (q as any).order('code').limit(30)
             setDiseaseResults((data ?? []) as DiseaseRecord[])
@@ -482,7 +487,7 @@ export default function BuscadorPage() {
                                     bg-white dark:bg-slate-800 border-l-4 border-l-indigo-400`}
                                 style={{ animationDelay: `${idx * 20}ms` }}
                             >
-                                {/* Top row */}
+                                {/* Top row: código + clasificación + nivel */}
                                 <div className="flex items-center gap-2 flex-wrap mb-1">
                                     <span className="font-mono font-bold text-lg text-indigo-600 dark:text-indigo-400">
                                         {d.code}
@@ -491,16 +496,28 @@ export default function BuscadorPage() {
                                         {d.classification}
                                     </span>
                                     {d.level && (
-                                        <span className="text-xs text-muted-foreground ml-auto">
+                                        <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">
                                             {d.level}
+                                        </span>
+                                    )}
+                                    {d.category && (
+                                        <span className="text-xs font-medium text-indigo-500 dark:text-indigo-400 ml-auto">
+                                            {d.category}
                                         </span>
                                     )}
                                 </div>
 
                                 {/* Nombre */}
-                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-snug mb-2">
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-snug mb-1">
                                     {d.name}
                                 </p>
+
+                                {/* Sinónimos preview */}
+                                {d.synonyms && d.synonyms.length > 0 && (
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-1 italic">
+                                        {d.synonyms.slice(0, 3).join(' · ')}
+                                    </p>
+                                )}
 
                                 {/* Descripción preview */}
                                 {d.description && (
@@ -657,40 +674,122 @@ export default function BuscadorPage() {
                                     <span className="block text-3xl md:text-4xl font-mono font-bold tracking-widest select-all text-indigo-600 dark:text-indigo-400">
                                         {selectedDisease.code}
                                     </span>
-                                    <span className={`inline-block mt-2 text-xs font-semibold px-3 py-1 rounded-full border ${clsTh.bg} ${clsTh.text} ${clsTh.border}`}>
-                                        {cls}
-                                    </span>
+                                    <div className="flex justify-center gap-2 mt-2 flex-wrap">
+                                        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${clsTh.bg} ${clsTh.text} ${clsTh.border}`}>
+                                            {cls}
+                                        </span>
+                                        {selectedDisease.level && (
+                                            <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full">
+                                                {selectedDisease.level}
+                                            </span>
+                                        )}
+                                        {selectedDisease.is_chronic && (
+                                            <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 px-3 py-1 rounded-full">
+                                                Crónica
+                                            </span>
+                                        )}
+                                        {selectedDisease.requires_authorization && (
+                                            <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-3 py-1 rounded-full flex items-center gap-1">
+                                                <AlertCircle className="h-3 w-3" /> Req. autorización
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Nombre */}
-                                <p className="text-sm text-slate-700 dark:text-slate-300 text-center font-semibold px-2 leading-snug">
+                                <p className="text-base text-slate-800 dark:text-slate-200 text-center font-bold px-2 leading-snug">
                                     {selectedDisease.name}
                                 </p>
 
-                                {/* Meta chips */}
-                                <div className="flex justify-center gap-2 flex-wrap">
-                                    {selectedDisease.level && (
-                                        <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">
-                                            {selectedDisease.level}
-                                        </span>
-                                    )}
-                                    {selectedDisease.is_chronic && (
-                                        <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 px-2 py-1 rounded-full">
-                                            Crónica
-                                        </span>
-                                    )}
-                                    {selectedDisease.requires_authorization && (
-                                        <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-2 py-1 rounded-full flex items-center gap-1">
-                                            <AlertCircle className="h-3 w-3" /> Req. autorización
-                                        </span>
-                                    )}
-                                </div>
+                                {/* Categoría */}
+                                {selectedDisease.category && (
+                                    <p className="text-center text-xs font-medium text-indigo-500 dark:text-indigo-400">
+                                        {selectedDisease.category}
+                                    </p>
+                                )}
 
                                 {/* Descripción */}
                                 {selectedDisease.description && (
-                                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm leading-relaxed border border-slate-200 dark:border-slate-600">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Descripción</p>
-                                        <p className="text-slate-700 dark:text-slate-300">{selectedDisease.description}</p>
+                                    <DiseaseSectionBlock
+                                        title="Descripción"
+                                        color="text-blue-700 dark:text-blue-400"
+                                        bg="bg-blue-50 dark:bg-blue-900/20"
+                                        border="border-blue-200 dark:border-blue-800"
+                                    >
+                                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{selectedDisease.description}</p>
+                                    </DiseaseSectionBlock>
+                                )}
+
+                                {/* Criterios diagnósticos */}
+                                {selectedDisease.criteria && selectedDisease.criteria.length > 0 && (
+                                    <DiseaseSectionBlock
+                                        title="Criterios diagnósticos"
+                                        color="text-green-700 dark:text-green-400"
+                                        bg="bg-green-50 dark:bg-green-900/20"
+                                        border="border-green-200 dark:border-green-800"
+                                    >
+                                        <ul className="space-y-1">
+                                            {selectedDisease.criteria.map((c, i) => (
+                                                <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex gap-1.5">
+                                                    <span className="text-green-600 mt-0.5">✓</span>{c}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </DiseaseSectionBlock>
+                                )}
+
+                                {/* Exclusiones */}
+                                {selectedDisease.exclusions && selectedDisease.exclusions.length > 0 && (
+                                    <DiseaseSectionBlock
+                                        title="Exclusiones"
+                                        color="text-red-700 dark:text-red-400"
+                                        bg="bg-red-50 dark:bg-red-900/20"
+                                        border="border-red-200 dark:border-red-800"
+                                    >
+                                        <ul className="space-y-1">
+                                            {selectedDisease.exclusions.map((e, i) => (
+                                                <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex gap-1.5">
+                                                    <span className="text-red-500 mt-0.5">✕</span>{e}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </DiseaseSectionBlock>
+                                )}
+
+                                {/* Sinónimos */}
+                                {selectedDisease.synonyms && selectedDisease.synonyms.length > 0 && (
+                                    <DiseaseSectionBlock
+                                        title="Términos relacionados / Sinónimos"
+                                        color="text-violet-700 dark:text-violet-400"
+                                        bg="bg-violet-50 dark:bg-violet-900/20"
+                                        border="border-violet-200 dark:border-violet-800"
+                                    >
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {selectedDisease.synonyms.map((s, i) => (
+                                                <span key={i} className="text-[11px] bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-full border border-violet-200 dark:border-violet-700">
+                                                    {s}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </DiseaseSectionBlock>
+                                )}
+
+                                {/* Notas clínicas */}
+                                {selectedDisease.clinical_notes && (
+                                    <DiseaseSectionBlock
+                                        title="Notas clínicas"
+                                        color="text-amber-700 dark:text-amber-400"
+                                        bg="bg-amber-50 dark:bg-amber-900/20"
+                                        border="border-amber-200 dark:border-amber-800"
+                                    >
+                                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{selectedDisease.clinical_notes}</p>
+                                    </DiseaseSectionBlock>
+                                )}
+
+                                {/* Mensaje si no hay datos enriquecidos */}
+                                {!selectedDisease.description && !selectedDisease.criteria?.length && !selectedDisease.exclusions?.length && !selectedDisease.synonyms?.length && !selectedDisease.clinical_notes && (
+                                    <div className="text-center text-xs text-slate-400 py-2 italic">
+                                        Sin información clínica detallada aún. Puede enriquecer este registro desde la base de datos.
                                     </div>
                                 )}
 
@@ -964,6 +1063,21 @@ function StructurePreview({ structured }: { structured: NormativaStructured }) {
                     <p><span className="font-medium text-slate-600">COSEGURO:</span> {structured.coseguro}</p>
                 )}
             </div>
+        </div>
+    )
+}
+
+// ── Disease section block (modal de patologías) ──
+
+function DiseaseSectionBlock({
+    title, color, bg, border, children,
+}: {
+    title: string; color: string; bg: string; border: string; children: React.ReactNode
+}) {
+    return (
+        <div className={`rounded-lg p-3 ${bg} border ${border}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-wide mb-2 ${color}`}>{title}</p>
+            {children}
         </div>
     )
 }

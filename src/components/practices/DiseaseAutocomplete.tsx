@@ -15,9 +15,14 @@ export interface DiseaseRecord {
     id: number;
     code: string;
     name: string;
-    classification: string; // CIE-10 | CIE-11 | DSM-5
+    classification: string;
     level?: string;
+    category?: string;
     description?: string;
+    synonyms?: string[] | null;
+    criteria?: string[] | null;
+    exclusions?: string[] | null;
+    clinical_notes?: string | null;
     is_chronic?: boolean;
     requires_authorization?: boolean;
 }
@@ -112,7 +117,7 @@ export function DiseaseAutocomplete({
             setSearching(true);
             try {
                 const { data } = await db('diseases')
-                    .select('id, code, name, classification, level, description, is_chronic, requires_authorization')
+                    .select('id, code, name, classification, level, category, description, synonyms, criteria, exclusions, clinical_notes, is_chronic, requires_authorization')
                     .or(`${nameFilter},${codeFilter}`)
                     .order('code')
                     .limit(20);
