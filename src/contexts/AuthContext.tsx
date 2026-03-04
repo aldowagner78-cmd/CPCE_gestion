@@ -148,9 +148,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const signOut = async () => {
-        await supabase.auth.signOut()
-        setUser(null)
-        setPermissions([])
+        try {
+            await supabase.auth.signOut({ scope: 'local' })
+        } catch {
+            // Si falla el signOut remoto, igual limpiamos localmente
+        } finally {
+            setUser(null)
+            setPermissions([])
+        }
     }
 
     const hasPermissionFn = (permission: Permission): boolean => {

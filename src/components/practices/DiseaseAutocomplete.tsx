@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, X, Stethoscope, Loader2 } from 'lucide-react';
+import { Search, X, Stethoscope, Loader2, Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase';
 
@@ -84,14 +84,20 @@ export function DiseaseAutocomplete({
         initialSearchDone.current = false;
     }, [initialSearch]);
 
-    // ── Debounced search ──
+    // ── Debounced search (fast-clear + delayed API call) ──
     useEffect(() => {
-        const timer = setTimeout(async () => {
+        // Cierre instantáneo cuando la búsqueda cae por debajo del umbral
+        const clearTimer = setTimeout(() => {
             if (search.length < 2) {
                 setResults([]);
                 setIsOpen(false);
-                return;
+                setSearching(false);
             }
+        }, 10);
+
+        // Llamada a API solo cuando hay suficientes caracteres
+        const searchTimer = setTimeout(async () => {
+            if (search.length < 2) return; // ya manejado arriba
             setSearching(true);
             try {
                 const { data } = await db('diseases')
@@ -108,7 +114,11 @@ export function DiseaseAutocomplete({
             }
             setSearching(false);
         }, 300);
-        return () => clearTimeout(timer);
+
+        return () => {
+            clearTimeout(clearTimer);
+            clearTimeout(searchTimer);
+        };
     }, [search]);
 
     // ── Click outside to close ──
@@ -169,12 +179,6 @@ export function DiseaseAutocomplete({
         }
     }, [highlightIndex]);
 
-    // ── Classification label styling ──
-    const classificationLabel = (cls: string) => {
-        const c = cls?.toUpperCase() || 'CIE-10';
-        return c;
-    };
-
     // ── Selected state ──
     if (value) {
         return (
@@ -224,7 +228,8 @@ export function DiseaseAutocomplete({
                     value={search}
                     onChange={e => {
                         setSearch(e.target.value);
-                        if (!e.target.value) setIsOpen(false);
+                        // Cierra el dropdown si hay menos de 2 caracteres
+                        if (e.target.value.length < 2) setIsOpen(false);
                     }}
                     onFocus={() => { if (results.length > 0) setIsOpen(true); }}
                     onKeyDown={handleKeyDown}
@@ -243,6 +248,7 @@ export function DiseaseAutocomplete({
                     ref={listRef}
                     className="absolute z-30 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-64 overflow-y-auto"
                     role="listbox"
+                    aria-label="Resultados de diagnósticos"
                 >
                     {results.map((d, idx) => (
                         <button
@@ -264,12 +270,27 @@ export function DiseaseAutocomplete({
                             {/* Name */}
                             <span className="flex-1 min-w-0 truncate">{d.name}</span>
 
+                            {/* Requires authorization indicator */}
+                            {d.requires_authorization && (
+                                <span title="Requiere autorización previa">
+                                    <Lock className="h-3 w-3 text-amber-500 shrink-0" />
+                                </span>
+                            )}
+
                             {/* Classification tag */}
                             <span className="text-[11px] text-muted-foreground shrink-0 font-medium">
-                                {classificationLabel(d.classification)}
+                                {d.classification || 'CIE-10'}
                             </span>
                         </button>
                     ))}
+
+                    {/* Footer: count + hint when at limit */}
+                    <div className="px-3 py-1.5 text-[11px] text-muted-foreground border-t bg-muted/30 flex items-center justify-between">
+                        <span>{results.length} resultado{results.length !== 1 ? 's' : ''}</span>
+                        {results.length === 15 && (
+                            <span className="italic">Refiná la búsqueda para ver más</span>
+                        )}
+                    </div>
                 </div>
             )}
 

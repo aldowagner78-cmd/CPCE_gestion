@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useActiveAlerts } from "@/lib/useAlerts"
 import { Bell, Moon, Sun, Home, ChevronRight, MessageCircle, HelpCircle, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
@@ -36,6 +36,12 @@ export function Header() {
     const { activeJurisdiction, isDarkMode, toggleDarkMode } = useJurisdiction()
     const { user, signOut } = useAuth()
     const pathname = usePathname()
+    const router = useRouter()
+
+    const handleLogout = async () => {
+        await signOut()
+        router.push('/welcome')
+    }
     const pageTitle = pageTitles[pathname] || 'CPCE Salud'
     const activeAlerts = useActiveAlerts(activeJurisdiction?.id)
     const isHome = pathname === '/'
@@ -132,7 +138,7 @@ export function Header() {
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => signOut()}
+                    onClick={handleLogout}
                     className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
                     title="Cerrar sesión"
                 >
