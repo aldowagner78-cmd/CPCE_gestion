@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Sparkles, Upload, FileText, CheckCircle, X, Check, Pencil, Trash2, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles, Upload, FileText, CheckCircle, X, Image as ImageIcon } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompressor';
 
 interface AIParsedData {
@@ -22,9 +22,8 @@ interface AIParsedData {
 interface FieldState {
     label: string;
     value: string;
-    accepted: boolean;
+    selected: boolean;
     editing: boolean;
-    deleted: boolean;
     editValue: string;
 }
 
@@ -35,7 +34,7 @@ interface AIUploadModalProps {
 function buildFields(data: AIParsedData): FieldState[] {
     const fields: FieldState[] = [];
     const add = (label: string, val: string | null | undefined) => {
-        if (val && val.trim()) fields.push({ label, value: val.trim(), accepted: false, editing: false, deleted: false, editValue: val.trim() });
+        if (val && val.trim()) fields.push({ label, value: val.trim(), selected: true, editing: false, editValue: val.trim() });
     };
     add('N° Afiliado / DNI', data.affiliate);
     add('Nombre paciente', data.affiliateName);
@@ -123,31 +122,22 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
         }
     };
 
-    const acceptAll = () => {
-        setFields(prev => prev.map(f => f.deleted ? f : { ...f, accepted: true, editing: false }));
-    };
-
-    const toggleAccept = (i: number) => {
-        setFields(prev => prev.map((f, idx) => idx === i ? { ...f, accepted: !f.accepted, editing: false } : f));
-    };
-
     const toggleEdit = (i: number) => {
         setFields(prev => prev.map((f, idx) => idx === i ? { ...f, editing: !f.editing, editValue: f.value } : f));
     };
 
     const saveEdit = (i: number) => {
-        setFields(prev => prev.map((f, idx) => idx === i ? { ...f, value: f.editValue, editing: false, accepted: true } : f));
+        setFields(prev => prev.map((f, idx) => idx === i ? { ...f, value: f.editValue, editing: false, selected: true } : f));
     };
 
-    const deleteField = (i: number) => {
-        setFields(prev => prev.map((f, idx) => idx === i ? { ...f, deleted: true, accepted: false } : f));
+    const toggleSelected = (i: number) => {
+        setFields(prev => prev.map((f, idx) => idx === i ? { ...f, selected: !f.selected } : f));
     };
 
     const confirmAndSend = () => {
         if (!parsedData || !processedFile) return;
-        // Reconstruir data con los campos aceptados/editados
-        const accepted = fields.filter(f => f.accepted && !f.deleted);
-        const get = (label: string) => accepted.find(f => f.label === label)?.value;
+        const selected = fields.filter(f => f.selected);
+        const get = (label: string) => selected.find(f => f.label === label)?.value;
 
         const finalData: AIParsedData = { ...parsedData };
         const affVal = get('N° Afiliado / DNI');
@@ -188,9 +178,7 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
         setError(null);
     };
 
-    const activeFields = fields.filter(f => !f.deleted);
-    const acceptedCount = activeFields.filter(f => f.accepted).length;
-    const allAccepted = activeFields.length > 0 && acceptedCount === activeFields.length;
+    const selectedCount = fields.filter(f => f.selected).length;
 
     return (
         <>
@@ -286,17 +274,12 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                                     <FileText className="h-3.5 w-3.5" /> Campos detectados
-                                    {activeFields.length > 0 && (
+                                    {fields.length > 0 && (
                                         <span className="ml-1 text-[10px] font-normal bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-                                            {acceptedCount}/{activeFields.length}
+                                            {selectedCount}/{fields.length}
                                         </span>
                                     )}
                                 </p>
-                                {activeFields.length > 0 && !allAccepted && (
-                                    <button onClick={acceptAll} className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-                                        <CheckCircle className="h-3 w-3" /> Aceptar todos
-                                    </button>
-                                )}
                             </div>
 
                             {isProcessing && (
@@ -331,45 +314,36 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
 
                             {!isProcessing && !error && fields.length > 0 && (
                                 <div className="space-y-2 flex-1">
-                                    {fields.map((field, i) => field.deleted ? null : (
-                                        <div key={i} className={`rounded-lg border p-2.5 transition-all ${field.accepted ? 'border-green-300 bg-green-50/50' : 'border-gray-200 bg-white'}`}>
-                                            <div className="flex items-start gap-2">
+                                    {fields.map((field, i) => (
+                                        <div key={i} className={`rounded-lg border p-2.5 transition-all ${field.selected ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200 bg-gray-50/50 opacity-60'}`}>
+                                            <div className="flex items-start gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={field.selected}
+                                                    onChange={() => toggleSelected(i)}
+                                                    className="mt-1.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                                                />
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{field.label}</p>
                                                     {field.editing ? (
-                                                        <div className="mt-1 flex gap-1.5">
-                                                            <input
-                                                                value={field.editValue}
-                                                                onChange={e => setFields(prev => prev.map((f, idx) => idx === i ? { ...f, editValue: e.target.value } : f))}
-                                                                className="flex-1 text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                                                autoFocus
-                                                            />
-                                                            <button onClick={() => saveEdit(i)} className="p-1 text-green-600 hover:bg-green-50 rounded" title="Guardar">
-                                                                <Check className="h-4 w-4" />
-                                                            </button>
-                                                            <button onClick={() => toggleEdit(i)} className="p-1 text-gray-400 hover:bg-gray-50 rounded" title="Cancelar">
-                                                                <X className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
+                                                        <input
+                                                            value={field.editValue}
+                                                            onChange={e => setFields(prev => prev.map((f, idx) => idx === i ? { ...f, editValue: e.target.value } : f))}
+                                                            onBlur={() => saveEdit(i)}
+                                                            onKeyDown={e => { if (e.key === 'Enter') saveEdit(i); if (e.key === 'Escape') toggleEdit(i); }}
+                                                            className="w-full text-sm border rounded px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                                            autoFocus
+                                                        />
                                                     ) : (
-                                                        <p className="text-sm font-medium truncate mt-0.5">{field.value}</p>
+                                                        <p
+                                                            className="text-sm font-medium mt-0.5 cursor-text hover:bg-white/80 rounded px-1 -mx-1 py-0.5 transition-colors"
+                                                            onClick={() => { toggleEdit(i); if (!field.selected) toggleSelected(i); }}
+                                                            title="Clic para editar"
+                                                        >
+                                                            {field.value}
+                                                        </p>
                                                     )}
                                                 </div>
-                                                {!field.editing && (
-                                                    <div className="flex items-center gap-0.5 shrink-0 mt-1">
-                                                        <button onClick={() => toggleAccept(i)}
-                                                            className={`p-1 rounded transition-colors ${field.accepted ? 'text-green-600 bg-green-100' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
-                                                            title={field.accepted ? 'Aceptado' : 'Aceptar'}>
-                                                            <Check className="h-3.5 w-3.5" />
-                                                        </button>
-                                                        <button onClick={() => toggleEdit(i)} className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50" title="Editar">
-                                                            <Pencil className="h-3.5 w-3.5" />
-                                                        </button>
-                                                        <button onClick={() => deleteField(i)} className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50" title="Eliminar">
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </button>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -387,17 +361,17 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                             {/* Botones de acción */}
                             {!isProcessing && !error && fields.length > 0 && (
                                 <div className="mt-3 pt-3 border-t flex gap-2">
-                                    <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={cancelReview}>
+                                    <Button size="sm" variant="outline" className="text-xs" onClick={cancelReview}>
                                         Cancelar
                                     </Button>
                                     <Button
                                         size="sm"
-                                        className="flex-1 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                        className="flex-1 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                                         onClick={confirmAndSend}
-                                        disabled={acceptedCount === 0}
+                                        disabled={selectedCount === 0}
                                     >
                                         <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                                        {allAccepted ? 'Confirmar todos' : `Confirmar ${acceptedCount} campo${acceptedCount !== 1 ? 's' : ''}`}
+                                        Agregar datos ({selectedCount}/{fields.length})
                                     </Button>
                                 </div>
                             )}

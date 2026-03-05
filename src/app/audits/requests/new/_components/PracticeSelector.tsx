@@ -92,7 +92,12 @@ export function PracticeSelector({
                                         <span className="ml-1.5">{pi.practice.description}</span>
                                     </div>
                                     {rc && (
-                                        <span className={`text-xs font-medium shrink-0 ${color!.text}`}>{rc.coverage_percent.toFixed(0)}% cob.</span>
+                                        <div className="flex flex-col items-end shrink-0">
+                                            <span className={`text-xs font-medium ${color!.text}`}>{rc.coverage_percent.toFixed(0)}% cob.</span>
+                                            <span className="text-[10px] text-muted-foreground">
+                                                Cubre ${(rc.covered_amount || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })} · Coseg {(rc.copay_amount || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
+                                            </span>
+                                        </div>
                                     )}
                                     <span className="text-xs text-muted-foreground font-mono shrink-0">
                                         ${((pi.practice.financial_value || 0) * pi.quantity).toLocaleString()}
@@ -132,7 +137,18 @@ export function PracticeSelector({
                                 </div>
                             )}
                         </div>
-                        <span className="font-mono">Total: ${totalValue.toLocaleString()}</span>
+                        <div className="text-right">
+                            <span className="font-mono">Total: ${totalValue.toLocaleString()}</span>
+                            {rulesEvaluated && (() => {
+                                const totalCovered = practiceItems.reduce((s, pi) => s + ((pi.ruleResult as PracticeRuleResult)?.covered_amount || 0), 0);
+                                const totalCopay = practiceItems.reduce((s, pi) => s + ((pi.ruleResult as PracticeRuleResult)?.copay_amount || 0), 0);
+                                return totalCovered > 0 ? (
+                                    <p className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                                        Cubierto: {totalCovered.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })} · Coseguro: {totalCopay.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
+                                    </p>
+                                ) : null;
+                            })()}
+                        </div>
                     </div>
                 </div>
             )}

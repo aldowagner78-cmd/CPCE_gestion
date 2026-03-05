@@ -14,7 +14,7 @@ import {
 import { AIUploadModal } from '@/components/AIUploadModal';
 import { OCRUpload, type OCRResult } from '@/components/OCRUpload';
 import {
-    AlertCircle, ArrowLeft,
+    AlertCircle, ArrowLeft, Check, ChevronDown, Sparkles, PenLine,
     Stethoscope, FlaskConical, Building2, Smile,
     ShieldCheck, Package, DollarSign, User,
 } from 'lucide-react';
@@ -109,6 +109,8 @@ export default function NewExpedientPage() {
     const [submittedExpNumber, setSubmittedExpNumber] = useState('');
     const [autoApprovedCodes, setAutoApprovedCodes] = useState<string[]>([]);
     const [error, setError] = useState('');
+    const [loadMode, setLoadMode] = useState<'ia' | 'manual'>('ia');
+    const [activeSection, setActiveSection] = useState(1);
 
     const handleAIParsed = useCallback((
         data: {
@@ -133,7 +135,15 @@ export default function NewExpedientPage() {
         }
         if (data.doctor) setDoctorName(data.doctor);
         if (data.doctorRegistration) setDoctorRegistration(data.doctorRegistration);
-        if (data.prescriptionDate) setPrescriptionDate(data.prescriptionDate);
+        if (data.prescriptionDate) {
+            const d = data.prescriptionDate;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+                const [y, m, dd] = d.split('-');
+                setPrescriptionDate(`${dd}/${m}/${y}`);
+            } else {
+                setPrescriptionDate(d);
+            }
+        }
         setAiDocumentFile(file);
         const practicesRaw = data.practices || [];
         const practiceNames = practicesRaw.map(p => typeof p === 'string' ? p : p.name);
@@ -202,6 +212,35 @@ export default function NewExpedientPage() {
         setAiPriorityResult(analyzeClinicalPriority([notes, ocrResult?.text || '', diagnosis, practiceDesc].join(' '), practiceDesc, diagnosis));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [practiceItems, diagnosis, diagnosisCode]);
+
+    // Auto-evaluate rules for real-time coseguro display
+    const practiceKey = practiceItems.map(pi => `${pi.practice.id}:${pi.quantity}`).join(',');
+    useEffect(() => {
+        if (practiceItems.length === 0 || !affiliate || !affiliatePlan || !activeJurisdiction) {
+            if (rulesEvaluated) { setRulesResult(null); setRulesEvaluated(false); }
+            return;
+        }
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            try {
+                const result = await RulesEngine.evaluate({
+                    type: expedientType, affiliate, plan: affiliatePlan,
+                    practices: practiceItems.map(pi => ({
+                        practice_id: pi.practice.id, practice: pi.practice, quantity: pi.quantity,
+                    })),
+                    jurisdiction_id: activeJurisdiction.id,
+                });
+                if (!cancelled) {
+                    setRulesResult(result); setRulesEvaluated(true);
+                    setPracticeItems(prev => prev.map((pi, idx) => ({
+                        ...pi, ruleResult: result.practices[idx],
+                    })));
+                }
+            } catch { /* silently fail */ }
+        }, 500);
+        return () => { cancelled = true; clearTimeout(timer); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [practiceKey, affiliate?.id, affiliatePlan?.id, expedientType, activeJurisdiction?.id]);
 
     const selectAffiliate = useCallback(async (a: Affiliate) => {
         setAffiliate(a); setAffResults([]); setAffSearch('');
@@ -363,6 +402,24 @@ export default function NewExpedientPage() {
     const handleDiseaseSelect = useCallback((sel: DiseaseSelection) => { setDiagnosisCode(sel.code); setDiagnosis(sel.name); }, []);
     const handleDiseaseClear = useCallback(() => { setDiagnosis(''); setDiagnosisCode(''); setDiagInitialSearch(''); }, []);
 
+    // Auto-advance sections
+    useEffect(() => {
+        if (affiliate && activeSection === 1) {
+            const timer = setTimeout(() => setActiveSection(2), 400);
+            return () => clearTimeout(timer);
+        }
+    }, [affiliate, activeSection]);
+
+    useEffect(() => {
+        if (diagnosisCode && practiceItems.length > 0 && activeSection === 2) {
+            const timer = setTimeout(() => setActiveSection(3), 400);
+            return () => clearTimeout(timer);
+        }
+    }, [diagnosisCode, practiceItems.length, activeSection]);
+
+    const section1Complete = !!affiliate;
+    const section2Complete = practiceItems.length > 0;
+
     const hasOrdenMedica = files.some(f => f.documentType === 'orden_medica');
     const isAffiliateActive = affiliate?.status === 'activo';
     const isAffiliateBlocked = affiliate && !isAffiliateActive;
@@ -398,6 +455,13 @@ export default function NewExpedientPage() {
             const iaSuggestions = buildIASuggestions(finalIAPriority, iaCoherence, { hasDuplicate: false, duplicateExpedientNumbers: [], message: null });
             const beneficiaryId = selectedFamilyMember ? String(selectedFamilyMember.id) : String(affiliate.id);
             const beneficiaryRelation = selectedFamilyMember?.relationship ?? affiliate.relationship;
+            const toISO = (d: string) => {
+                if (!d || d.length < 10) return undefined;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+                const parts = d.split('/');
+                if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                return undefined;
+            };
             const expedient = await ExpedientService.create({
                 type: expedientType, priority, affiliate_id: beneficiaryId, affiliate_plan_id: affiliate.plan_id,
                 family_member_relation: beneficiaryRelation,
@@ -405,9 +469,9 @@ export default function NewExpedientPage() {
                 requesting_doctor_registration: doctorRegistration.trim() || undefined,
                 requesting_doctor_specialty: doctorSpecialty.trim() || undefined,
                 provider_name: providerName.trim() || undefined,
-                prescription_date: prescriptionDate || undefined,
+                prescription_date: toISO(prescriptionDate),
                 prescription_number: prescriptionNumber.trim() || undefined,
-                order_expiry_date: orderExpiryDate || undefined,
+                order_expiry_date: toISO(orderExpiryDate),
                 diagnosis_code: diagnosisCode || undefined,
                 diagnosis_description: diagnosis || undefined,
                 assigned_to: assignedAuditorId || undefined,
@@ -462,6 +526,7 @@ export default function NewExpedientPage() {
         setDoctorName(''); setDoctorRegistration(''); setDoctorSpecialty('');
         setProviderName(''); setPrescriptionDate(''); setPrescriptionNumber('');
         setOrderExpiryDate(''); setAssignedAuditorId('');
+        setLoadMode('ia'); setActiveSection(1);
     };
 
     if (submitted) {
@@ -476,19 +541,44 @@ export default function NewExpedientPage() {
     }
 
     return (
-        <div className="max-w-3xl mx-auto p-4 space-y-5">
+        <div className="max-w-3xl mx-auto p-4 space-y-4">
             <div className="flex items-center gap-3">
                 <Link href="/audits/requests">
                     <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                 </Link>
                 <div>
                     <h1 className="text-xl font-bold">Solicitud Nueva</h1>
-                    <p className="text-xs text-muted-foreground">Apertura de expediente digital de auditoria</p>
+                    <p className="text-xs text-muted-foreground">Apertura de expediente digital de auditoría</p>
                 </div>
             </div>
 
-            <AIUploadModal onDataParsed={handleAIParsed} />
+            {/* Tabs IA / Manual */}
+            <div className="flex rounded-lg border bg-muted/30 p-0.5">
+                <button onClick={() => setLoadMode('ia')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${loadMode === 'ia' ? 'bg-white shadow-sm text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
+                    <Sparkles className="h-4 w-4" /> Carga con IA
+                </button>
+                <button onClick={() => setLoadMode('manual')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${loadMode === 'manual' ? 'bg-white shadow-sm text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
+                    <PenLine className="h-4 w-4" /> Carga Manual
+                </button>
+            </div>
 
+            {loadMode === 'ia' && <AIUploadModal onDataParsed={handleAIParsed} />}
+
+            {/* Sección 1: Tipo y Afiliado */}
+            <div className="border rounded-xl overflow-hidden">
+                <button onClick={() => setActiveSection(activeSection === 1 ? 0 : 1)}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section1Complete ? 'bg-green-100 text-green-700' : activeSection === 1 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {section1Complete ? <Check className="h-4 w-4" /> : '1'}
+                    </div>
+                    <span className="font-semibold text-sm flex-1 text-left">Tipo y Afiliado</span>
+                    {section1Complete && affiliate && <span className="text-xs text-muted-foreground mr-2 truncate max-w-[200px]">{affiliate.full_name}</span>}
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 1 ? 'rotate-180' : ''}`} />
+                </button>
+                {activeSection === 1 && (
+                <div className="p-4 space-y-4 border-t">
             <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Tipo de expediente</label>
                 <div className="flex gap-1.5 flex-wrap">
@@ -542,6 +632,23 @@ export default function NewExpedientPage() {
                 onViewAttachments={viewAttachments}
                 onAddPractice={addPractice}
             />
+                </div>
+                )}
+            </div>
+
+            {/* Sección 2: Prácticas y Prescripción */}
+            <div className="border rounded-xl overflow-hidden">
+                <button onClick={() => setActiveSection(activeSection === 2 ? 0 : 2)}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section2Complete ? 'bg-green-100 text-green-700' : activeSection === 2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {section2Complete ? <Check className="h-4 w-4" /> : '2'}
+                    </div>
+                    <span className="font-semibold text-sm flex-1 text-left">Prácticas y Prescripción</span>
+                    {section2Complete && <span className="text-xs text-muted-foreground mr-2">{practiceItems.length} práctica{practiceItems.length !== 1 ? 's' : ''}</span>}
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 2 ? 'rotate-180' : ''}`} />
+                </button>
+                {activeSection === 2 && (
+                <div className="p-4 space-y-4 border-t">
 
             <PracticeSelector
                 pracSearch={pracSearch}
@@ -597,7 +704,6 @@ export default function NewExpedientPage() {
                 </div>
             )}
 
-            <div className="space-y-3">
                 <div className="flex items-center gap-3">
                     <label className="text-xs font-medium text-muted-foreground">Prioridad:</label>
                     <div className="flex gap-1">
@@ -613,6 +719,30 @@ export default function NewExpedientPage() {
                     onClear={handleDiseaseClear}
                     initialSearch={diagInitialSearch}
                 />
+                </div>
+                )}
+            </div>
+
+            {/* Sección 3: Documentos y Envío */}
+            <div className="border rounded-xl overflow-hidden">
+                <button onClick={() => setActiveSection(activeSection === 3 ? 0 : 3)}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${activeSection === 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        3
+                    </div>
+                    <span className="font-semibold text-sm flex-1 text-left">Documentos y Envío</span>
+                    {files.length > 0 && <span className="text-xs text-muted-foreground mr-2">{files.length} archivo{files.length !== 1 ? 's' : ''}</span>}
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 3 ? 'rotate-180' : ''}`} />
+                </button>
+                {activeSection === 3 && (
+                <div className="p-4 space-y-4 border-t">
+
+                <AttachmentsPanel
+                    files={files}
+                    compressing={compressing}
+                    onAddFiles={triggerFileUpload}
+                    onRemoveFile={(i) => setFiles(prev => prev.filter((_, idx) => idx !== i))}
+                />
 
                 <CommunicationPanel
                     chatMessages={chatMessages}
@@ -623,14 +753,6 @@ export default function NewExpedientPage() {
                     onSendMessage={handleSendMessage}
                     onPolishText={handlePolishText}
                 />
-
-                <AttachmentsPanel
-                    files={files}
-                    compressing={compressing}
-                    onAddFiles={triggerFileUpload}
-                    onRemoveFile={(i) => setFiles(prev => prev.filter((_, idx) => idx !== i))}
-                />
-            </div>
 
             {validationErrors.length > 0 && affiliate && (
                 <div className="space-y-1">
@@ -675,6 +797,10 @@ export default function NewExpedientPage() {
                 onHidePreview={() => setShowPreview(false)}
                 onSubmit={handleSubmit}
             />
+
+                </div>
+                )}
+            </div>
 
             <PracticeHistoryModal
                 viewingHistoryFor={viewingHistoryFor}

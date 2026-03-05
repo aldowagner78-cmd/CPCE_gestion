@@ -3,6 +3,29 @@
 import { Input } from '@/components/ui/input';
 import { Stethoscope, Sparkles } from 'lucide-react';
 
+function DateMaskedInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+    const handleChange = (raw: string) => {
+        const digits = raw.replace(/\D/g, '');
+        let formatted = '';
+        for (let i = 0; i < digits.length && i < 8; i++) {
+            if (i === 2 || i === 4) formatted += '/';
+            formatted += digits[i];
+        }
+        onChange(formatted);
+    };
+    return (
+        <Input
+            type="text"
+            inputMode="numeric"
+            placeholder="dd/mm/aaaa"
+            value={value}
+            onChange={e => handleChange(e.target.value)}
+            maxLength={10}
+            className={className}
+        />
+    );
+}
+
 interface PrescriptionFormProps {
     doctorName: string;
     doctorRegistration: string;
@@ -58,7 +81,7 @@ export function PrescriptionForm({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Fecha prescripción</label>
-                        <Input type="date" value={prescriptionDate} onChange={e => onPrescriptionDateChange(e.target.value)} className="text-sm" />
+                        <DateMaskedInput value={prescriptionDate} onChange={onPrescriptionDateChange} className="text-sm" />
                     </div>
                     <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Nro. receta / orden</label>
@@ -66,7 +89,7 @@ export function PrescriptionForm({
                     </div>
                     <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Vencimiento orden</label>
-                        <Input type="date" value={orderExpiryDate} onChange={e => onOrderExpiryDateChange(e.target.value)} className="text-sm" />
+                        <DateMaskedInput value={orderExpiryDate} onChange={onOrderExpiryDateChange} className="text-sm" />
                     </div>
                 </div>
                 {doctorName && prescriptionDate && (
