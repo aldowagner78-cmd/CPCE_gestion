@@ -140,9 +140,16 @@ Tu tarea es extraer la información clave del documento y devolver ÚNICAMENTE u
 
     } catch (error: unknown) {
         console.error('Error procesando imagen con Gemini:', error);
+        const message = error instanceof Error ? error.message : String(error);
+        const isApiKeyError = message.includes('API_KEY') || message.includes('API key') || message.includes('401') || message.includes('403');
         return NextResponse.json(
-            { error: 'Error interno procesando la imagen.', details: error instanceof Error ? error.message : String(error) },
-            { status: 500 }
+            {
+                error: isApiKeyError
+                    ? 'GEMINI_API_KEY inválida o no configurada. Revise la variable de entorno.'
+                    : 'Error interno procesando la imagen.',
+                details: message,
+            },
+            { status: isApiKeyError ? 401 : 500 }
         );
     }
 }
