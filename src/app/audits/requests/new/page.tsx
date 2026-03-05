@@ -1,166 +1,66 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { ExpedientService } from '@/services/expedientService';
 import { RulesEngine } from '@/services/rulesEngine';
-import type { PracticeRuleResult, ExpedientRuleResult } from '@/services/rulesEngine';
+import type { ExpedientRuleResult } from '@/services/rulesEngine';
 import { createClient } from '@/lib/supabase';
 import {
-    analyzeClinicalPriority, checkCoherence, checkForDuplicates, buildIASuggestions,
+    analyzeClinicalPriority, checkCoherence, buildIASuggestions,
     type ClinicalPriorityResult, type CoherenceCheckResult,
 } from '@/services/aiService';
-import { FamilyMemberSelector } from '@/components/FamilyMemberSelector';
-import { OCRUpload, type OCRResult } from '@/components/OCRUpload';
 import { AIUploadModal } from '@/components/AIUploadModal';
+import { OCRUpload, type OCRResult } from '@/components/OCRUpload';
 import {
-    Search, Upload, AlertCircle, CheckCircle,
-    Stethoscope, FlaskConical, Building2,
-    ArrowLeft, Paperclip, X, Send, Trash2,
-    ChevronDown, ChevronUp, User,
-    ShieldCheck, Package, DollarSign,
-    BarChart3, Smile, Calendar, Phone, Mail,
-    MapPin, FileText, AlertTriangle, Lock, Megaphone,
-    Zap, ShieldAlert, Eye, Loader2,
-    MessageSquare, Filter, Clock, Star, Plus, ExternalLink,
-    Sparkles,
+    AlertCircle, ArrowLeft,
+    Stethoscope, FlaskConical, Building2, Smile,
+    ShieldCheck, Package, DollarSign, User,
 } from 'lucide-react';
 import Link from 'next/link';
-import type {
-    ExpedientType, ExpedientDocumentType, ExpedientPriority, ExpedientNoteType,
-    Affiliate, Practice, Plan,
-} from '@/types/database';
-import { compressImage, formatBytes, validateFileSize } from '@/lib/imageCompressor';
+import { Button } from '@/components/ui/button';
+import type { ExpedientType, ExpedientDocumentType, ExpedientPriority, Affiliate, Practice, Plan } from '@/types/database';
+import { compressImage, validateFileSize } from '@/lib/imageCompressor';
 import type { CompressResult } from '@/lib/imageCompressor';
 import { DiseaseAutocomplete, type DiseaseSelection } from '@/components/practices/DiseaseAutocomplete';
+
+import { AffiliateSearch } from './_components/AffiliateSearch';
+import { PracticeSelector } from './_components/PracticeSelector';
+import { PrescriptionForm } from './_components/PrescriptionForm';
+import { CommunicationPanel } from './_components/CommunicationPanel';
+import { AttachmentsPanel } from './_components/AttachmentsPanel';
+import { SubmitPreview } from './_components/SubmitPreview';
+import { SuccessView } from './_components/SuccessView';
+import { PracticeHistoryModal, AttachmentsModal } from './_components/HistoryModals';
+import type { PracticeItem, PendingFile, ChatMessage, DetailedConsumption } from './_components/types';
 
 const supabase = createClient();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: string): any => supabase.from(table as any);
 
-// ── Helpers ──
-
-function calcAge(birthDate: string | null | undefined): number | null {
-    if (!birthDate) return null;
-    const b = new Date(birthDate);
-    const now = new Date();
-    let age = now.getFullYear() - b.getFullYear();
-    if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
-    return age;
-}
-
-function formatSpecialConditions(sc: unknown): string[] {
-    if (!sc) return [];
-    if (Array.isArray(sc)) return sc.filter(Boolean).map(String);
-    if (typeof sc === 'object') return Object.entries(sc as Record<string, unknown>)
-        .filter(([, v]) => v)
-        .map(([k]) => k.replace(/_/g, ' '));
-    return [];
-}
-
-// ── Types locales ──
-
-interface PracticeItem {
-    practice: Practice;
-    quantity: number;
-    ruleResult?: PracticeRuleResult;
-}
-
-interface ConsumptionItem {
-    practiceCode: string;
-    practiceName: string;
-    count: number;
-    lastDate: string;
-}
-
-interface DetailedConsumption {
-    id: string;
-    date: string;
-    practiceCode: string;
-    practiceName: string;
-    practiceId: number;
-    status: string;
-    coveredAmount: number;
-    copayAmount: number;
-    expedientNumber: string;
-    expedientId: string;
-    auditorName: string;
-    providerName: string;
-    quantity: number;
-    source: 'expedient' | 'audit' | 'request';
-    diagnosisCode?: string;
-    diagnosisName?: string;
-    fullPractice?: any; // To store the full practice object for re-request
-}
-
-interface PendingFile {
-    file: File;
-    documentType: ExpedientDocumentType;
-    originalSize: number;
-    wasCompressed: boolean;
-    savingsPercent: number;
-}
-
-// ── Configuración de tipos de expediente ──
-
-const EXPEDIENT_TYPES: {
-    value: ExpedientType;
-    label: string;
-    short: string;
-    icon: React.ElementType;
-    cls: string;
-}[] = [
-        { value: 'ambulatoria', label: 'Ambulatoria', short: 'Amb', icon: Stethoscope, cls: 'text-blue-700 bg-blue-50 border-blue-300' },
-        { value: 'bioquimica', label: 'Bioquímica', short: 'Bio', icon: FlaskConical, cls: 'text-emerald-700 bg-emerald-50 border-emerald-300' },
-        { value: 'internacion', label: 'Internación', short: 'Int', icon: Building2, cls: 'text-purple-700 bg-purple-50 border-purple-300' },
-        { value: 'odontologica', label: 'Odontológica', short: 'Odo', icon: Smile, cls: 'text-pink-700 bg-pink-50 border-pink-300' },
-        { value: 'programas_especiales', label: 'Prog. Especiales', short: 'Prog', icon: ShieldCheck, cls: 'text-amber-700 bg-amber-50 border-amber-300' },
-        { value: 'elementos', label: 'Elementos', short: 'Elem', icon: Package, cls: 'text-cyan-700 bg-cyan-50 border-cyan-300' },
-        { value: 'reintegros', label: 'Reintegros', short: 'Rein', icon: DollarSign, cls: 'text-orange-700 bg-orange-50 border-orange-300' },
-    ];
-
-const DOC_TYPES: { value: ExpedientDocumentType; label: string }[] = [
-    { value: 'orden_medica', label: 'Orden médica' },
-    { value: 'receta', label: 'Receta' },
-    { value: 'estudio', label: 'Estudio previo' },
-    { value: 'informe', label: 'Informe médico' },
-    { value: 'consentimiento', label: 'Consentimiento' },
-    { value: 'historia_clinica', label: 'Historia clínica' },
-    { value: 'factura', label: 'Factura' },
-    { value: 'otro', label: 'Otro' },
+const EXPEDIENT_TYPES: { value: ExpedientType; label: string; short: string; icon: React.ElementType; cls: string }[] = [
+    { value: 'ambulatoria', label: 'Ambulatoria', short: 'Amb', icon: Stethoscope, cls: 'text-blue-700 bg-blue-50 border-blue-300' },
+    { value: 'bioquimica', label: 'Bioquimica', short: 'Bio', icon: FlaskConical, cls: 'text-emerald-700 bg-emerald-50 border-emerald-300' },
+    { value: 'internacion', label: 'Internacion', short: 'Int', icon: Building2, cls: 'text-purple-700 bg-purple-50 border-purple-300' },
+    { value: 'odontologica', label: 'Odontologica', short: 'Odo', icon: Smile, cls: 'text-pink-700 bg-pink-50 border-pink-300' },
+    { value: 'programas_especiales', label: 'Prog. Especiales', short: 'Prog', icon: ShieldCheck, cls: 'text-amber-700 bg-amber-50 border-amber-300' },
+    { value: 'elementos', label: 'Elementos', short: 'Elem', icon: Package, cls: 'text-cyan-700 bg-cyan-50 border-cyan-300' },
+    { value: 'reintegros', label: 'Reintegros', short: 'Rein', icon: DollarSign, cls: 'text-orange-700 bg-orange-50 border-orange-300' },
 ];
-
-// Colores del semáforo
-const RULE_COLORS: Record<string, { bg: string; border: string; text: string; icon: React.ElementType; label: string }> = {
-    verde: { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', icon: CheckCircle, label: 'Auto-aprobable' },
-    amarillo: { bg: 'bg-yellow-50', border: 'border-yellow-300', text: 'text-yellow-700', icon: AlertTriangle, label: 'Requiere auditor' },
-    rojo: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', icon: ShieldAlert, label: 'Requiere auditor' },
-};
-
-// ════════════════════════════════════════════════════════
-// ═  COMPONENTE PRINCIPAL
-// ════════════════════════════════════════════════════════
 
 export default function NewExpedientPage() {
     const { user } = useAuth();
     const { activeJurisdiction } = useJurisdiction();
 
-    // ── Estado: Tipo ──
     const [expedientType, setExpedientType] = useState<ExpedientType>('ambulatoria');
-
-    // ── Estado: Afiliado ──
     const [affSearch, setAffSearch] = useState('');
     const [affResults, setAffResults] = useState<Affiliate[]>([]);
     const [affiliate, setAffiliate] = useState<Affiliate | null>(null);
     const [searchingAff, setSearchingAff] = useState(false);
     const [planName, setPlanName] = useState('');
     const [affiliatePlan, setAffiliatePlan] = useState<Plan | null>(null);
-
-    // ── Estado: Consumos del afiliado ──
-    const [consumptions, setConsumptions] = useState<ConsumptionItem[]>([]);
+    const [consumptions, setConsumptions] = useState<{ practiceCode: string; practiceName: string; count: number; lastDate: string }[]>([]);
     const [detailedConsumptions, setDetailedConsumptions] = useState<DetailedConsumption[]>([]);
     const [showConsumptions, setShowConsumptions] = useState(false);
     const [loadingConsumptions, setLoadingConsumptions] = useState(false);
@@ -169,26 +69,18 @@ export default function NewExpedientPage() {
     const [consumptionPracticeFilter, setConsumptionPracticeFilter] = useState('');
     const [showConsumptionFilters, setShowConsumptionFilters] = useState(false);
     const [viewingHistoryFor, setViewingHistoryFor] = useState<{ id: number; name: string } | null>(null);
-
-    // ── Estado: Prácticas (múltiples) ──
     const [pracSearch, setPracSearch] = useState('');
     const [pracResults, setPracResults] = useState<Practice[]>([]);
     const [searchingPrac, setSearchingPrac] = useState(false);
     const [practiceItems, setPracticeItems] = useState<PracticeItem[]>([]);
-
-    // ── Estado: Extras ──
     const [priority, setPriority] = useState<ExpedientPriority>('normal');
     const [diagnosis, setDiagnosis] = useState('');
     const [diagnosisCode, setDiagnosisCode] = useState('');
     const [diagInitialSearch, setDiagInitialSearch] = useState('');
     const [notes, setNotes] = useState('');
-    const [chatMessages, setChatMessages] = useState<{ from: string; text: string; date: string; channel: ExpedientNoteType }[]>([]);
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [files, setFiles] = useState<PendingFile[]>([]);
-    const [docType, setDocType] = useState<ExpedientDocumentType>('orden_medica');
     const [compressing, setCompressing] = useState(false);
-    const [showQuickReplies, setShowQuickReplies] = useState(false);
-
-    // ── Estado: Médico / Prestador / Prescripción ──
     const [doctorName, setDoctorName] = useState('');
     const [doctorRegistration, setDoctorRegistration] = useState('');
     const [doctorSpecialty, setDoctorSpecialty] = useState('');
@@ -196,39 +88,34 @@ export default function NewExpedientPage() {
     const [prescriptionDate, setPrescriptionDate] = useState('');
     const [prescriptionNumber, setPrescriptionNumber] = useState('');
     const [orderExpiryDate, setOrderExpiryDate] = useState('');
-
-    // ── Estado: Asignación de auditor ──
     const [assignedAuditorId, setAssignedAuditorId] = useState('');
     const [auditorsList, setAuditorsList] = useState<{ id: string; full_name: string; role: string }[]>([]);
-    // ── Estado: Motor de reglas ──
     const [rulesEvaluated, setRulesEvaluated] = useState(false);
     const [rulesResult, setRulesResult] = useState<ExpedientRuleResult | null>(null);
-    const [evaluating, setEvaluating] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
-
-    // ── Estado: Linterna Auditor (Adjuntos Históricos) ──
-    const [viewingAttachmentsFor, setViewingAttachmentsFor] = useState<{ expedientId: string, expedientNumber: string } | null>(null);
+    const [viewingAttachmentsFor, setViewingAttachmentsFor] = useState<{ expedientId: string; expedientNumber: string } | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [attachments, setAttachments] = useState<any[]>([]);
     const [loadingAttachments, setLoadingAttachments] = useState(false);
-
-    // ── Estado: IA (Etapa 1) ──
     const [aiPriorityResult, setAiPriorityResult] = useState<ClinicalPriorityResult | null>(null);
     const [coherenceResult, setCoherenceResult] = useState<CoherenceCheckResult | null>(null);
-    const [selectedFamilyMember, setSelectedFamilyMember] = useState<import('@/types/database').Affiliate | null>(null);
+    const [selectedFamilyMember, setSelectedFamilyMember] = useState<Affiliate | null>(null);
     const [ocrResult, setOcrResult] = useState<OCRResult | null>(null);
-    const [showOCRUpload, setShowOCRUpload] = useState(false);
-
-    // ── Estado: IA Asistida (Gemini) ──
     const [aiDocumentFile, setAiDocumentFile] = useState<File | null>(null);
+    const [commChannel, setCommChannel] = useState<'interna' | 'para_afiliado'>('interna');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
+    const [submittedExpNumber, setSubmittedExpNumber] = useState('');
+    const [autoApprovedCodes, setAutoApprovedCodes] = useState<string[]>([]);
+    const [error, setError] = useState('');
 
-    // Handler cuando Gemini devuelve datos de un documento
     const handleAIParsed = useCallback((
         data: {
             affiliate?: string; affiliateName?: string | null;
             doctor?: string; doctorRegistration?: string | null;
             practices?: string[] | Array<{ name: string; code?: string | null; quantity?: number }>;
-            diagnosis?: string; // alias legacy
+            diagnosis?: string;
             diagnosisText?: string;
             diagnosisCIE?: string | null;
             diagnosisSearchTerms?: string[];
@@ -237,138 +124,48 @@ export default function NewExpedientPage() {
         },
         file: File
     ) => {
-        // 1. Auto-fill el campo de búsqueda del afiliado
-        const affiliateId = data.affiliate?.trim();
-        if (affiliateId) {
-            setAffSearch(affiliateId);
-        }
-
-        // 2. Diagnóstico: usar código CIE si está disponible, sino texto, sino primer término
+        if (data.affiliate?.trim()) setAffSearch(data.affiliate.trim());
         const diagText = data.diagnosisText || data.diagnosis || '';
         const diagCIE = data.diagnosisCIE || '';
         const diagTerms = data.diagnosisSearchTerms || [];
         if (diagText || diagCIE) {
-            // Prioridad: código CIE (búsqueda exacta y rápida) > primer término > texto
-            const bestSearch = diagCIE || diagTerms[0] || diagText.substring(0, 40);
-            setDiagInitialSearch(bestSearch);
+            setDiagInitialSearch(diagCIE || diagTerms[0] || diagText.substring(0, 40));
         }
-
-        // 2b. Auto-fill médico, matrícula, fecha prescripción desde Gemini
         if (data.doctor) setDoctorName(data.doctor);
         if (data.doctorRegistration) setDoctorRegistration(data.doctorRegistration);
         if (data.prescriptionDate) setPrescriptionDate(data.prescriptionDate);
-
-        // 3. Guardar archivo como adjunto
         setAiDocumentFile(file);
-
-        // 4. Construir nota informativa con todo lo detectado por la IA
         const practicesRaw = data.practices || [];
-        const practiceNames = practicesRaw.map(p =>
-            typeof p === 'string' ? p : p.name
-        );
-
-        const noteLines: string[] = [
-            '[IA] — Datos extraídos del documento cargado:',
-        ];
-
-        if (data.doctor) noteLines.push(`• Médico prescriptor: ${data.doctor}`);
-        if (data.affiliateName) noteLines.push(`• Paciente detectado: ${data.affiliateName}`);
-        if (data.prescriptionDate) noteLines.push(`• Fecha prescripción: ${data.prescriptionDate}`);
-        if (diagText) noteLines.push(`• Diagnóstico detectado: ${diagText}${diagCIE ? ` (${diagCIE})` : ''}`);
-        if (practiceNames.length > 0) {
-            noteLines.push(`• Prácticas solicitadas:`);
-            practiceNames.forEach(pn => { noteLines.push(`  – ${pn}`); });
-        }
-        if (data.notes) noteLines.push(`• Info adicional: ${data.notes}`);
-        if (diagTerms.length > 1) {
-            noteLines.push(`• Términos de búsqueda diagnóstico: ${diagTerms.join(', ')}`);
-        }
-
-        if (noteLines.length > 1) {
-            setNotes(prev => (prev ? prev + '\n\n' + noteLines.join('\n') : noteLines.join('\n')));
-        }
+        const practiceNames = practicesRaw.map(p => typeof p === 'string' ? p : p.name);
+        const noteLines = ['[IA] --- Datos extraidos del documento cargado:'];
+        if (data.doctor) noteLines.push('Medico prescriptor: ' + data.doctor);
+        if (data.affiliateName) noteLines.push('Paciente detectado: ' + data.affiliateName);
+        if (data.prescriptionDate) noteLines.push('Fecha prescripcion: ' + data.prescriptionDate);
+        if (diagText) noteLines.push('Diagnostico detectado: ' + diagText + (diagCIE ? ' (' + diagCIE + ')' : ''));
+        if (practiceNames.length > 0) { noteLines.push('Practicas solicitadas:'); practiceNames.forEach(pn => noteLines.push('  - ' + pn)); }
+        if (data.notes) noteLines.push('Info adicional: ' + data.notes);
+        if (noteLines.length > 1) setNotes(prev => prev ? prev + '\n\n' + noteLines.join('\n') : noteLines.join('\n'));
     }, []);
 
-    // When aiDocumentFile is set, add it to the files list automatically
     useEffect(() => {
         if (!aiDocumentFile) return;
         (async () => {
             const compressed = aiDocumentFile.type.startsWith('image/')
                 ? await compressImage(aiDocumentFile).catch(() => ({ file: aiDocumentFile, originalSize: aiDocumentFile.size, wasCompressed: false, savingsPercent: 0 }))
                 : { file: aiDocumentFile, originalSize: aiDocumentFile.size, wasCompressed: false, savingsPercent: 0 };
-            setFiles(prev => [
-                ...prev,
-                { file: compressed.file, documentType: 'orden_medica' as ExpedientDocumentType, originalSize: compressed.originalSize, wasCompressed: compressed.wasCompressed, savingsPercent: compressed.savingsPercent },
-            ]);
+            setFiles(prev => [...prev, { file: compressed.file, documentType: 'orden_medica' as ExpedientDocumentType, originalSize: compressed.originalSize, wasCompressed: compressed.wasCompressed, savingsPercent: compressed.savingsPercent }]);
             setAiDocumentFile(null);
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aiDocumentFile]);
 
-    // ── Estado: Submit ──
-    const [submitting, setSubmitting] = useState(false);
-    const [submitted, setSubmitted] = useState(false);
-    const [submittedExpNumber, setSubmittedExpNumber] = useState('');
-
-    const [commChannel, setCommChannel] = useState<'interna' | 'para_afiliado'>('interna');
-    const [aiLoading, setAiLoading] = useState(false);
-
-    // ── Asistente IA local (costo cero) ──────────────
-    const handlePolishText = () => {
-        if (!notes.trim()) return;
-        setAiLoading(true);
-        const raw = notes.trim();
-
-        let polished: string;
-        if (commChannel === 'para_afiliado') {
-            // ── Reescritura coherente para afiliado ──
-            const lower = raw.toLowerCase();
-            const isRequest = /falta|adjunt|requiere|neces|enviar|present|remit|debe/.test(lower);
-            const isDenial = /deneg|rechaz|no se aprueba|no corresponde/.test(lower);
-            const isApproval = /aprob|autoriz|puede coordinar/.test(lower);
-            const isInfo = /inform|comunic|notific|evaluaci/.test(lower);
-
-            const cleanSentence = raw.charAt(0).toUpperCase() + raw.slice(1);
-            const withPeriod = /[.!?]$/.test(cleanSentence) ? cleanSentence : cleanSentence + '.';
-
-            if (isDenial) {
-                polished = `Estimado/a afiliado/a, lamentamos informarle que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} En caso de desacuerdo, puede presentar una apelación formal.`;
-            } else if (isApproval) {
-                polished = `Estimado/a afiliado/a, nos complace informarle que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Quedamos a su disposición ante cualquier consulta.`;
-            } else if (isRequest) {
-                polished = `Estimado/a afiliado/a, para continuar con el trámite de su solicitud, le informamos que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Agradecemos su colaboración.`;
-            } else if (isInfo) {
-                polished = `Estimado/a afiliado/a, ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Quedamos a su disposición ante cualquier consulta.`;
-            } else {
-                polished = `Estimado/a afiliado/a, le comunicamos que ${withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1)} Quedamos a su disposición.`;
-            }
-        } else {
-            // ── Para auditor: solo formato limpio ──
-            const sentence = raw.charAt(0).toUpperCase() + raw.slice(1);
-            polished = /[.!?]$/.test(sentence) ? sentence : sentence + '.';
-        }
-        setNotes(polished);
-        setAiLoading(false);
-    };
-    const [autoApprovedCodes, setAutoApprovedCodes] = useState<string[]>([]);
-    const [error, setError] = useState('');
-
-
-    // ═══════════════════════════════════════════
-    // ═  BÚSQUEDAS
-    // ═══════════════════════════════════════════
-
     const searchAffs = useCallback(async (q: string) => {
         if (q.length < 2) { setAffResults([]); return; }
         setSearchingAff(true);
         try {
-            const { data } = await supabase
-                .from('affiliates')
-                .select('*')
-                .or(`full_name.ilike.%${q}%,document_number.ilike.%${q}%,affiliate_number.ilike.%${q}%`)
-                .eq('jurisdiction_id', activeJurisdiction?.id || 1)
-                .order('full_name')
-                .limit(10);
+            const { data } = await supabase.from('affiliates').select('*')
+                .or('full_name.ilike.%' + q + '%,document_number.ilike.%' + q + '%,affiliate_number.ilike.%' + q + '%')
+                .eq('jurisdiction_id', activeJurisdiction?.id || 1).order('full_name').limit(10);
             setAffResults((data || []) as Affiliate[]);
         } catch { setAffResults([]); }
         setSearchingAff(false);
@@ -378,201 +175,127 @@ export default function NewExpedientPage() {
         if (q.length < 2) { setPracResults([]); return; }
         setSearchingPrac(true);
         try {
-            const { data } = await supabase
-                .from('practices')
-                .select('*')
-                .or(`name.ilike.%${q}%,code.ilike.%${q}%,description.ilike.%${q}%`)
-                .eq('jurisdiction_id', activeJurisdiction?.id || 1)
-                .eq('is_active', true)
-                .order('code')
-                .limit(15);
+            const { data } = await supabase.from('practices').select('*')
+                .or('name.ilike.%' + q + '%,code.ilike.%' + q + '%,description.ilike.%' + q + '%')
+                .eq('jurisdiction_id', activeJurisdiction?.id || 1).eq('is_active', true).order('code').limit(15);
             setPracResults((data || []).map((p: Record<string, unknown>) => ({
-                ...p,
-                description: (p.description as string) || (p.name as string),
-                financial_value: (p.fixed_value as number) || 0,
+                ...p, description: (p.description as string) || (p.name as string), financial_value: (p.fixed_value as number) || 0,
             })) as Practice[]);
         } catch { setPracResults([]); }
         setSearchingPrac(false);
     }, [activeJurisdiction]);
 
-    // Debounce afiliados
-    useEffect(() => {
-        const t = setTimeout(() => { if (affSearch) searchAffs(affSearch); }, 300);
-        return () => clearTimeout(t);
-    }, [affSearch, searchAffs]);
+    useEffect(() => { const t = setTimeout(() => { if (affSearch) searchAffs(affSearch); }, 300); return () => clearTimeout(t); }, [affSearch, searchAffs]);
+    useEffect(() => { const t = setTimeout(() => { if (pracSearch) searchPracs(pracSearch); }, 300); return () => clearTimeout(t); }, [pracSearch, searchPracs]);
 
-    // Debounce prácticas
-    useEffect(() => {
-        const t = setTimeout(() => { if (pracSearch) searchPracs(pracSearch); }, 300);
-        return () => clearTimeout(t);
-    }, [pracSearch, searchPracs]);
-
-    // Cargar auditores disponibles
     useEffect(() => {
         (async () => {
-            const { data } = await supabase
-                .from('users')
-                .select('id, full_name, role')
-                .in('role', ['auditor', 'supervisor'])
-                .eq('is_active', true)
-                .order('full_name');
+            const { data } = await supabase.from('users').select('id, full_name, role').in('role', ['auditor', 'supervisor']).eq('is_active', true).order('full_name');
             if (data) setAuditorsList(data);
         })();
     }, []);
 
-    // ── Handlers del DiseaseAutocomplete ──
-    const handleDiseaseSelect = useCallback((sel: DiseaseSelection) => {
-        setDiagnosisCode(sel.code);
-        setDiagnosis(sel.name);
-    }, []);
-
-    const handleDiseaseClear = useCallback(() => {
-        setDiagnosis('');
-        setDiagnosisCode('');
-        setDiagInitialSearch('');
-    }, []);
-
-    // ── IA: chequeo de coherencia al cambiar práctica/diagnóstico ──
     useEffect(() => {
-        if (practiceItems.length === 0 || !diagnosis) {
-            setCoherenceResult(null);
-            return;
-        }
+        if (practiceItems.length === 0 || !diagnosis) { setCoherenceResult(null); return; }
         const practiceDesc = practiceItems.map(pi => pi.practice.description).join(', ');
-        const result = checkCoherence(practiceDesc, diagnosis, diagnosisCode);
-        setCoherenceResult(result);
-
-        // Recalcular prioridad IA con datos actualizados
-        const priorityText = [notes, ocrResult?.text || '', diagnosis, practiceDesc].join(' ');
-        const priorityResult = analyzeClinicalPriority(priorityText, practiceDesc, diagnosis);
-        setAiPriorityResult(priorityResult);
+        setCoherenceResult(checkCoherence(practiceDesc, diagnosis, diagnosisCode));
+        setAiPriorityResult(analyzeClinicalPriority([notes, ocrResult?.text || '', diagnosis, practiceDesc].join(' '), practiceDesc, diagnosis));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [practiceItems, diagnosis, diagnosisCode]);
 
-    // ── Seleccionar / deseleccionar afiliado ──
-
-    const selectAffiliate = useCallback(async (a: import('@/types/database').Affiliate) => {
-        setAffiliate(a);
-        setAffResults([]);
-        setAffSearch('');
-        setRulesEvaluated(false);
-        setRulesResult(null);
-        // Reset IA state al cambiar de afiliado
-        setSelectedFamilyMember(null);
-        setAiPriorityResult(null);
-        setCoherenceResult(null);
-        setOcrResult(null);
-        setShowOCRUpload(false);
+    const selectAffiliate = useCallback(async (a: Affiliate) => {
+        setAffiliate(a); setAffResults([]); setAffSearch('');
+        setRulesEvaluated(false); setRulesResult(null);
+        setSelectedFamilyMember(null); setAiPriorityResult(null);
+        setCoherenceResult(null); setOcrResult(null);
         if (a.plan_id) {
             const { data } = await db('plans').select('*').eq('id', a.plan_id).single();
-            if (data) {
-                const plan = data as Plan;
-                setPlanName(plan.name || `Plan #${a.plan_id}`);
-                setAffiliatePlan(plan);
-            } else {
-                setPlanName(`Plan #${a.plan_id}`);
-                setAffiliatePlan(null);
-            }
-        } else {
-            setPlanName('Sin plan');
-            setAffiliatePlan(null);
-        }
+            if (data) { const plan = data as Plan; setPlanName(plan.name || 'Plan #' + a.plan_id); setAffiliatePlan(plan); }
+            else { setPlanName('Plan #' + a.plan_id); setAffiliatePlan(null); }
+        } else { setPlanName('Sin plan'); setAffiliatePlan(null); }
     }, []);
-
 
     const clearAffiliate = useCallback(() => {
-        setAffiliate(null);
-        setAffSearch('');
-        setShowConsumptions(false);
-        setConsumptions([]);
-        setDetailedConsumptions([]);
-        setPlanName('');
-        setAffiliatePlan(null);
-        setRulesResult(null);
-        setConsumptionDateFrom('');
-        setConsumptionDateTo('');
-        setConsumptionPracticeFilter('');
-        setViewingHistoryFor(null);
+        setAffiliate(null); setAffSearch(''); setShowConsumptions(false);
+        setConsumptions([]); setDetailedConsumptions([]); setPlanName('');
+        setAffiliatePlan(null); setRulesResult(null);
+        setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter('');
     }, []);
 
-    // ═══════════════════════════════════════════
-    // ═  ADJUNTOS HISTÓRICOS (LINTERNA AUDITOR)
-    // ═══════════════════════════════════════════
+    const addPractice = (practice: Practice) => {
+        if (practiceItems.some(pi => pi.practice.id === practice.id)) return;
+        setPracticeItems(prev => [...prev, { practice, quantity: 1 }]);
+        setPracSearch(''); setPracResults([]);
+        setRulesEvaluated(false); setRulesResult(null);
+    };
+    const removePractice = (index: number) => { setPracticeItems(prev => prev.filter((_, i) => i !== index)); setRulesEvaluated(false); setRulesResult(null); };
+    const updateQuantity = (index: number, qty: number) => { setPracticeItems(prev => prev.map((item, i) => i === index ? { ...item, quantity: Math.max(1, qty) } : item)); setRulesEvaluated(false); setRulesResult(null); };
+
+    const triggerFileUpload = (targetDocType: ExpedientDocumentType) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+        input.multiple = true;
+        input.onchange = async (ev) => {
+            const rawFiles = Array.from((ev.target as HTMLInputElement).files || []);
+            if (rawFiles.length === 0) return;
+            for (const f of rawFiles) {
+                const check = validateFileSize(f);
+                if (!check.valid) { setError(check.message || 'Archivo demasiado grande'); return; }
+            }
+            setCompressing(true); setError('');
+            try {
+                const results: CompressResult[] = await Promise.all(rawFiles.map(f => compressImage(f)));
+                setFiles(prev => [...prev, ...results.map(r => ({ file: r.file, documentType: targetDocType, originalSize: r.originalSize, wasCompressed: r.wasCompressed, savingsPercent: r.savingsPercent }))]);
+            } catch { setError('Error procesando archivos'); }
+            setCompressing(false);
+        };
+        input.click();
+    };
 
     const viewAttachments = async (expedientId: string, expedientNumber: string) => {
         setViewingAttachmentsFor({ expedientId, expedientNumber });
         setLoadingAttachments(true);
         try {
-            const { data } = await db('audit_request_attachments')
-                .select('*')
-                .eq('request_id', expedientId)
-                .order('created_at', { ascending: false });
+            const { data } = await db('audit_request_attachments').select('*').eq('request_id', expedientId).order('created_at', { ascending: false });
             setAttachments(data || []);
-        } catch {
-            setAttachments([]);
-        }
+        } catch { setAttachments([]); }
         setLoadingAttachments(false);
     };
-
-    const closeAttachments = () => {
-        setViewingAttachmentsFor(null);
-        setAttachments([]);
-    };
-
-    // ═══════════════════════════════════════════
-    // ═  CONSUMOS DEL AFILIADO
-    // ═══════════════════════════════════════════
 
     const fetchConsumptions = useCallback(async () => {
         if (!affiliate) return;
         setLoadingConsumptions(true);
         try {
-            // Obtener expedientes con sus prácticas detalladas
-            const { data: exps } = await db('expedients')
-                .select('id, expedient_number, created_at, status, resolved_by, diagnosis_code, diagnosis_description')
-                .eq('affiliate_id', String(affiliate.id))
-                .order('created_at', { ascending: false })
-                .limit(100);
-
+            const { data: exps } = await db('expedients').select('id, expedient_number, created_at, status, resolved_by, diagnosis_code, diagnosis_description').eq('affiliate_id', String(affiliate.id)).order('created_at', { ascending: false }).limit(100);
             const expList = (exps || []) as Record<string, unknown>[];
             const expIds = expList.map(e => e.id as string);
-
             let expPractices: Record<string, unknown>[] = [];
             if (expIds.length > 0) {
-                const { data } = await db('expedient_practices')
-                    .select('id, expedient_id, practice_id, quantity, status, covered_amount, copay_amount, created_at')
-                    .in('expedient_id', expIds);
+                const { data } = await db('expedient_practices').select('id, expedient_id, practice_id, quantity, status, covered_amount, copay_amount, created_at').in('expedient_id', expIds);
                 expPractices = (data || []) as Record<string, unknown>[];
             }
-
-            // Obtener prácticas (nombres/códigos)
             const allPracticeIds = [...new Set(expPractices.map(ep => ep.practice_id).filter(Boolean))];
             let practiceMap = new Map<unknown, Record<string, unknown>>();
             if (allPracticeIds.length > 0) {
                 const { data: practices } = await supabase.from('practices').select('*').in('id', allPracticeIds);
                 practiceMap = new Map((practices || []).map((p: Record<string, unknown>) => [p.id, p]));
             }
-
-            // Obtener nombres de auditores
             const auditorIds = [...new Set(expList.map(e => e.resolved_by).filter(Boolean))];
             let auditorMap = new Map<unknown, string>();
             if (auditorIds.length > 0) {
                 const { data: users } = await db('users').select('id, full_name').in('id', auditorIds);
                 auditorMap = new Map((users || []).map((u: Record<string, unknown>) => [u.id, u.full_name as string]));
             }
-
-            // Mapear expedientes por ID
             const expMap = new Map(expList.map(e => [e.id, e]));
-
-            // Construir detalle
             const detailed: DetailedConsumption[] = expPractices.map(ep => {
-                const exp = expMap.get(ep.expedient_id) || {};
-                const prac = practiceMap.get(ep.practice_id) || {};
+                const exp = expMap.get(ep.expedient_id) || {} as Record<string, unknown>;
+                const prac = practiceMap.get(ep.practice_id) || {} as Record<string, unknown>;
                 return {
                     id: (ep.id as string) || String(Math.random()),
                     date: (ep.created_at || (exp as Record<string, unknown>).created_at || '') as string,
                     practiceCode: (prac.code as string) || '',
-                    practiceName: (prac.name as string) || 'Práctica',
+                    practiceName: (prac.name as string) || 'Practica',
                     practiceId: (ep.practice_id as number) || 0,
                     status: (ep.status as string) || (exp as Record<string, unknown>).status as string || 'pendiente',
                     coveredAmount: (ep.covered_amount as number) || 0,
@@ -588,259 +311,114 @@ export default function NewExpedientPage() {
                     fullPractice: prac,
                 };
             });
-
             setDetailedConsumptions(detailed.sort((a, b) => (b.date || '').localeCompare(a.date || '')));
-
-            // También agrupar para resumen
-            const grouped: Record<number, ConsumptionItem> = {};
+            const grouped: Record<number, { practiceCode: string; practiceName: string; count: number; lastDate: string }> = {};
             for (const d of detailed) {
-                if (!grouped[d.practiceId]) {
-                    grouped[d.practiceId] = {
-                        practiceCode: d.practiceCode,
-                        practiceName: d.practiceName,
-                        count: 0,
-                        lastDate: '',
-                    };
-                }
+                if (!grouped[d.practiceId]) grouped[d.practiceId] = { practiceCode: d.practiceCode, practiceName: d.practiceName, count: 0, lastDate: '' };
                 grouped[d.practiceId].count += d.quantity;
-                if (!grouped[d.practiceId].lastDate || d.date > grouped[d.practiceId].lastDate) {
-                    grouped[d.practiceId].lastDate = d.date;
-                }
+                if (!grouped[d.practiceId].lastDate || d.date > grouped[d.practiceId].lastDate) grouped[d.practiceId].lastDate = d.date;
             }
-
             setConsumptions(Object.values(grouped).sort((a, b) => b.count - a.count));
             setShowConsumptions(true);
-        } catch {
-            setConsumptions([]);
-            setDetailedConsumptions([]);
-        }
+        } catch { setConsumptions([]); setDetailedConsumptions([]); }
         setLoadingConsumptions(false);
     }, [affiliate]);
 
-    // ═══════════════════════════════════════════
-    // ═  GESTIÓN DE PRÁCTICAS
-    // ═══════════════════════════════════════════
-
-    const addPractice = (practice: Practice) => {
-        if (practiceItems.some(pi => pi.practice.id === practice.id)) return;
-        setPracticeItems(prev => [...prev, { practice, quantity: 1 }]);
-        setPracSearch('');
-        setPracResults([]);
-        setRulesEvaluated(false);
-        setRulesResult(null);
+    const handleNotesChange = (channel: 'interna' | 'para_afiliado', text: string) => {
+        setCommChannel(channel);
+        setNotes(text);
     };
 
-    const removePractice = (index: number) => {
-        setPracticeItems(prev => prev.filter((_, i) => i !== index));
-        setRulesEvaluated(false);
-        setRulesResult(null);
+    const handleSendMessage = (channel: 'interna' | 'para_afiliado') => {
+        if (!notes.trim()) return;
+        setChatMessages(prev => [...prev, { from: 'self', text: notes.trim(), date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), channel }]);
+        setNotes('');
     };
 
-    const updateQuantity = (index: number, qty: number) => {
-        setPracticeItems(prev =>
-            prev.map((item, i) => i === index ? { ...item, quantity: Math.max(1, qty) } : item)
-        );
-        setRulesEvaluated(false);
-        setRulesResult(null);
-    };
-
-    // ═══════════════════════════════════════════
-    // ═  ARCHIVOS
-    // ═══════════════════════════════════════════
-
-    const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>, overrideDocType?: ExpedientDocumentType) => {
-        if (!e.target.files || e.target.files.length === 0) return;
-        const rawFiles = Array.from(e.target.files);
-        e.target.value = '';
-
-        // Validar tamaño antes de comprimir
-        for (const f of rawFiles) {
-            const check = validateFileSize(f);
-            if (!check.valid) {
-                setError(check.message || 'Archivo demasiado grande');
-                return;
-            }
+    const handlePolishText = (channel: 'interna' | 'para_afiliado') => {
+        if (!notes.trim()) return;
+        setCommChannel(channel);
+        setAiLoading(true);
+        const raw = notes.trim();
+        let polished: string;
+        if (channel === 'para_afiliado') {
+            const lower = raw.toLowerCase();
+            const isRequest = /falta|adjunt|requiere|neces|enviar|present|remit|debe/.test(lower);
+            const isDenial = /deneg|rechaz|no se aprueba|no corresponde/.test(lower);
+            const isApproval = /aprob|autoriz|puede coordinar/.test(lower);
+            const cleanSentence = raw.charAt(0).toUpperCase() + raw.slice(1);
+            const withPeriod = /[.!?]$/.test(cleanSentence) ? cleanSentence : cleanSentence + '.';
+            if (isDenial) polished = 'Estimado/a afiliado/a, lamentamos informarle que ' + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1) + ' En caso de desacuerdo, puede presentar una apelacion formal.';
+            else if (isApproval) polished = 'Estimado/a afiliado/a, nos complace informarle que ' + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1) + ' Quedamos a su disposicion ante cualquier consulta.';
+            else if (isRequest) polished = 'Estimado/a afiliado/a, para continuar con el tramite de su solicitud, le informamos que ' + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1) + ' Agradecemos su colaboracion.';
+            else polished = 'Estimado/a afiliado/a, le comunicamos que ' + withPeriod.charAt(0).toLowerCase() + withPeriod.slice(1) + ' Quedamos a su disposicion.';
+        } else {
+            const sentence = raw.charAt(0).toUpperCase() + raw.slice(1);
+            polished = /[.!?]$/.test(sentence) ? sentence : sentence + '.';
         }
-
-        setCompressing(true);
-        setError('');
-        try {
-            const results: CompressResult[] = await Promise.all(
-                rawFiles.map(f => compressImage(f))
-            );
-            const finalDocType = overrideDocType || docType;
-            const newFiles: PendingFile[] = results.map(r => ({
-                file: r.file,
-                documentType: finalDocType,
-                originalSize: r.originalSize,
-                wasCompressed: r.wasCompressed,
-                savingsPercent: r.savingsPercent,
-            }));
-            setFiles(prev => [...prev, ...newFiles]);
-        } catch {
-            setError('Error procesando archivos');
-        }
-        setCompressing(false);
+        setNotes(polished);
+        setAiLoading(false);
     };
 
-    const triggerFileUpload = (targetDocType: ExpedientDocumentType) => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
-        input.multiple = true;
-        input.onchange = (ev) => {
-            const fakeEvent = { target: ev.target } as React.ChangeEvent<HTMLInputElement>;
-            handleFileAdd(fakeEvent, targetDocType);
-        };
-        input.click();
-    };
-
-    // ═══════════════════════════════════════════
-    // ═  MOTOR DE REGLAS — EVALUAR
-    // ═══════════════════════════════════════════
-
-    const handleEvaluate = async () => {
-        if (!affiliate || !affiliatePlan || practiceItems.length === 0) return;
-        setEvaluating(true);
-        setError('');
-        try {
-            const result = await RulesEngine.evaluate({
-                type: expedientType,
-                affiliate,
-                plan: affiliatePlan,
-                practices: practiceItems.map(pi => ({
-                    practice_id: pi.practice.id,
-                    practice: pi.practice,
-                    quantity: pi.quantity,
-                })),
-                jurisdiction_id: activeJurisdiction?.id || 1,
-            });
-
-            setPracticeItems(prev =>
-                prev.map((item, idx) => ({
-                    ...item,
-                    ruleResult: result.practices[idx],
-                }))
-            );
-
-            setRulesResult(result);
-            setRulesEvaluated(true);
-        } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Error evaluando reglas');
-        }
-        setEvaluating(false);
-    };
-
-    // ═══════════════════════════════════════════
-    // ═  VALIDACIONES
-    // ═══════════════════════════════════════════
+    const handleDiseaseSelect = useCallback((sel: DiseaseSelection) => { setDiagnosisCode(sel.code); setDiagnosis(sel.name); }, []);
+    const handleDiseaseClear = useCallback(() => { setDiagnosis(''); setDiagnosisCode(''); setDiagInitialSearch(''); }, []);
 
     const hasOrdenMedica = files.some(f => f.documentType === 'orden_medica');
     const isAffiliateActive = affiliate?.status === 'activo';
     const isAffiliateBlocked = affiliate && !isAffiliateActive;
 
     const validationErrors: string[] = [];
-    if (!affiliate) validationErrors.push('Seleccioná un afiliado');
-    if (isAffiliateBlocked) validationErrors.push(`Afiliado ${affiliate?.status} — no se puede procesar`);
-    if (practiceItems.length === 0) validationErrors.push('Agregá al menos una práctica');
-    if (!hasOrdenMedica) validationErrors.push('Orden médica obligatoria — adjuntá el archivo');
+    if (!affiliate) validationErrors.push('Selecciona un afiliado');
+    if (isAffiliateBlocked) validationErrors.push('Afiliado ' + affiliate?.status + ' - no se puede procesar');
+    if (practiceItems.length === 0) validationErrors.push('Agrega al menos una practica');
+    if (!hasOrdenMedica) validationErrors.push('Orden medica obligatoria - adjunta el archivo');
 
-    const canEvaluate = !!affiliate && isAffiliateActive && practiceItems.length > 0 && !!affiliatePlan && !evaluating;
     const canSubmit = !!affiliate && isAffiliateActive && practiceItems.length > 0 && hasOrdenMedica && !submitting;
 
     const greenCount = practiceItems.filter(pi => pi.ruleResult?.result === 'verde').length;
     const yellowCount = practiceItems.filter(pi => pi.ruleResult?.result === 'amarillo').length;
     const redCount = practiceItems.filter(pi => pi.ruleResult?.result === 'rojo').length;
-
-    // ═══════════════════════════════════════════
-    // ═  ENVÍO — CREAR EXPEDIENTE
-    // ═══════════════════════════════════════════
+    const totalValue = practiceItems.reduce((sum, pi) => sum + (pi.practice.financial_value || 0) * pi.quantity, 0);
 
     const handleSubmit = async () => {
         if (!canSubmit || !user || !activeJurisdiction || !affiliate) return;
-        setSubmitting(true);
-        setError('');
-
-        // Evaluar reglas silenciosamente antes de enviar
+        setSubmitting(true); setError('');
         let finalRulesResult = rulesResult;
         if (!rulesEvaluated && affiliatePlan) {
             try {
-                const result = await RulesEngine.evaluate({
-                    type: expedientType,
-                    affiliate,
-                    plan: affiliatePlan,
-                    practices: practiceItems.map(pi => ({
-                        practice_id: pi.practice.id,
-                        practice: pi.practice,
-                        quantity: pi.quantity,
-                    })),
-                    jurisdiction_id: activeJurisdiction.id,
-                });
-                finalRulesResult = result;
-                setRulesResult(result);
-                setRulesEvaluated(true);
-            } catch {
-                // Si falla el motor, enviar igual sin auto-aprobación
-            }
+                const result = await RulesEngine.evaluate({ type: expedientType, affiliate, plan: affiliatePlan, practices: practiceItems.map(pi => ({ practice_id: pi.practice.id, practice: pi.practice, quantity: pi.quantity })), jurisdiction_id: activeJurisdiction.id });
+                finalRulesResult = result; setRulesResult(result); setRulesEvaluated(true);
+            } catch { /* enviar sin auto-aprobacion */ }
         }
         try {
-            // Calcular datos IA finales para guardar en Supabase
             const practiceDesc = practiceItems.map(pi => pi.practice.description).join(', ');
-            const allTextForIA = [
-                ...chatMessages.map(m => m.text),
-                notes.trim(),
-                ocrResult?.text || '',
-                diagnosis,
-                practiceDesc
-            ].join(' ');
-
-            const finalIAPriority = aiPriorityResult ?? analyzeClinicalPriority(
-                allTextForIA,
-                practiceDesc,
-                diagnosis,
-            );
+            const allTextForIA = [...chatMessages.map(m => m.text), notes.trim(), ocrResult?.text || '', diagnosis, practiceDesc].join(' ');
+            const finalIAPriority = aiPriorityResult ?? analyzeClinicalPriority(allTextForIA, practiceDesc, diagnosis);
             const iaCoherence = coherenceResult ?? { isCoherent: true, warning: null, suggestions: [] };
             const iaSuggestions = buildIASuggestions(finalIAPriority, iaCoherence, { hasDuplicate: false, duplicateExpedientNumbers: [], message: null });
-
-            // Si hay familiar seleccionado, usar su id como afiliado real de la solicitud
             const beneficiaryId = selectedFamilyMember ? String(selectedFamilyMember.id) : String(affiliate.id);
             const beneficiaryRelation = selectedFamilyMember?.relationship ?? affiliate.relationship;
-
             const expedient = await ExpedientService.create({
-                type: expedientType,
-                priority,
-                affiliate_id: beneficiaryId,
-                affiliate_plan_id: affiliate.plan_id,
+                type: expedientType, priority, affiliate_id: beneficiaryId, affiliate_plan_id: affiliate.plan_id,
                 family_member_relation: beneficiaryRelation,
-                // Médico prescriptor
                 requesting_doctor_name: doctorName.trim() || undefined,
                 requesting_doctor_registration: doctorRegistration.trim() || undefined,
                 requesting_doctor_specialty: doctorSpecialty.trim() || undefined,
-                // Prestador
                 provider_name: providerName.trim() || undefined,
-                // Prescripción
                 prescription_date: prescriptionDate || undefined,
                 prescription_number: prescriptionNumber.trim() || undefined,
                 order_expiry_date: orderExpiryDate || undefined,
-                // Diagnóstico
                 diagnosis_code: diagnosisCode || undefined,
                 diagnosis_description: diagnosis || undefined,
-                // Asignación
                 assigned_to: assignedAuditorId || undefined,
-                // Notas
                 request_notes: notes.trim() || undefined,
                 requires_control_desk: finalRulesResult?.requires_control_desk || false,
                 rules_result: finalRulesResult?.overall,
-                created_by: user.id,
-                jurisdiction_id: activeJurisdiction.id,
-                // IA fields (Etapa 1)
+                created_by: user.id, jurisdiction_id: activeJurisdiction.id,
                 clinical_priority_score: finalIAPriority.score,
-                ia_suggestions: iaSuggestions,
-                ocr_text: ocrResult?.text || undefined,
+                ia_suggestions: iaSuggestions, ocr_text: ocrResult?.text || undefined,
                 practices: practiceItems.map((pi, idx) => ({
-                    practice_id: pi.practice.id,
-                    quantity: pi.quantity,
-                    practice_value: pi.practice.financial_value,
+                    practice_id: pi.practice.id, quantity: pi.quantity, practice_value: pi.practice.financial_value,
                     coverage_percent: pi.ruleResult?.coverage_percent ?? finalRulesResult?.practices[idx]?.coverage_percent,
                     covered_amount: pi.ruleResult?.covered_amount ?? finalRulesResult?.practices[idx]?.covered_amount,
                     copay_amount: pi.ruleResult?.copay_amount ?? finalRulesResult?.practices[idx]?.copay_amount,
@@ -850,34 +428,20 @@ export default function NewExpedientPage() {
                     sort_order: idx,
                 })),
             });
-
-            // Guardar mensajes del chat como notas individuales
             if (chatMessages.length > 0) {
                 for (const msg of chatMessages) {
-                    await ExpedientService.addNote({
-                        expedient_id: expedient.id,
-                        author_id: user.id,
-                        content: msg.text,
-                        note_type: msg.channel || 'interna',
-                    });
+                    await ExpedientService.addNote({ expedient_id: expedient.id, author_id: user.id, content: msg.text, note_type: msg.channel || 'interna' });
                 }
             }
-
-            // Adjuntos
             if (files.length > 0) {
-                for (const pf of files) {
-                    await ExpedientService.uploadAttachment(expedient.id, pf.file, pf.documentType, user.id);
-                }
+                for (const pf of files) await ExpedientService.uploadAttachment(expedient.id, pf.file, pf.documentType, user.id);
             }
-
-            // Auto-aprobar prácticas VERDES si corresponde
             const codes: string[] = [];
             const gCount = finalRulesResult?.practices.filter(p => p.result === 'verde').length || 0;
             if (gCount > 0 && finalRulesResult?.overall !== 'rojo') {
                 const autoResult = await ExpedientService.autoApprovePractices(expedient.id, user.id);
-                codes.push(...autoResult.authorized.map(a => a.authorization_code));
+                codes.push(...autoResult.authorized.map((a: { authorization_code: string }) => a.authorization_code));
             }
-
             setSubmittedExpNumber(expedient.expedient_number || expedient.id);
             setAutoApprovedCodes(codes);
             setSubmitted(true);
@@ -889,126 +453,51 @@ export default function NewExpedientPage() {
 
     const resetForm = () => {
         setAffiliate(null); setPracticeItems([]); setFiles([]); setNotes(''); setDiagnosis('');
-        setDiagnosisCode(''); setDiagInitialSearch('');
-        setPriority('normal'); setSubmitted(false); setSubmittedExpNumber('');
-        setAutoApprovedCodes([]); setAffSearch(''); setPracSearch('');
-        setShowConsumptions(false); setConsumptions([]); setPlanName('');
-        setAffiliatePlan(null); setRulesEvaluated(false); setRulesResult(null);
-        setExpedientType('ambulatoria'); setShowPreview(false); setChatMessages([]);
-        // Médico prescriptor y prestador
+        setDiagnosisCode(''); setDiagInitialSearch(''); setPriority('normal');
+        setSubmitted(false); setSubmittedExpNumber(''); setAutoApprovedCodes([]);
+        setAffSearch(''); setPracSearch(''); setShowConsumptions(false);
+        setConsumptions([]); setPlanName(''); setAffiliatePlan(null);
+        setRulesEvaluated(false); setRulesResult(null); setExpedientType('ambulatoria');
+        setShowPreview(false); setChatMessages([]);
         setDoctorName(''); setDoctorRegistration(''); setDoctorSpecialty('');
         setProviderName(''); setPrescriptionDate(''); setPrescriptionNumber('');
         setOrderExpiryDate(''); setAssignedAuditorId('');
     };
 
-    // ═══════════════════════════════════════════
-    // ═  VISTA DE ÉXITO
-    // ═══════════════════════════════════════════
-
     if (submitted) {
-        const allAutoApproved = autoApprovedCodes.length === practiceItems.length && practiceItems.length > 0;
-        const someAutoApproved = autoApprovedCodes.length > 0 && !allAutoApproved;
-
         return (
-            <div className="max-w-lg mx-auto p-6 mt-8">
-                <div className="border border-green-200 bg-green-50/50 rounded-xl p-8 text-center space-y-4">
-                    <CheckCircle className="h-14 w-14 text-green-500 mx-auto" />
-                    <h2 className="text-xl font-bold text-green-800">Expediente Creado</h2>
-                    <p className="text-3xl font-mono font-bold text-green-900">{submittedExpNumber}</p>
-
-                    {allAutoApproved && (
-                        <div className="bg-green-100 border border-green-300 rounded-lg p-3">
-                            <p className="text-sm font-semibold text-green-800 flex items-center justify-center gap-1.5">
-                                <Zap className="h-4 w-4" /> Todas las prácticas auto-aprobadas
-                            </p>
-                            <div className="mt-2 space-y-1">
-                                {autoApprovedCodes.map(code => (
-                                    <p key={code} className="text-sm font-mono text-green-800">{code}</p>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {someAutoApproved && (
-                        <div className="space-y-2">
-                            <div className="bg-green-100 border border-green-300 rounded-lg p-3">
-                                <p className="text-sm font-semibold text-green-800">
-                                    ✓ {autoApprovedCodes.length} práctica(s) auto-aprobada(s):
-                                </p>
-                                <div className="mt-1 space-y-0.5">
-                                    {autoApprovedCodes.map(code => (
-                                        <p key={code} className="text-sm font-mono text-green-800">{code}</p>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
-                                <p className="text-sm text-yellow-800">
-                                    ⏳ {practiceItems.length - autoApprovedCodes.length} práctica(s) derivada(s) a auditoría
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {autoApprovedCodes.length === 0 && (
-                        <p className="text-sm text-green-600">Derivado a auditoría para revisión.</p>
-                    )}
-
-                    <div className="flex gap-3 justify-center pt-2">
-                        <Button onClick={resetForm}>Nueva Solicitud</Button>
-                        <Link href="/audits/requests"><Button variant="outline">Ver Pendientes</Button></Link>
-                    </div>
-                </div>
-            </div>
+            <SuccessView
+                submittedExpNumber={submittedExpNumber}
+                autoApprovedCodes={autoApprovedCodes}
+                practiceItems={practiceItems}
+                onReset={resetForm}
+            />
         );
     }
 
-    // ═══════════════════════════════════════════
-    // ═  FORMULARIO PRINCIPAL
-    // ═══════════════════════════════════════════
-
-    const age = affiliate ? calcAge(affiliate.birth_date) : null;
-    const specialConds = affiliate ? formatSpecialConditions(affiliate.special_conditions) : [];
-    const totalValue = practiceItems.reduce((sum, pi) => sum + (pi.practice.financial_value || 0) * pi.quantity, 0);
-
     return (
         <div className="max-w-3xl mx-auto p-4 space-y-5">
-
-            {/* ── Header ── */}
             <div className="flex items-center gap-3">
                 <Link href="/audits/requests">
                     <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                 </Link>
                 <div>
                     <h1 className="text-xl font-bold">Solicitud Nueva</h1>
-                    <p className="text-xs text-muted-foreground">Apertura de expediente digital de auditoría</p>
+                    <p className="text-xs text-muted-foreground">Apertura de expediente digital de auditoria</p>
                 </div>
             </div>
 
-            {/* ══════════════════════════════════════ */}
-            {/* ═  CARGA ASISTIDA CON IA              ═ */}
-            {/* ══════════════════════════════════════ */}
             <AIUploadModal onDataParsed={handleAIParsed} />
 
-            {/* ══════════════════════════════════════ */}
-            {/* ═  TIPO DE EXPEDIENTE                ═ */}
-            {/* ══════════════════════════════════════ */}
             <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
-                    Tipo de expediente
-                </label>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Tipo de expediente</label>
                 <div className="flex gap-1.5 flex-wrap">
                     {EXPEDIENT_TYPES.map(t => {
                         const Icon = t.icon;
                         const active = expedientType === t.value;
                         return (
-                            <button
-                                key={t.value}
-                                onClick={() => { setExpedientType(t.value); setRulesEvaluated(false); setRulesResult(null); }}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${active
-                                    ? `${t.cls} ring-1 ring-current/20`
-                                    : 'border-border text-muted-foreground hover:border-muted-foreground/40'
-                                    }`}
-                            >
+                            <button key={t.value} onClick={() => { setExpedientType(t.value); setRulesEvaluated(false); setRulesResult(null); }}
+                                className={'flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ' + (active ? t.cls + ' ring-1 ring-current/20' : 'border-border text-muted-foreground hover:border-muted-foreground/40')}>
                                 <Icon className="h-3.5 w-3.5" />
                                 <span className="hidden sm:inline">{t.label}</span>
                                 <span className="sm:hidden">{t.short}</span>
@@ -1018,669 +507,105 @@ export default function NewExpedientPage() {
                 </div>
             </div>
 
-            {/* ══════════════════════════════════════ */}
-            {/* ═  AFILIADO                           ═ */}
-            {/* ══════════════════════════════════════ */}
-            <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Afiliado *
-                </label>
+            <AffiliateSearch
+                affSearch={affSearch}
+                affResults={affResults}
+                affiliate={affiliate}
+                searchingAff={searchingAff}
+                planName={planName}
+                selectedFamilyMember={selectedFamilyMember}
+                aiPriorityResult={aiPriorityResult}
+                showConsumptions={showConsumptions}
+                loadingConsumptions={loadingConsumptions}
+                consumptions={consumptions}
+                detailedConsumptions={detailedConsumptions}
+                practiceItems={practiceItems}
+                consumptionDateFrom={consumptionDateFrom}
+                consumptionDateTo={consumptionDateTo}
+                consumptionPracticeFilter={consumptionPracticeFilter}
+                showConsumptionFilters={showConsumptionFilters}
+                onAffSearchChange={setAffSearch}
+                onSelectAffiliate={selectAffiliate}
+                onClearAffiliate={clearAffiliate}
+                onSelectFamilyMember={setSelectedFamilyMember}
+                onToggleConsumptions={() => {
+                    if (!showConsumptions && consumptions.length === 0) fetchConsumptions();
+                    else setShowConsumptions(prev => !prev);
+                }}
+                onFilterChange={(key, value) => {
+                    if (key === 'from') setConsumptionDateFrom(value);
+                    else if (key === 'to') setConsumptionDateTo(value);
+                    else setConsumptionPracticeFilter(value);
+                }}
+                onClearFilters={() => { setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter(''); }}
+                onToggleFilters={() => setShowConsumptionFilters(prev => !prev)}
+                onViewAttachments={viewAttachments}
+                onAddPractice={addPractice}
+            />
 
-                {!affiliate ? (
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Buscar por nombre, DNI o nro. de afiliado..."
-                            value={affSearch}
-                            onChange={e => setAffSearch(e.target.value)}
-                            className="pl-9"
-                            autoFocus
-                        />
-                        {searchingAff && (
-                            <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando afiliados...</p>
-                        )}
-                        {affResults.length > 0 && (
-                            <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                                {affResults.map(a => {
-                                    const aAge = calcAge(a.birth_date);
-                                    return (
-                                        <button
-                                            key={String(a.id)}
-                                            onClick={() => selectAffiliate(a)}
-                                            className="w-full px-3 py-2.5 text-left hover:bg-muted/50 text-sm border-b last:border-0 flex items-center gap-3"
-                                        >
-                                            <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                                            <div className="min-w-0 flex-1">
-                                                <div className="font-semibold truncate">{a.full_name}</div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    DNI {a.document_number}
-                                                    {a.affiliate_number && ` · Nro ${a.affiliate_number}`}
-                                                    {aAge !== null && ` · ${aAge} años`}
-                                                    {a.relationship && ` · ${a.relationship}`}
-                                                </div>
-                                            </div>
-                                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${a.status === 'activo'
-                                                ? 'bg-green-100 text-green-700'
-                                                : a.status === 'suspendido'
-                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                    : 'bg-red-100 text-red-700'
-                                                }`}>
-                                                {a.status}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        {affSearch.length >= 2 && !searchingAff && affResults.length === 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">No se encontraron afiliados</p>
-                        )}
-                    </div>
-                ) : (
-                    <div className="border rounded-xl overflow-hidden">
-                        {/* Cabecera */}
-                        <div className="bg-primary/5 border-b px-4 py-3 flex items-start justify-between">
-                            <div>
-                                <h3 className="font-bold text-base">{affiliate.full_name}</h3>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    DNI {affiliate.document_number}
-                                    {affiliate.affiliate_number && ` · Afiliado Nro. ${affiliate.affiliate_number}`}
-                                    {affiliate.certificate_number && ` · Cert. ${affiliate.certificate_number}`}
-                                    {affiliate.cuit && ` · CUIT ${affiliate.cuit}`}
-                                </p>
-                            </div>
-                            <button onClick={clearAffiliate} className="text-muted-foreground hover:text-foreground p-1">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
+            <PracticeSelector
+                pracSearch={pracSearch}
+                pracResults={pracResults}
+                searchingPrac={searchingPrac}
+                practiceItems={practiceItems}
+                rulesEvaluated={rulesEvaluated}
+                greenCount={greenCount}
+                yellowCount={yellowCount}
+                redCount={redCount}
+                totalValue={totalValue}
+                onPracSearchChange={setPracSearch}
+                onAddPractice={addPractice}
+                onRemovePractice={removePractice}
+                onUpdateQuantity={updateQuantity}
+                onViewHistory={(id, name) => setViewingHistoryFor({ id, name })}
+            />
 
-                        {/* Grid de datos */}
-                        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
-                            <div className="flex items-center gap-1.5">
-                                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span>{age !== null ? `${age} años` : 'Edad N/D'}</span>
-                                {affiliate.gender && (
-                                    <span className="text-muted-foreground">
-                                        ({affiliate.gender === 'M' ? 'Masc.' : affiliate.gender === 'F' ? 'Fem.' : 'Otro'})
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="font-medium">{planName || 'Sin plan'}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <User className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className={affiliate.relationship === 'Titular' ? 'font-semibold text-blue-700' : ''}>
-                                    {affiliate.relationship || 'Titular'}
-                                </span>
-                            </div>
-                            <div>
-                                <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${affiliate.status === 'activo' ? 'bg-green-100 text-green-700' :
-                                    affiliate.status === 'suspendido' ? 'bg-yellow-100 text-yellow-700' :
-                                        'bg-red-100 text-red-700'
-                                    }`}>
-                                    ● {affiliate.status === 'activo' ? 'Activo' : affiliate.status === 'suspendido' ? 'Suspendido' : 'Baja'}
-                                </span>
-                            </div>
-                            {affiliate.start_date && (
-                                <div className="text-xs text-muted-foreground">
-                                    Alta: {new Date(affiliate.start_date).toLocaleDateString('es-AR')}
-                                </div>
-                            )}
-                            {affiliate.agreement && (
-                                <div className="text-xs text-muted-foreground truncate">Convenio: {affiliate.agreement}</div>
-                            )}
-                            {affiliate.phone && (
-                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                    <Phone className="h-3.5 w-3.5" /><span className="text-xs">{affiliate.phone}</span>
-                                </div>
-                            )}
-                            {affiliate.email && (
-                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                    <Mail className="h-3.5 w-3.5" /><span className="text-xs truncate">{affiliate.email}</span>
-                                </div>
-                            )}
-                            {(affiliate.city || affiliate.address) && (
-                                <div className="flex items-center gap-1.5 text-muted-foreground col-span-2 sm:col-span-3">
-                                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                                    <span className="text-xs truncate">
-                                        {[affiliate.address, affiliate.city, affiliate.province].filter(Boolean).join(', ')}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
+            <PrescriptionForm
+                doctorName={doctorName}
+                doctorRegistration={doctorRegistration}
+                doctorSpecialty={doctorSpecialty}
+                providerName={providerName}
+                prescriptionDate={prescriptionDate}
+                prescriptionNumber={prescriptionNumber}
+                orderExpiryDate={orderExpiryDate}
+                onDoctorNameChange={setDoctorName}
+                onDoctorRegistrationChange={setDoctorRegistration}
+                onDoctorSpecialtyChange={setDoctorSpecialty}
+                onProviderNameChange={setProviderName}
+                onPrescriptionDateChange={setPrescriptionDate}
+                onPrescriptionNumberChange={setPrescriptionNumber}
+                onOrderExpiryDateChange={setOrderExpiryDate}
+            />
 
-                        {/* Condiciones especiales */}
-                        {(specialConds.length > 0 || affiliate.special_pharmacy || Number(affiliate.copay_debt) > 0) && (
-                            <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-                                {specialConds.map(sc => (
-                                    <span key={sc} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">⚠️ {sc}</span>
-                                ))}
-                                {affiliate.special_pharmacy && (
-                                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-medium">💊 Farmacia especial</span>
-                                )}
-                                {Number(affiliate.copay_debt) > 0 && (
-                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">💰 Deuda coseguro: ${affiliate.copay_debt!.toLocaleString()}</span>
-                                )}
-                                {affiliate.frozen_quota && (
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">❄️ Cuota congelada</span>
-                                )}
-                                {affiliate.has_life_insurance && (
-                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">🛡️ Seguro de vida</span>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Alerta si no está activo */}
-                        {isAffiliateBlocked && (
-                            <div className="mx-4 mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm font-medium">
-                                <AlertTriangle className="h-4 w-4 shrink-0" />
-                                Afiliado {affiliate.status} — No se puede crear el expediente.
-                            </div>
-                        )}
-
-                        {affiliate.observations && (
-                            <div className="px-4 pb-3 text-xs text-muted-foreground">📝 {affiliate.observations}</div>
-                        )}
-
-                        {/* ── Grupo Familiar (Etapa 1) ── */}
-                        {isAffiliateActive && (
-                            <div className="px-4 pb-3">
-                                <FamilyMemberSelector
-                                    affiliate={affiliate}
-                                    selectedMemberId={selectedFamilyMember ? String(selectedFamilyMember.id) : null}
-                                    onSelectMember={(member) => setSelectedFamilyMember(member)}
-                                />
-                            </div>
-                        )}
-
-                        {/* ── Alerta de prioridad clínica IA ── */}
-                        {aiPriorityResult?.hasStarPriority && (
-                            <div className="mx-4 mb-3 p-2.5 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2">
-                                <Star className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 fill-amber-400" />
-                                <div>
-                                    <p className="text-sm font-semibold text-amber-800">
-                                        Prioridad clínica alta detectada (IA)
-                                    </p>
-                                    <p className="text-xs text-amber-700 mt-0.5">
-                                        {aiPriorityResult.reasons.join(' · ')}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Panel de consumos */}
-                        <div className="border-t">
-                            <button
-                                onClick={() => {
-                                    if (!showConsumptions && consumptions.length === 0) fetchConsumptions();
-                                    else setShowConsumptions(prev => !prev);
-                                }}
-                                className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-muted/50 transition-colors"
-                            >
-                                <span className="flex items-center gap-2 font-medium">
-                                    <BarChart3 className="h-4 w-4" /> Consumos del afiliado
-                                    {detailedConsumptions.length > 0 && (
-                                        <span className="text-xs text-muted-foreground font-normal">({detailedConsumptions.length} registros)</span>
-                                    )}
-                                </span>
-                                {loadingConsumptions ? (
-                                    <span className="text-xs text-muted-foreground animate-pulse">Cargando...</span>
-                                ) : showConsumptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </button>
-                            {showConsumptions && (
-                                <div className="px-4 pb-3 space-y-2">
-                                    {/* Tabs */}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Historial completo</span>
-                                        <button
-                                            onClick={() => setShowConsumptionFilters(prev => !prev)}
-                                            className={`p-1.5 rounded-md border text-xs ${showConsumptionFilters ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
-                                            title="Filtros"
-                                        >
-                                            <Filter className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-
-                                    {showConsumptionFilters && (
-                                        <div className="flex gap-2 items-center flex-wrap bg-muted/20 rounded-lg p-2">
-                                            <label className="text-xs text-muted-foreground">Práctica:</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Código o nombre..."
-                                                value={consumptionPracticeFilter}
-                                                onChange={e => setConsumptionPracticeFilter(e.target.value)}
-                                                className="border rounded px-2 py-1 text-xs bg-background min-w-[120px]"
-                                            />
-                                            <label className="text-xs text-muted-foreground ml-2">Desde:</label>
-                                            <input type="date" value={consumptionDateFrom} onChange={e => setConsumptionDateFrom(e.target.value)}
-                                                className="border rounded px-2 py-1 text-xs bg-background" />
-                                            <label className="text-xs text-muted-foreground">Hasta:</label>
-                                            <input type="date" value={consumptionDateTo} onChange={e => setConsumptionDateTo(e.target.value)}
-                                                className="border rounded px-2 py-1 text-xs bg-background" />
-                                            {(consumptionDateFrom || consumptionDateTo || consumptionPracticeFilter) && (
-                                                <button onClick={() => { setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter(''); }}
-                                                    className="text-xs text-red-500 hover:text-red-700 ml-1">Limpiar</button>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Contenido general */}
-                                    {(() => {
-                                        let filtered = detailedConsumptions;
-
-                                        if (consumptionDateFrom) filtered = filtered.filter(d => d.date >= consumptionDateFrom);
-                                        if (consumptionDateTo) filtered = filtered.filter(d => d.date <= consumptionDateTo + 'T23:59:59');
-                                        if (consumptionPracticeFilter) {
-                                            const lowerFilter = consumptionPracticeFilter.toLowerCase();
-                                            filtered = filtered.filter(d =>
-                                                d.practiceCode.toLowerCase().includes(lowerFilter) ||
-                                                d.practiceName.toLowerCase().includes(lowerFilter)
-                                            );
-                                        }
-
-                                        if (filtered.length === 0) {
-                                            return <p className="text-xs text-muted-foreground py-2">Sin consumos registrados.</p>;
-                                        }
-
-                                        const currentYear = new Date().getFullYear().toString();
-                                        const groupedByDiagnosis = filtered.reduce((acc, current) => {
-                                            const diag = current.diagnosisName ? `${current.diagnosisCode} - ${current.diagnosisName}` : 'Sin diagnóstico / Varios';
-                                            if (!acc[diag]) acc[diag] = [];
-                                            acc[diag].push(current);
-                                            return acc;
-                                        }, {} as Record<string, DetailedConsumption[]>);
-
-                                        return (
-                                            <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
-                                                {Object.entries(groupedByDiagnosis).map(([diag, items]) => (
-                                                    <div key={diag} className="space-y-1.5 border border-border/50 bg-background rounded-lg p-2.5 shadow-sm">
-                                                        <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-border/50">
-                                                            <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                                                            <h4 className="text-xs font-semibold text-foreground">{diag}</h4>
-                                                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full ml-auto">{items.length} consumos</span>
-                                                        </div>
-                                                        <div className="space-y-1.5 pl-1">
-                                                            {items.map(c => {
-                                                                const statusColors: Record<string, string> = {
-                                                                    autorizada: 'bg-green-100 text-green-700',
-                                                                    autorizada_parcial: 'bg-yellow-100 text-yellow-700',
-                                                                    denegada: 'bg-red-100 text-red-700',
-                                                                    pendiente: 'bg-blue-100 text-blue-700',
-                                                                    en_revision: 'bg-purple-100 text-purple-700',
-                                                                };
-                                                                const consumedThisYear = filtered.filter(d => d.practiceId === c.practiceId && d.date.startsWith(currentYear)).reduce((sum, d) => sum + d.quantity, 0);
-                                                                const alreadyInCart = practiceItems.some(pi => pi.practice.id === c.practiceId);
-
-                                                                return (
-                                                                    <div key={c.id} className="flex flex-col gap-1 text-xs bg-muted/20 border border-muted rounded px-2.5 py-2 hover:bg-muted/40 transition-colors">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className="flex items-center gap-1 text-muted-foreground shrink-0 w-20">
-                                                                                <Clock className="h-3 w-3" />
-                                                                                {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
-                                                                            </div>
-                                                                            <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                                                                <span className="font-mono font-medium text-primary">{c.practiceCode}</span>
-                                                                                <span className="truncate flex-1" title={c.practiceName}>{c.practiceName}</span>
-                                                                                {c.quantity > 1 && <span className="text-muted-foreground bg-muted px-1 rounded-sm text-[10px]">×{c.quantity}</span>}
-                                                                            </div>
-                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                                                {c.status.replace(/_/g, ' ')}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="flex items-center justify-between mt-1 pt-1 border-t border-border/30 text-muted-foreground">
-                                                                            <div className="flex items-center gap-3">
-                                                                                {consumedThisYear > 0 && (
-                                                                                    <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-sm" title={`Consumidas este año: ${consumedThisYear}`}>
-                                                                                        Límite: {consumedThisYear} / año
-                                                                                    </span>
-                                                                                )}
-                                                                                {c.coveredAmount > 0 && (
-                                                                                    <span className="text-green-700 font-mono" title="Monto cubierto">
-                                                                                        ${c.coveredAmount.toLocaleString()}
-                                                                                    </span>
-                                                                                )}
-                                                                                {c.copayAmount > 0 && (
-                                                                                    <span className="text-orange-600 font-mono" title="Coseguro">
-                                                                                        cos.${c.copayAmount.toLocaleString()}
-                                                                                    </span>
-                                                                                )}
-                                                                                {c.auditorName && (
-                                                                                    <span className="truncate max-w-[120px]" title={`Auditor: ${c.auditorName}`}>
-                                                                                        👤 {c.auditorName}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="flex items-center gap-2">
-                                                                                {c.expedientNumber && (
-                                                                                    <div className="flex items-center gap-1 bg-background px-1.5 py-0.5 rounded border shadow-sm">
-                                                                                        <span className="font-mono text-[10px]" title="Nro. expediente">
-                                                                                            #{c.expedientNumber}
-                                                                                        </span>
-                                                                                        {c.expedientId && (
-                                                                                            <Link
-                                                                                                href={`/audits/requests/${c.expedientId}`}
-                                                                                                target="_blank"
-                                                                                                className="text-primary hover:text-primary/80 transition-colors p-[1px]"
-                                                                                                title="Ver solicitud en nueva pestaña"
-                                                                                            >
-                                                                                                <ExternalLink className="h-3 w-3" />
-                                                                                            </Link>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-                                                                                {c.fullPractice && (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        disabled={alreadyInCart}
-                                                                                        onClick={() => !alreadyInCart && addPractice(c.fullPractice)}
-                                                                                        className={`flex items-center gap-1 ${alreadyInCart ? 'text-green-600 bg-green-50' : 'text-primary bg-primary/10 hover:bg-primary/20'} px-2 py-0.5 rounded transition-colors text-[10px] font-medium`}
-                                                                                        title={alreadyInCart ? "Práctica ya en solicitud" : "Copiar/Re-solicitar práctica"}
-                                                                                    >
-                                                                                        <Plus className="h-3 w-3" /> {alreadyInCart ? 'Agregada' : 'Re-solicitar'}
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t px-1">
-                                                    <span>{filtered.length} registro(s)</span>
-                                                    <span>
-                                                        Cob. total: ${filtered.reduce((s, c) => s + c.coveredAmount, 0).toLocaleString()}
-                                                        {' · '}Coseg. total: ${filtered.reduce((s, c) => s + c.copayAmount, 0).toLocaleString()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* ══════════════════════════════════════ */}
-            {/* ═  PRÁCTICAS (MÚLTIPLES)             ═ */}
-            {/* ══════════════════════════════════════ */}
-            <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Prácticas * <span className="normal-case text-muted-foreground/60">(buscar en nomenclador)</span>
-                </label>
-
-                <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar por código o descripción (ej: RMN, consulta, 420101)..."
-                        value={pracSearch}
-                        onChange={e => setPracSearch(e.target.value)}
-                        className="pl-9"
-                    />
-                    {searchingPrac && (
-                        <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando en nomenclador...</p>
-                    )}
-                    {pracResults.length > 0 && (
-                        <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-56 overflow-y-auto">
-                            {pracResults.map(p => {
-                                const alreadyAdded = practiceItems.some(pi => pi.practice.id === p.id);
-                                return (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => !alreadyAdded && addPractice(p)}
-                                        disabled={alreadyAdded}
-                                        className={`w-full px-3 py-2.5 text-left text-sm border-b last:border-0 flex justify-between items-center gap-2 ${alreadyAdded ? 'bg-muted/30 text-muted-foreground' : 'hover:bg-muted/50'
-                                            }`}
-                                    >
-                                        <div className="min-w-0">
-                                            <span className="font-mono font-semibold">{p.code}</span>
-                                            <span className="ml-2">{p.description}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <span className="font-mono text-muted-foreground">${p.financial_value?.toLocaleString()}</span>
-                                            {alreadyAdded && <span className="text-xs text-green-600">✓ agregada</span>}
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                    {pracSearch.length >= 2 && !searchingPrac && pracResults.length === 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">No se encontraron prácticas para &quot;{pracSearch}&quot;</p>
-                    )}
-                </div>
-
-                {/* Lista de prácticas con semáforo */}
-                {practiceItems.length > 0 && (
-                    <div className="border rounded-lg overflow-hidden">
-                        {practiceItems.map((pi, idx) => {
-                            const rc = pi.ruleResult;
-                            const color = rc ? RULE_COLORS[rc.result] : null;
-                            const RuleIcon = color?.icon;
-                            return (
-                                <div key={pi.practice.id}
-                                    className={`border-b last:border-0 transition-colors ${color ? `${color.bg}` : 'hover:bg-muted/30'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-3 px-3 py-2">
-                                        {rc && RuleIcon && (
-                                            <div className={`shrink-0 ${color!.text}`} title={color!.label}>
-                                                <RuleIcon className="h-4 w-4" />
-                                            </div>
-                                        )}
-                                        <div className="flex-1 min-w-0 text-sm">
-                                            <span className="font-mono font-semibold">{pi.practice.code}</span>
-                                            <span className="ml-1.5">{pi.practice.description}</span>
-                                        </div>
-                                        {rc && (
-                                            <span className={`text-xs font-medium shrink-0 ${color!.text}`}>
-                                                {rc.coverage_percent.toFixed(0)}% cob.
-                                            </span>
-                                        )}
-                                        <span className="text-xs text-muted-foreground font-mono shrink-0">
-                                            ${((pi.practice.financial_value || 0) * pi.quantity).toLocaleString()}
-                                        </span>
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-xs text-muted-foreground">×</span>
-                                            <Input
-                                                type="number" min={1} max={99}
-                                                value={pi.quantity}
-                                                onChange={e => updateQuantity(idx, parseInt(e.target.value) || 1)}
-                                                className="w-14 h-7 text-center text-sm"
-                                            />
-                                        </div>
-                                        <button
-                                            onClick={(e) => { e.preventDefault(); setViewingHistoryFor({ id: pi.practice.id, name: pi.practice.description }); }}
-                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                            title="Ver consumos previos de esta práctica"
-                                        >
-                                            <Clock className="h-4 w-4" />
-                                        </button>
-                                        <button onClick={() => removePractice(idx)} className="text-muted-foreground hover:text-red-500 p-1">
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-
-                                    {rc && rc.messages.length > 0 && (
-                                        <div className="px-3 pb-2 pl-10">
-                                            {rc.messages.map((msg, mi) => (
-                                                <p key={mi} className={`text-xs ${color!.text} opacity-80`}>• {msg}</p>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-
-                        <div className="flex items-center justify-between px-3 py-2 bg-muted/30 text-sm font-semibold">
-                            <div className="flex items-center gap-3">
-                                <span>{practiceItems.length} práctica(s)</span>
-                                {rulesEvaluated && (
-                                    <div className="flex items-center gap-2 text-xs font-medium">
-                                        {greenCount > 0 && <span className="text-green-700">● {greenCount} auto</span>}
-                                        {yellowCount > 0 && <span className="text-yellow-700">● {yellowCount} auditor</span>}
-                                        {redCount > 0 && <span className="text-red-700">● {redCount} auditor</span>}
-                                    </div>
-                                )}
-                            </div>
-                            <span className="font-mono">Total: ${totalValue.toLocaleString()}</span>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* ══════════════════════════════════════ */}
-            {/* ═  MÉDICO / PRESTADOR / PRESCRIPCIÓN ═ */}
-            {/* ══════════════════════════════════════ */}
-            <div className="border rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b">
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                        <Stethoscope className="h-3.5 w-3.5" />
-                        Médico prescriptor y prestador
-                    </p>
-                </div>
-                <div className="p-4 space-y-3">
-                    {/* Fila 1: Médico + Matrícula */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Médico solicitante</label>
-                            <Input
-                                placeholder="Dr./Dra. nombre completo"
-                                value={doctorName}
-                                onChange={e => setDoctorName(e.target.value)}
-                                className="text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Matrícula (MN/MP)</label>
-                            <Input
-                                placeholder="Ej: MN 12345 o MP 67890"
-                                value={doctorRegistration}
-                                onChange={e => setDoctorRegistration(e.target.value)}
-                                className="text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Fila 2: Especialidad + Prestador */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Especialidad</label>
-                            <Input
-                                placeholder="Ej: Cardiología, Traumatología"
-                                value={doctorSpecialty}
-                                onChange={e => setDoctorSpecialty(e.target.value)}
-                                className="text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Prestador / Efector</label>
-                            <Input
-                                placeholder="Clínica, sanatorio, laboratorio"
-                                value={providerName}
-                                onChange={e => setProviderName(e.target.value)}
-                                className="text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Fila 3: Fecha prescripción + Nro receta + Vencimiento */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Fecha prescripción</label>
-                            <Input
-                                type="date"
-                                value={prescriptionDate}
-                                onChange={e => setPrescriptionDate(e.target.value)}
-                                className="text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Nro. receta / orden</label>
-                            <Input
-                                placeholder="Nro. referencia"
-                                value={prescriptionNumber}
-                                onChange={e => setPrescriptionNumber(e.target.value)}
-                                className="text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Vencimiento orden</label>
-                            <Input
-                                type="date"
-                                value={orderExpiryDate}
-                                onChange={e => setOrderExpiryDate(e.target.value)}
-                                className="text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Indicador IA si se llenó automáticamente */}
-                    {doctorName && prescriptionDate && (
-                        <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                            <Sparkles className="h-3 w-3" /> Datos detectados por IA — verificar antes de enviar
-                        </p>
-                    )}
-                </div>
-            </div>
-
-            {/* ══════════════════════════════════════ */}
-            {/* ═  ASIGNACIÓN DE AUDITOR             ═ */}
-            {/* ══════════════════════════════════════ */}
             {auditorsList.length > 0 && (
                 <div className="border rounded-xl overflow-hidden">
                     <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b">
                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5" />
-                            Asignar auditor
+                            <User className="h-3.5 w-3.5" /> Asignar auditor
                         </p>
                     </div>
                     <div className="p-4">
-                        <select
-                            value={assignedAuditorId}
-                            onChange={e => setAssignedAuditorId(e.target.value)}
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                            <option value="">— Sin asignar (se asignará después) —</option>
+                        <select value={assignedAuditorId} onChange={e => setAssignedAuditorId(e.target.value)}
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            <option value="">- Sin asignar (se asignara despues) -</option>
                             {auditorsList.map(a => (
-                                <option key={a.id} value={a.id}>
-                                    {a.full_name} ({a.role === 'supervisor' ? 'Supervisor' : 'Auditor'})
-                                </option>
+                                <option key={a.id} value={a.id}>{a.full_name} ({a.role === 'supervisor' ? 'Supervisor' : 'Auditor'})</option>
                             ))}
                         </select>
-                        <p className="text-[10px] text-muted-foreground mt-1.5">
-                            Opcional. Si no se asigna, quedará pendiente para asignación posterior.
-                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1.5">Opcional. Si no se asigna, quedara pendiente para asignacion posterior.</p>
                     </div>
                 </div>
             )}
 
-            {/* ══════════════════════════════════════ */}
-            {/* ═  PRIORIDAD + NOTAS + ADJUNTOS      ═ */}
-            {/* ══════════════════════════════════════ */}
             <div className="space-y-3">
                 <div className="flex items-center gap-3">
                     <label className="text-xs font-medium text-muted-foreground">Prioridad:</label>
                     <div className="flex gap-1">
-                        <button
-                            onClick={() => setPriority('normal')}
-                            className={`px-3 py-1.5 rounded text-sm font-medium border ${priority === 'normal' ? 'bg-slate-100 border-slate-300' : 'border-transparent text-muted-foreground'
-                                }`}
-                        >Normal</button>
-                        <button
-                            onClick={() => setPriority('urgente')}
-                            className={`px-3 py-1.5 rounded text-sm font-medium border ${priority === 'urgente' ? 'bg-red-100 border-red-300 text-red-700' : 'border-transparent text-muted-foreground'
-                                }`}
-                        >🔴 Urgente</button>
+                        <button onClick={() => setPriority('normal')} className={'px-3 py-1.5 rounded text-sm font-medium border ' + (priority === 'normal' ? 'bg-slate-100 border-slate-300' : 'border-transparent text-muted-foreground')}>Normal</button>
+                        <button onClick={() => setPriority('urgente')} className={'px-3 py-1.5 rounded text-sm font-medium border ' + (priority === 'urgente' ? 'bg-red-100 border-red-300 text-red-700' : 'border-transparent text-muted-foreground')}>Urgente</button>
                     </div>
                 </div>
 
-                {/* Diagnóstico CIE-10 / CIE-11 / DSM-5 */}
                 <DiseaseAutocomplete
                     value={diagnosis}
                     code={diagnosisCode}
@@ -1689,237 +614,24 @@ export default function NewExpedientPage() {
                     initialSearch={diagInitialSearch}
                 />
 
-                {/* Comunicación — dual column chat */}
-                <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        Comunicación
-                    </label>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        {/* ── Columna AFILIADO ── */}
-                        <div className="relative h-full flex flex-col">
-                            {/* Modal de Mensajes Predefinidos (a la izquierda) */}
-                            {showQuickReplies && (
-                                <div className="absolute z-[100] bg-background border shadow-xl rounded-xl p-2.5 
-                                    top-full left-0 mt-2 w-full 
-                                    lg:-left-[170px] lg:top-0 lg:mt-0 lg:w-[160px] 
-                                    flex flex-col gap-1.5">
-                                    <div className="flex justify-between items-center mb-1 px-1">
-                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Predefinidos</span>
-                                        <button onClick={() => setShowQuickReplies(false)} className="text-muted-foreground hover:text-foreground">
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    </div>
-                                    <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[300px] pr-1 scrollbar-thin">
-                                        {[
-                                            { emoji: '📎', label: 'Orden médica', text: 'Se requiere adjuntar orden médica original firmada por el médico tratante.' },
-                                            { emoji: '📋', label: 'Hria. clínica', text: 'Se necesita adjuntar historia clínica completa y actualizada.' },
-                                            { emoji: '🧪', label: 'Laboratorio', text: 'Se requiere adjuntar últimos resultados de laboratorio.' },
-                                            { emoji: '🔬', label: 'Imágenes', text: 'Se requiere adjuntar estudios por imágenes (radiografías, ecografías, resonancias, etc.).' },
-                                            { emoji: '📄', label: 'Estudios', text: 'Se requiere adjuntar estudios complementarios recientes.' },
-                                            { emoji: '✅', label: 'Aprobada', text: 'Su solicitud ha sido aprobada. Puede coordinar el turno con el prestador.', color: 'text-green-700 border-green-200 hover:bg-green-50' },
-                                            { emoji: '⚠️', label: 'Parcial', text: 'Su solicitud ha sido aprobada parcialmente. Algunas prácticas requieren documentación adicional.', color: 'text-amber-700 border-amber-200 hover:bg-amber-50' },
-                                            { emoji: '⏳', label: 'Evaluación', text: 'Su solicitud se encuentra en proceso de evaluación.', color: 'text-blue-700 border-blue-200 hover:bg-blue-50' },
-                                            { emoji: '❌', label: 'Falta doc.', text: 'Su solicitud ha sido denegada por falta de documentación respaldatoria.', color: 'text-red-700 border-red-200 hover:bg-red-50' },
-                                            { emoji: '❌', label: 'Presc. vencida', text: 'Su solicitud ha sido denegada por prescripción médica vencida.', color: 'text-red-700 border-red-200 hover:bg-red-50' },
-                                            { emoji: '❌', label: 'Sin cobertura', text: 'Su solicitud ha sido denegada por no encontrarse dentro de las coberturas del plan.', color: 'text-red-700 border-red-200 hover:bg-red-50' },
-                                        ].map((qr, qi) => (
-                                            <button key={qi} type="button"
-                                                onClick={() => { setCommChannel('para_afiliado'); setNotes(qr.text); setShowQuickReplies(false); }}
-                                                className={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium border rounded-md transition-all shadow-sm focus:outline-none focus:ring-1 focus:ring-primary ${qr.color || 'bg-background text-slate-700 border-slate-200 hover:bg-slate-50'}`}
-                                                title={qr.text}
-                                            >
-                                                <span>{qr.emoji}</span>
-                                                <span className="truncate">{qr.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                <CommunicationPanel
+                    chatMessages={chatMessages}
+                    notes={notes}
+                    commChannel={commChannel}
+                    aiLoading={aiLoading}
+                    onNotesChange={handleNotesChange}
+                    onSendMessage={handleSendMessage}
+                    onPolishText={handlePolishText}
+                />
 
-                            <div className="border rounded-xl overflow-hidden flex flex-col h-full flex-1">
-                                <div className="bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 border-b flex items-center gap-1.5">
-                                    <Megaphone className="h-3.5 w-3.5 text-blue-600" />
-                                    <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Para Afiliado</span>
-                                </div>
-                                {/* Mensajes afiliado */}
-                                <div className="min-h-[120px] max-h-[180px] overflow-y-auto bg-blue-50/30 dark:bg-blue-950/10 p-2 space-y-1.5 flex-1">
-                                    {chatMessages.filter(m => m.channel === 'para_afiliado').length === 0 ? (
-                                        <p className="text-[10px] text-muted-foreground text-center py-6 opacity-50">Sin mensajes para el afiliado</p>
-                                    ) : chatMessages.filter(m => m.channel === 'para_afiliado').map((msg, i) => (
-                                        <div key={i} className="flex justify-end">
-                                            <div className="max-w-[90%] px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-2xl rounded-tr-sm">
-                                                <p>{msg.text}</p>
-                                                <p className="text-[9px] mt-0.5 text-right text-primary-foreground/60">{msg.date}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                {/* Quick replies — toggle button */}
-                                <div className="px-2 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border-t border-b">
-                                    <button
-                                        onClick={() => setShowQuickReplies(!showQuickReplies)}
-                                        className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-400 font-medium hover:underline"
-                                    >
-                                        <MessageSquare className="h-3.5 w-3.5" />
-                                        Mensajes predefinidos
-                                        {showQuickReplies ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                    </button>
-                                </div>
-                                {/* Input afiliado */}
-                                <div className="flex items-end gap-1.5 p-2 bg-background">
-                                    <textarea
-                                        placeholder="Mensaje para el afiliado..."
-                                        value={commChannel === 'para_afiliado' ? notes : ''}
-                                        onFocus={() => setCommChannel('para_afiliado')}
-                                        onChange={e => { setCommChannel('para_afiliado'); setNotes(e.target.value); }}
-                                        rows={2}
-                                        className="flex-1 resize-none rounded-lg border border-input bg-muted/30 px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                    />
-                                    <div className="flex flex-col gap-1">
-                                        <button
-                                            onClick={() => { setCommChannel('para_afiliado'); handlePolishText(); }}
-                                            disabled={commChannel !== 'para_afiliado' || !notes.trim() || aiLoading}
-                                            className="p-1.5 rounded-full border hover:bg-amber-50 transition-colors disabled:opacity-30"
-                                            title="Pulir con IA ✨"
-                                        ><span className="text-xs">✨</span></button>
-                                        <button
-                                            onClick={() => {
-                                                if (commChannel !== 'para_afiliado' || !notes.trim()) return;
-                                                setChatMessages(prev => [...prev, {
-                                                    from: 'self', text: notes.trim(),
-                                                    date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-                                                    channel: 'para_afiliado'
-                                                }]);
-                                                setNotes('');
-                                            }}
-                                            disabled={commChannel !== 'para_afiliado' || !notes.trim()}
-                                            className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 transition-colors"
-                                            title="Enviar al afiliado"
-                                        ><Send className="h-3.5 w-3.5" /></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── Columna AUDITOR (interna) ── */}
-                        <div className="border rounded-xl overflow-hidden flex flex-col">
-                            <div className="bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 border-b flex items-center gap-1.5">
-                                <Lock className="h-3.5 w-3.5 text-slate-500" />
-                                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Nota Interna</span>
-                            </div>
-                            {/* Mensajes internos */}
-                            <div className="min-h-[120px] max-h-[180px] overflow-y-auto bg-slate-50/30 dark:bg-slate-900/10 p-2 space-y-1.5 flex-1">
-                                {chatMessages.filter(m => m.channel === 'interna').length === 0 ? (
-                                    <p className="text-[10px] text-muted-foreground text-center py-6 opacity-50">Sin notas internas</p>
-                                ) : chatMessages.filter(m => m.channel === 'interna').map((msg, i) => (
-                                    <div key={i} className="flex justify-end">
-                                        <div className="max-w-[90%] px-3 py-1.5 text-xs bg-muted text-foreground border border-border rounded-2xl rounded-tr-sm">
-                                            <p>{msg.text}</p>
-                                            <p className="text-[9px] mt-0.5 text-right text-muted-foreground">{msg.date}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Input auditor — solo texto libre */}
-                            <div className="flex items-end gap-1.5 p-2 bg-background border-t">
-                                <textarea
-                                    placeholder="Nota interna para auditoría..."
-                                    value={commChannel === 'interna' ? notes : ''}
-                                    onFocus={() => setCommChannel('interna')}
-                                    onChange={e => { setCommChannel('interna'); setNotes(e.target.value); }}
-                                    rows={2}
-                                    className="flex-1 resize-none rounded-lg border border-input bg-muted/30 px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                />
-                                <div className="flex flex-col gap-1">
-                                    <button
-                                        onClick={() => { setCommChannel('interna'); handlePolishText(); }}
-                                        disabled={commChannel !== 'interna' || !notes.trim() || aiLoading}
-                                        className="p-1.5 rounded-full border hover:bg-amber-50 transition-colors disabled:opacity-30"
-                                        title="Pulir con IA ✨"
-                                    ><span className="text-xs">✨</span></button>
-                                    <button
-                                        onClick={() => {
-                                            if (commChannel !== 'interna' || !notes.trim()) return;
-                                            setChatMessages(prev => [...prev, {
-                                                from: 'self', text: notes.trim(),
-                                                date: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-                                                channel: 'interna'
-                                            }]);
-                                            setNotes('');
-                                        }}
-                                        disabled={commChannel !== 'interna' || !notes.trim()}
-                                        className="p-1.5 rounded-full bg-slate-600 text-white hover:bg-slate-700 disabled:opacity-30 transition-colors"
-                                        title="Agregar nota interna"
-                                    ><Send className="h-3.5 w-3.5" /></button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Adjuntos — botones individuales por tipo */}
-                <div className="space-y-2 mt-4">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                        <Paperclip className="h-3.5 w-3.5" />
-                        Documentación adjunta
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                        {DOC_TYPES.map(d => {
-                            const isOrden = d.value === 'orden_medica';
-                            const hasThis = files.some(f => f.documentType === d.value);
-                            return (
-                                <button key={d.value} type="button"
-                                    onClick={() => triggerFileUpload(d.value)}
-                                    disabled={compressing}
-                                    className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all
-                                        ${hasThis
-                                            ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-300'
-                                            : 'bg-background hover:bg-muted/50 text-foreground border-border'
-                                        }
-                                        ${compressing ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:shadow-sm'}
-                                    `}
-                                    title={isOrden && !hasThis ? 'Documento obligatorio: debe adjuntar la orden médica' : hasThis ? `Añadir más ${d.label}` : `Adjuntar ${d.label}`}
-                                >
-                                    {isOrden && !hasThis && (
-                                        <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold" title="Obligatorio">!</span>
-                                    )}
-                                    <Upload className="h-3 w-3" />
-                                    {d.label}
-                                    {hasThis && <Plus className="h-3 w-3 text-blue-600" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {compressing && (
-                        <span className="text-xs text-muted-foreground animate-pulse flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin" /> Comprimiendo...
-                        </span>
-                    )}
-                    {files.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                            {files.map((f, i) => (
-                                <span key={i} className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
-                                    <span className="text-muted-foreground">[{DOC_TYPES.find(d => d.value === f.documentType)?.label}]</span>
-                                    {f.file.name.length > 20 ? f.file.name.slice(0, 18) + '…' : f.file.name}
-                                    <span className="text-muted-foreground/60">{formatBytes(f.file.size)}</span>
-                                    {f.wasCompressed && (
-                                        <span className="text-green-600 font-medium" title={`Original: ${formatBytes(f.originalSize)}`}>-{f.savingsPercent}%</span>
-                                    )}
-                                    <button type="button" onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}>
-                                        <X className="h-3 w-3 cursor-pointer hover:text-red-500" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                <AttachmentsPanel
+                    files={files}
+                    compressing={compressing}
+                    onAddFiles={triggerFileUpload}
+                    onRemoveFile={(i) => setFiles(prev => prev.filter((_, idx) => idx !== i))}
+                />
             </div>
 
-            {/* ══════════════════════════════════════ */}
-            {/* ═  VALIDACIONES INLINE
-            {/* ═  VALIDACIONES INLINE               ═ */}
-            {/* ══════════════════════════════════════ */}
             {validationErrors.length > 0 && affiliate && (
                 <div className="space-y-1">
                     {validationErrors.map((ve, i) => (
@@ -1930,322 +642,57 @@ export default function NewExpedientPage() {
                 </div>
             )}
 
-            {/* ── Error ── */}
             {error && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                     <AlertCircle className="h-4 w-4 shrink-0" /> {error}
                 </div>
             )}
 
-            {/* ══════════════════════════════════════ */}
-            {/* ═  PREVISUALIZACIÓN                  ═ */}
-            {/* ══════════════════════════════════════ */}
-            {showPreview && affiliate && practiceItems.length > 0 && (
-                <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4 space-y-3">
-                    <h3 className="text-sm font-bold flex items-center gap-2">
-                        <Eye className="h-4 w-4" /> Previsualización de la solicitud
-                    </h3>
+            <SubmitPreview
+                showPreview={showPreview}
+                canSubmit={canSubmit}
+                submitting={submitting}
+                expedientType={expedientType}
+                priority={priority}
+                affiliate={affiliate}
+                planName={planName}
+                diagnosisCode={diagnosisCode}
+                diagnosis={diagnosis}
+                doctorName={doctorName}
+                doctorRegistration={doctorRegistration}
+                doctorSpecialty={doctorSpecialty}
+                providerName={providerName}
+                prescriptionDate={prescriptionDate}
+                prescriptionNumber={prescriptionNumber}
+                orderExpiryDate={orderExpiryDate}
+                assignedAuditorId={assignedAuditorId}
+                auditorsList={auditorsList}
+                practiceItems={practiceItems}
+                totalValue={totalValue}
+                files={files}
+                chatMessages={chatMessages}
+                onShowPreview={() => setShowPreview(true)}
+                onHidePreview={() => setShowPreview(false)}
+                onSubmit={handleSubmit}
+            />
 
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-                        <div><span className="text-muted-foreground">Tipo:</span> <span className="font-medium">{EXPEDIENT_TYPES.find(t => t.value === expedientType)?.label}</span></div>
-                        <div><span className="text-muted-foreground">Prioridad:</span> <span className={`font-medium ${priority === 'urgente' ? 'text-red-600' : ''}`}>{priority === 'urgente' ? '🔴 Urgente' : 'Normal'}</span></div>
-                        <div className="col-span-2"><span className="text-muted-foreground">Afiliado:</span> <span className="font-medium">{affiliate.full_name}</span> <span className="text-muted-foreground">· DNI {affiliate.document_number}</span></div>
-                        <div><span className="text-muted-foreground">Plan:</span> <span className="font-medium">{planName}</span></div>
-                        <div><span className="text-muted-foreground">Estado:</span> <span className="font-medium">{affiliate.status}</span></div>
-                        {diagnosis && (
-                            <div className="col-span-2"><span className="text-muted-foreground">Diagnóstico:</span> <span className="font-mono font-medium">{diagnosisCode}</span> <span className="font-medium">{diagnosis}</span></div>
-                        )}
-                    </div>
+            <PracticeHistoryModal
+                viewingHistoryFor={viewingHistoryFor}
+                detailedConsumptions={detailedConsumptions}
+                practiceItems={practiceItems}
+                showConsumptions={showConsumptions}
+                loadingConsumptions={loadingConsumptions}
+                onClose={() => setViewingHistoryFor(null)}
+                onLoadConsumptions={fetchConsumptions}
+                onViewAttachments={viewAttachments}
+            />
 
-                    {/* Médico prescriptor y prestador */}
-                    {(doctorName || providerName || prescriptionDate) && (
-                        <div className="border-t pt-2">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">Prescripción</p>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                                {doctorName && (
-                                    <div><span className="text-muted-foreground">Médico:</span> <span className="font-medium">{doctorName}</span></div>
-                                )}
-                                {doctorRegistration && (
-                                    <div><span className="text-muted-foreground">Matrícula:</span> <span className="font-mono font-medium">{doctorRegistration}</span></div>
-                                )}
-                                {doctorSpecialty && (
-                                    <div><span className="text-muted-foreground">Especialidad:</span> <span className="font-medium">{doctorSpecialty}</span></div>
-                                )}
-                                {providerName && (
-                                    <div><span className="text-muted-foreground">Prestador:</span> <span className="font-medium">{providerName}</span></div>
-                                )}
-                                {prescriptionDate && (
-                                    <div><span className="text-muted-foreground">Fecha prescripción:</span> <span className="font-medium">{prescriptionDate}</span></div>
-                                )}
-                                {prescriptionNumber && (
-                                    <div><span className="text-muted-foreground">Nro. receta:</span> <span className="font-mono font-medium">{prescriptionNumber}</span></div>
-                                )}
-                                {orderExpiryDate && (
-                                    <div><span className="text-muted-foreground">Vencimiento orden:</span> <span className="font-medium">{orderExpiryDate}</span></div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {assignedAuditorId && (
-                        <div className="border-t pt-2">
-                            <p className="text-xs"><span className="text-muted-foreground">Auditor asignado:</span> <span className="font-medium">{auditorsList.find(a => a.id === assignedAuditorId)?.full_name || '—'}</span></p>
-                        </div>
-                    )}
-
-                    <div className="border-t pt-2">
-                        <p className="text-xs font-semibold text-muted-foreground mb-1">
-                            {practiceItems.length} práctica(s) — Total: ${totalValue.toLocaleString()}
-                        </p>
-                        {practiceItems.map(pi => (
-                            <p key={pi.practice.id} className="text-xs">
-                                <span className="font-mono">{pi.practice.code}</span> {pi.practice.description} ×{pi.quantity}
-                            </p>
-                        ))}
-                    </div>
-
-                    {files.length > 0 && (
-                        <div className="border-t pt-2">
-                            <p className="text-xs font-semibold text-muted-foreground mb-0.5">{files.length} adjunto(s)</p>
-                            {files.map((f, i) => (
-                                <p key={i} className="text-xs text-muted-foreground">
-                                    [{DOC_TYPES.find(d => d.value === f.documentType)?.label}] {f.file.name}
-                                </p>
-                            ))}
-                        </div>
-                    )}
-
-                    {chatMessages.length > 0 && (
-                        <div className="border-t pt-2 space-y-1.5">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">Mensajes ({chatMessages.length})</p>
-                            {chatMessages.map((m, i) => {
-                                const isAffiliate = m.channel === 'para_afiliado';
-                                return (
-                                    <div key={i} className={`flex items-start gap-2 px-2 py-1.5 rounded-lg text-xs ${isAffiliate ? 'bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800' : 'bg-muted/50 border border-border'}`}>
-                                        <span className="shrink-0 mt-0.5">{isAffiliate ? '📢' : '🔒'}</span>
-                                        <div className="flex-1 min-w-0">
-                                            <span className={`font-semibold ${isAffiliate ? 'text-blue-700 dark:text-blue-300' : 'text-muted-foreground'}`}>
-                                                {isAffiliate ? 'Para Afiliado' : 'Interno'}:
-                                            </span>{' '}
-                                            <span className="text-foreground">{m.text}</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ══════════════════════════════════════ */}
-            {/* ═  BOTONES: PREVISUALIZAR + ENVIAR   ═ */}
-            {/* ══════════════════════════════════════ */}
-            <div className="space-y-2">
-                {!showPreview && (
-                    <div className="flex gap-2">
-                        <Button
-                            onClick={() => setShowPreview(true)}
-                            disabled={!canSubmit}
-                            variant="outline"
-                            className="flex-1 h-11 text-base border-2"
-                        >
-                            <Eye className="h-4 w-4 mr-2" /> Previsualizar
-                        </Button>
-                        <Button
-                            onClick={handleSubmit}
-                            disabled={!canSubmit}
-                            className="flex-1 h-11 text-base bg-primary hover:bg-primary/90 font-semibold shadow-md"
-                        >
-                            {submitting ? (
-                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
-                            ) : (
-                                <><Send className="h-4 w-4 mr-2" /> Enviar directo</>
-                            )}
-                        </Button>
-                    </div>
-                )}
-
-                {showPreview && (
-                    <>
-                        <Button
-                            onClick={handleSubmit}
-                            disabled={!canSubmit}
-                            className="w-full h-12 text-base bg-primary hover:bg-primary/90 font-semibold shadow-md"
-                        >
-                            {submitting ? (
-                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando solicitud...</>
-                            ) : (
-                                <><Send className="h-4 w-4 mr-2" /> Enviar para evaluación</>
-                            )}
-                        </Button>
-                        <button
-                            onClick={() => setShowPreview(false)}
-                            className="text-xs text-muted-foreground hover:text-foreground mx-auto block"
-                        >
-                            ← Volver a editar
-                        </button>
-                    </>
-                )}
-            </div>
-
-            {/* Modal Historial de Práctica Específica */}
-            {viewingHistoryFor && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-background rounded-xl p-5 w-full max-w-2xl shadow-xl flex flex-col max-h-[80vh]">
-                        <div className="flex justify-between items-center mb-4 pb-3 border-b">
-                            <h3 className="font-bold text-lg flex items-center gap-2">
-                                <Clock className="h-5 w-5 text-blue-600" />
-                                Historial: <span className="text-muted-foreground">{viewingHistoryFor.name}</span>
-                            </h3>
-                            <button onClick={() => setViewingHistoryFor(null)} className="p-1 hover:bg-muted rounded transition-colors"><X className="h-5 w-5" /></button>
-                        </div>
-                        <div className="overflow-y-auto flex-1">
-                            {(() => {
-                                const filtered = detailedConsumptions.filter(d => d.practiceId === viewingHistoryFor.id);
-                                if (detailedConsumptions.length === 0 && !showConsumptions) {
-                                    return (
-                                        <div className="text-center py-6">
-                                            <p className="text-sm text-muted-foreground mb-3">Los consumos aún no han sido cargados.</p>
-                                            <button
-                                                onClick={() => { fetchConsumptions(); }}
-                                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm disabled:opacity-50"
-                                                disabled={loadingConsumptions}
-                                            >
-                                                {loadingConsumptions ? 'Cargando consumos...' : 'Cargar consumos previos'}
-                                            </button>
-                                        </div>
-                                    );
-                                }
-                                if (filtered.length === 0) return <p className="text-base text-center text-muted-foreground my-8">El afiliado no tiene registros previos para esta práctica.</p>;
-
-                                return (
-                                    <div className="space-y-2">
-                                        {filtered.map(c => {
-                                            const statusColors: Record<string, string> = {
-                                                autorizada: 'bg-green-100 text-green-700',
-                                                autorizada_parcial: 'bg-yellow-100 text-yellow-700',
-                                                denegada: 'bg-red-100 text-red-700',
-                                                pendiente: 'bg-blue-100 text-blue-700',
-                                                en_revision: 'bg-purple-100 text-purple-700',
-                                            };
-                                            return (
-                                                <div key={c.id} className="flex items-center gap-3 text-sm bg-muted/30 border border-border/50 rounded-lg px-3 py-2.5">
-                                                    <div className="flex items-center gap-1.5 text-muted-foreground shrink-0 w-24">
-                                                        <Clock className="h-3.5 w-3.5" />
-                                                        {c.date ? new Date(c.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'S/F'}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <span className="font-mono font-medium">{c.practiceCode}</span>
-                                                        {c.quantity > 1 && <span className="text-muted-foreground ml-2 rounded bg-muted px-1">×{c.quantity}</span>}
-                                                    </div>
-                                                    <span className={`px-2 py-0.5 rounded text-[11px] font-medium shrink-0 uppercase tracking-wide ${statusColors[c.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                        {c.status.replace(/_/g, ' ')}
-                                                    </span>
-                                                    {c.coveredAmount > 0 && (
-                                                        <span className="text-green-700 font-mono shrink-0">
-                                                            ${c.coveredAmount.toLocaleString()}
-                                                        </span>
-                                                    )}
-                                                    {c.copayAmount > 0 && (
-                                                        <span className="text-orange-600 font-mono text-xs shrink-0">
-                                                            (Cos: ${c.copayAmount.toLocaleString()})
-                                                        </span>
-                                                    )}
-                                                    {c.expedientNumber && (
-                                                        <div className="flex items-center gap-1 shrink-0">
-                                                            <span className="text-muted-foreground font-mono text-xs bg-background px-1.5 py-0.5 rounded border">
-                                                                #{c.expedientNumber}
-                                                            </span>
-                                                            <button
-                                                                onClick={() => viewAttachments(c.expedientId, c.expedientNumber)}
-                                                                title="Ver adjuntos históricos"
-                                                                className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
-                                                            >
-                                                                <Paperclip className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 mt-2 border-t">
-                                            <span className="font-medium text-foreground">{filtered.length} registro(s) encontrado(s)</span>
-                                            <span>
-                                                Total cubierto: ${filtered.reduce((s, c) => s + c.coveredAmount, 0).toLocaleString()}
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal de Adjuntos Históricos (Linterna Auditor) */}
-            {viewingAttachmentsFor && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-background rounded-xl p-5 w-full max-w-2xl shadow-xl flex flex-col max-h-[80vh]">
-                        <div className="flex justify-between items-center mb-4 pb-3 border-b">
-                            <h3 className="font-bold text-lg flex items-center gap-2">
-                                <Paperclip className="h-5 w-5 text-blue-600" />
-                                Adjuntos del Expediente: <span className="text-muted-foreground">#{viewingAttachmentsFor.expedientNumber}</span>
-                            </h3>
-                            <button onClick={closeAttachments} className="p-1 hover:bg-muted rounded transition-colors"><X className="h-5 w-5" /></button>
-                        </div>
-                        <div className="overflow-y-auto flex-1 p-1">
-                            {loadingAttachments ? (
-                                <div className="flex items-center justify-center py-12">
-                                    <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
-                                    <span className="text-sm text-muted-foreground">Cargando adjuntos...</span>
-                                </div>
-                            ) : attachments.length === 0 ? (
-                                <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
-                                    <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                                    <p className="text-sm font-medium">Sin adjuntos</p>
-                                    <p className="text-xs">No se encontraron archivos en este expediente histórico.</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {attachments.map(att => (
-                                        <div key={att.id} className="border rounded-lg overflow-hidden group bg-card flex flex-col">
-                                            <div className="p-3 bg-muted/40 border-b flex items-start justify-between gap-2">
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-semibold truncate" title={att.file_name}>{att.file_name}</p>
-                                                    <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">{att.file_type || 'Archivo'}</p>
-                                                </div>
-                                            </div>
-                                            <div className="p-3 flex items-center justify-center flex-1 bg-muted/10">
-                                                {att.file_type?.toLowerCase().includes('pdf') ? (
-                                                    <div className="text-center">
-                                                        <FileText className="h-8 w-8 mx-auto text-red-500 mb-2 opacity-80 group-hover:opacity-100 transition-opacity" />
-                                                        <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Abrir PDF</a>
-                                                    </div>
-                                                ) : att.file_type?.toLowerCase().includes('image') ? (
-                                                    <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block w-full text-center">
-                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                        <img src={att.file_url} alt={att.file_name} className="max-h-32 mx-auto object-contain rounded border bg-background" />
-                                                        <span className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block">Ampliar imagen</span>
-                                                    </a>
-                                                ) : (
-                                                    <div className="text-center">
-                                                        <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
-                                                        <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Descargar</a>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="p-2 border-t bg-muted/20 text-[10px] text-muted-foreground flex justify-between">
-                                                <span className="truncate">Por: {att.attached_by_name || 'Sistema'}</span>
-                                                <span className="shrink-0">{new Date(att.created_at).toLocaleDateString('es-AR')}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+            <AttachmentsModal
+                viewingAttachmentsFor={viewingAttachmentsFor}
+                attachments={attachments}
+                loadingAttachments={loadingAttachments}
+                onClose={() => setViewingAttachmentsFor(null)}
+            />
         </div>
     );
 }
