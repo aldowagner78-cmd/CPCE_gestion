@@ -612,9 +612,9 @@ export default function NewExpedientPage() {
             {loadMode === 'ia' && <AIUploadModal onDataParsed={handleAIParsed} />}
 
             {/* Sección 1: Tipo y Afiliado */}
-            <div data-tour="section-1" className="border rounded-xl overflow-hidden">
+            <div data-tour="section-1" className="border rounded-xl">
                 <button onClick={() => setActiveSection(activeSection === 1 ? 0 : 1)}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-t-xl">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section1Complete ? 'bg-green-100 text-green-700' : activeSection === 1 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                         {section1Complete ? <Check className="h-4 w-4" /> : '1'}
                     </div>
@@ -683,9 +683,9 @@ export default function NewExpedientPage() {
             </div>
 
             {/* Sección 2: Prácticas y Prescripción */}
-            <div data-tour="section-2" className="border rounded-xl overflow-hidden">
+            <div data-tour="section-2" className="border rounded-xl">
                 <button onClick={() => setActiveSection(activeSection === 2 ? 0 : 2)}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-t-xl">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section2Complete ? 'bg-green-100 text-green-700' : activeSection === 2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                         {section2Complete ? <Check className="h-4 w-4" /> : '2'}
                     </div>
@@ -773,9 +773,9 @@ export default function NewExpedientPage() {
             </div>
 
             {/* Sección 3: Documentos y Envío */}
-            <div data-tour="section-3" className="border rounded-xl overflow-hidden">
+            <div data-tour="section-3" className="border rounded-xl">
                 <button onClick={() => setActiveSection(activeSection === 3 ? 0 : 3)}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-t-xl">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${activeSection === 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                         3
                     </div>

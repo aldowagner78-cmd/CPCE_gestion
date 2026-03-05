@@ -259,7 +259,7 @@ export function PracticesTab({ expedient, practices, canResolve, isMine, userId,
                                 onClick={() => {
                                     if (batchMode && canResolvePractice) {
                                         const next = new Set(batchSelected);
-                                        next.has(p.id) ? next.delete(p.id) : next.add(p.id);
+                                        if (next.has(p.id)) { next.delete(p.id); } else { next.add(p.id); }
                                         setBatchSelected(next);
                                     } else if (canResolvePractice) {
                                         setSelectedPractice(isSelected ? null : p);
