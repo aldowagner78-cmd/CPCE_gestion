@@ -88,7 +88,7 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
         try {
             let fileToProcess = file;
             if (file.type.startsWith('image/')) {
-                const { file: compressedFile } = await compressImage(file);
+                const { file: compressedFile } = await compressImage(file, { maxDimension: 1200, quality: 0.6 });
                 fileToProcess = compressedFile;
             }
 

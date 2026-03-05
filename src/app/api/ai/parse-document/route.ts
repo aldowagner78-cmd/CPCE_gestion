@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize the Google Generative AI client
-// Note: We instantiate it here but we'll check the key in the route handler
+// Vercel: permitir hasta 60s para que Gemini procese la imagen
+export const maxDuration = 60;
+
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 export async function POST(req: Request) {
