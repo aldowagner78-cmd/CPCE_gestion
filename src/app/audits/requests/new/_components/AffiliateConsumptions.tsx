@@ -34,7 +34,7 @@ export function AffiliateConsumptions({
     showConsumptions, loadingConsumptions, detailedConsumptions, practiceItems,
     consumptionDateFrom, consumptionDateTo, consumptionPracticeFilter,
     showConsumptionFilters, onToggle, onFilterChange, onClearFilters, onToggleFilters,
-    onViewAttachments: _onViewAttachments, onAddPractice,
+    onAddPractice,
 }: AffiliateConsumptionsProps) {
     return (
         <div className="border-t">

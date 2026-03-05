@@ -1,3 +1,4 @@
+// Tipos compartidos para los componentes de nueva solicitud
 import type { ExpedientType, ExpedientDocumentType, ExpedientPriority, ExpedientNoteType, Practice } from '@/types/database';
 import type { PracticeRuleResult } from '@/services/rulesEngine';
 
