@@ -200,11 +200,15 @@ Cuando la confianza sea menor a 70, incluye un campo "alternatives" con hasta 3 
         console.error('Error procesando imagen con Gemini:', error);
         const message = error instanceof Error ? error.message : String(error);
         const isApiKeyError = message.includes('API_KEY') || message.includes('API key') || message.includes('401') || message.includes('403');
+        const isTimeout = message.includes('DEADLINE_EXCEEDED') || message.includes('timeout') || message.includes('ECONNRESET');
+        const errorMsg = isApiKeyError
+            ? 'GEMINI_API_KEY inválida o no configurada. Revise la variable de entorno.'
+            : isTimeout
+                ? 'Gemini tardó demasiado en responder. Intente con una imagen más pequeña.'
+                : `Error interno procesando la imagen.`;
         return NextResponse.json(
             {
-                error: isApiKeyError
-                    ? 'GEMINI_API_KEY inválida o no configurada. Revise la variable de entorno.'
-                    : 'Error interno procesando la imagen.',
+                error: errorMsg,
                 details: message,
             },
             { status: isApiKeyError ? 401 : 500 }

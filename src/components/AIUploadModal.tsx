@@ -211,12 +211,15 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
             });
 
             if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
+                const data = await res.json().catch(() => ({ error: `HTTP ${res.status}: ${res.statusText}` }));
                 const details = data.details || '';
                 if (data.error?.includes('API Key') || details.includes('API_KEY')) {
-                    throw new Error('GEMINI_API_KEY no configurada. Agregue la variable en el panel de Vercel (Settings → Environment Variables) y en su archivo .env.local');
+                    throw new Error('GEMINI_API_KEY no configurada. Agregue la variable en el panel de Vercel (Settings → Environment Variables).');
                 }
-                throw new Error(data.error || 'Error procesando la imagen con IA');
+                if (res.status === 504 || res.status === 408) {
+                    throw new Error('La solicitud tardó demasiado. Intente con una imagen más pequeña o de menor resolución.');
+                }
+                throw new Error(data.error || `Error del servidor (${res.status}). Detalle: ${details || 'sin detalle'}`);
             }
 
             const result: AIRichResponse = await res.json();
@@ -224,7 +227,10 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
             setProcessedFile(fileToProcess);
             setFields(buildFields(result));
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Error desconocido';
+            let msg = err instanceof Error ? err.message : 'Error desconocido';
+            if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch')) {
+                msg = 'Error de red al conectar con el servidor. Verifique su conexión a internet.';
+            }
             console.error('Error from AI:', err);
             setError(msg);
         } finally {
