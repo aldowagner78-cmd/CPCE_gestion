@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { ExpedientService } from '@/services/expedientService';
 import { generateExpedientPDF } from '@/lib/expedientPDF';
+import { HelpTooltip } from '@/components/HelpTooltip';
 import {
     Eye, AlertTriangle, ArrowLeft, Stethoscope, Paperclip, MessageSquare, History,
     Loader2, Printer, Gavel, Upload, ShieldCheck, XOctagon, CheckCircle, XCircle, RotateCcw,
@@ -20,7 +21,6 @@ import type {
     ExpedientNote,
     ExpedientAttachment,
     ExpedientLog,
-    ExpedientStatus,
 } from '@/types/database';
 
 interface ExpedientDetailProps {
@@ -187,6 +187,7 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
                             {tc.label} • Creado {formatDate(expedient.created_at)}
                         </p>
                     </div>
+                    <HelpTooltip text="Ficha clínica del expediente. Revisá las pestañas para ver prácticas, adjuntos, comunicación y línea de tiempo." position="left" />
                     <Badge className={`${sc.color} text-xs`}>{sc.label}</Badge>
                 </div>
 

@@ -7,6 +7,7 @@ import type {
     Practice,
     AuditRuleConfig,
     RulesResult,
+    PracticeClassification,
     ExpedientType,
 } from '@/types/database';
 import { getMonthsDifference } from '@/lib/coverageEngine';
@@ -20,6 +21,7 @@ const db = (table: string): any => supabase.from(table as any);
 export interface PracticeRuleResult {
     practice_id: number;
     result: RulesResult;
+    classification: PracticeClassification;
     messages: string[];
     coverage_percent: number;
     covered_amount: number;
@@ -111,6 +113,7 @@ export const RulesEngine = {
                 practiceResults.push({
                     practice_id: item.practice_id,
                     result: 'rojo',
+                    classification: 'carencia',
                     messages: globalMessages,
                     coverage_percent: 0,
                     covered_amount: 0,
@@ -300,9 +303,26 @@ export const RulesEngine = {
             messages.push(`Coseguro del afiliado: $${copayAmount.toFixed(2)} (${copayPercent.toFixed(1)}%)`);
         }
 
+        // ── 12. Clasificación extendida (semáforo 7 colores) ──
+        let classification: PracticeClassification = 'auto_aprobable';
+        if (requiresControlDesk) {
+            classification = 'requiere_mesa_control';
+        } else if (effectivePercent <= 0) {
+            classification = 'sin_cobertura';
+        } else if (!canAutoApprove && result === 'rojo') {
+            classification = 'sin_cobertura';
+        } else if (!canAutoApprove && result === 'amarillo') {
+            // Distinguish between frequency/limit issues and general review
+            const hasLimitMsg = messages.some(m => m.includes('Tope') || m.includes('Frecuencia'));
+            classification = hasLimitMsg ? 'limite_excedido' : 'requiere_revision';
+        } else if (!canAutoApprove) {
+            classification = 'requiere_revision';
+        }
+
         return {
             practice_id: practice.id,
             result,
+            classification,
             messages,
             coverage_percent: effectivePercent,
             covered_amount: coveredAmount,

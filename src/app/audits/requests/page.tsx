@@ -23,6 +23,7 @@ import type {
 import { TYPE_CONFIG, STATUS_CONFIG } from './_components/configUI';
 import { ExpedientList } from './_components/ExpedientList';
 import { ExpedientDetail } from './_components/ExpedientDetail';
+import { GuidedTour } from '@/components/GuidedTour';
 
 export default function AuditRequestsPage() {
     const { activeJurisdiction } = useJurisdiction();
@@ -107,6 +108,7 @@ export default function AuditRequestsPage() {
 
     return (
         <div className="h-[calc(100vh-4rem)] flex flex-col">
+            <GuidedTour tourId="review" />
             {/* Header */}
             <div className="p-4 border-b bg-background">
                 <div className="flex items-center justify-between mb-4">
@@ -131,7 +133,7 @@ export default function AuditRequestsPage() {
                 </div>
 
                 {/* Contadores de estado */}
-                <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+                <div className="flex gap-2 mb-3 overflow-x-auto pb-1" data-tour="status-tabs">
                     {statusTabs.map(st => (
                         <button
                             key={st.key}
@@ -171,7 +173,7 @@ export default function AuditRequestsPage() {
             {/* Body: Split list + detail */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Lista */}
-                <div className={`${selectedExpedient ? 'w-2/5 border-r hidden md:block' : 'w-full'} overflow-y-auto`}>
+                <div data-tour="expedient-list" className={`${selectedExpedient ? 'w-2/5 border-r hidden md:block' : 'w-full'} overflow-y-auto`}>
                     {loading ? (
                         <div className="text-center py-12 text-muted-foreground">
                             <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin opacity-30" />
@@ -188,7 +190,7 @@ export default function AuditRequestsPage() {
 
                 {/* Detalle */}
                 {selectedExpedient && (
-                    <div className="flex-1 overflow-hidden md:block">
+                    <div data-tour="expedient-detail" className="flex-1 overflow-hidden md:block">
                         <ExpedientDetail
                             expedient={selectedExpedient}
                             onAction={handleAction}

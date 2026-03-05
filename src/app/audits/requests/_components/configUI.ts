@@ -20,6 +20,7 @@ import type {
     ExpedientType,
     ExpedientStatus,
     RulesResult,
+    PracticeClassification,
 } from '@/types/database';
 import type { PracticeResolutionStatus } from '@/services/expedientService';
 
@@ -58,6 +59,17 @@ export const RULE_COLORS: Record<RulesResult, string> = {
     verde: 'text-green-600 bg-green-100',
     amarillo: 'text-yellow-700 bg-yellow-100',
     rojo: 'text-red-600 bg-red-100',
+};
+
+/** Semáforo extendido: 7 clasificaciones de práctica */
+export const CLASSIFICATION_CONFIG: Record<PracticeClassification, { label: string; short: string; color: string; bg: string; emoji: string }> = {
+    auto_aprobable:        { label: 'Auto-aprobable',        short: 'Aprobable',  color: 'text-green-700',  bg: 'bg-green-100 dark:bg-green-900/30',    emoji: '🟢' },
+    requiere_revision:     { label: 'Requiere revisión',     short: 'Revisión',   color: 'text-yellow-700', bg: 'bg-yellow-100 dark:bg-yellow-900/30',   emoji: '🟡' },
+    sin_cobertura:         { label: 'Sin cobertura',          short: 'Sin cob.',   color: 'text-red-700',    bg: 'bg-red-100 dark:bg-red-900/30',        emoji: '🔴' },
+    limite_excedido:       { label: 'Límite excedido',        short: 'Límite',    color: 'text-orange-700', bg: 'bg-orange-100 dark:bg-orange-900/30',   emoji: '🟠' },
+    requiere_mesa_control: { label: 'Mesa de control',         short: 'Mesa ctrl.', color: 'text-purple-700', bg: 'bg-purple-100 dark:bg-purple-900/30',   emoji: '🟣' },
+    duplicada_reciente:    { label: 'Posible duplicado',       short: 'Duplicado',  color: 'text-gray-700',   bg: 'bg-gray-100 dark:bg-gray-800',         emoji: '⚫' },
+    carencia:              { label: 'Período de carencia',     short: 'Carencia',   color: 'text-blue-700',   bg: 'bg-blue-100 dark:bg-blue-900/30',      emoji: '🔵' },
 };
 
 export function formatDate(d: string) {

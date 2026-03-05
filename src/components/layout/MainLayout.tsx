@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import { GuidedTour } from '@/components/GuidedTour';
 import { cn } from '@/lib/utils';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
@@ -81,6 +82,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
                 <main className="flex-1 p-6 overflow-x-hidden">
                     {children}
                 </main>
+
+                <GuidedTour tourId="dashboard" />
             </div>
         </div>
     );

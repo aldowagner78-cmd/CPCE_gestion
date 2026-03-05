@@ -644,6 +644,16 @@ export type PracticeResolutionStatus =
 
 export type RulesResult = 'verde' | 'amarillo' | 'rojo'
 
+/** Clasificación extendida del semáforo (7 niveles) */
+export type PracticeClassification =
+    | 'auto_aprobable'         // 🟢 Cumple todos los criterios
+    | 'requiere_revision'      // 🟡 Parcial, necesita auditor
+    | 'sin_cobertura'          // 🔴 No cubierta por el plan
+    | 'limite_excedido'        // 🟠 Supera tope sesiones/año/frecuencia
+    | 'requiere_mesa_control'  // 🟣 Alta complejidad / internación
+    | 'duplicada_reciente'     // ⚫ Práctica similar < 48hs
+    | 'carencia'               // 🔵 Período de carencia
+
 export type ExpedientPriority = 'normal' | 'urgente'
 
 export type ExpedientDocumentType =
@@ -781,6 +791,7 @@ export type ExpedientPractice = {
 
     // Motor de reglas
     rule_result?: RulesResult
+    rule_classification?: PracticeClassification
     rule_messages?: string[]
 
     // Orden

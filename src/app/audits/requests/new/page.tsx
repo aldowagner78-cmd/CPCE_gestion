@@ -33,6 +33,8 @@ import { AttachmentsPanel } from './_components/AttachmentsPanel';
 import { SubmitPreview } from './_components/SubmitPreview';
 import { SuccessView } from './_components/SuccessView';
 import { PracticeHistoryModal, AttachmentsModal } from './_components/HistoryModals';
+import { GuidedTour } from '@/components/GuidedTour';
+import { HelpTooltip } from '@/components/HelpTooltip';
 import type { PracticeItem, PendingFile, ChatMessage, DetailedConsumption } from './_components/types';
 
 const supabase = createClient();
@@ -111,6 +113,8 @@ export default function NewExpedientPage() {
     const [error, setError] = useState('');
     const [loadMode, setLoadMode] = useState<'ia' | 'manual'>('ia');
     const [activeSection, setActiveSection] = useState(1);
+    const [aiAffName, setAiAffName] = useState<string | null>(null);
+    const [aiDiagTerms, setAiDiagTerms] = useState<string[]>([]);
 
     const handleAIParsed = useCallback((
         data: {
@@ -127,12 +131,16 @@ export default function NewExpedientPage() {
         file: File
     ) => {
         if (data.affiliate?.trim()) setAffSearch(data.affiliate.trim());
+        if (data.affiliateName?.trim()) setAiAffName(data.affiliateName.trim());
         const diagText = data.diagnosisText || data.diagnosis || '';
         const diagCIE = data.diagnosisCIE || '';
         const diagTerms = data.diagnosisSearchTerms || [];
         if (diagText || diagCIE) {
             setDiagInitialSearch(diagCIE || diagTerms[0] || diagText.substring(0, 40));
         }
+        // Store all fallback terms for DiseaseAutocomplete
+        const allTerms = [...diagTerms, diagText.substring(0, 40)].filter(Boolean);
+        if (allTerms.length > 0) setAiDiagTerms(allTerms);
         if (data.doctor) setDoctorName(data.doctor);
         if (data.doctorRegistration) setDoctorRegistration(data.doctorRegistration);
         if (data.prescriptionDate) {
@@ -172,14 +180,42 @@ export default function NewExpedientPage() {
     const searchAffs = useCallback(async (q: string) => {
         if (q.length < 2) { setAffResults([]); return; }
         setSearchingAff(true);
+        const jId = activeJurisdiction?.id || 1;
         try {
-            const { data } = await supabase.from('affiliates').select('*')
+            // Strategy 1: exact/substring match on number, DNI, name
+            const { data: exact } = await supabase.from('affiliates').select('*')
                 .or('full_name.ilike.%' + q + '%,document_number.ilike.%' + q + '%,affiliate_number.ilike.%' + q + '%')
-                .eq('jurisdiction_id', activeJurisdiction?.id || 1).order('full_name').limit(10);
-            setAffResults((data || []) as Affiliate[]);
+                .eq('jurisdiction_id', jId).order('full_name').limit(10);
+            const results = (exact || []) as Affiliate[];
+
+            // Strategy 2: if no results and query has multiple words, try each word separately
+            if (results.length === 0 && q.includes(' ')) {
+                const words = q.split(/\s+/).filter(w => w.length >= 3);
+                if (words.length > 0) {
+                    const orFilter = words.map(w => 'full_name.ilike.%' + w + '%').join(',');
+                    const { data: fuzzy } = await supabase.from('affiliates').select('*')
+                        .or(orFilter)
+                        .eq('jurisdiction_id', jId).order('full_name').limit(10);
+                    results.push(...((fuzzy || []) as Affiliate[]).filter(f => !results.some(r => r.id === f.id)));
+                }
+            }
+
+            // Strategy 3: if IA provided name and we searched by number, also try name
+            if (results.length === 0 && aiAffName && aiAffName !== q) {
+                const nameWords = aiAffName.split(/\s+/).filter(w => w.length >= 3);
+                if (nameWords.length > 0) {
+                    const orFilter = nameWords.map(w => 'full_name.ilike.%' + w + '%').join(',');
+                    const { data: byName } = await supabase.from('affiliates').select('*')
+                        .or(orFilter)
+                        .eq('jurisdiction_id', jId).order('full_name').limit(10);
+                    results.push(...((byName || []) as Affiliate[]).filter(f => !results.some(r => r.id === f.id)));
+                }
+            }
+
+            setAffResults(results);
         } catch { setAffResults([]); }
         setSearchingAff(false);
-    }, [activeJurisdiction]);
+    }, [activeJurisdiction, aiAffName]);
 
     const searchPracs = useCallback(async (q: string) => {
         if (q.length < 2) { setPracResults([]); return; }
@@ -254,10 +290,17 @@ export default function NewExpedientPage() {
         } else { setPlanName('Sin plan'); setAffiliatePlan(null); }
     }, []);
 
+    // Auto-select affiliate when IA finds exactly 1 result
+    useEffect(() => {
+        if (affResults.length === 1 && !affiliate && aiAffName) {
+            selectAffiliate(affResults[0]);
+        }
+    }, [affResults, affiliate, aiAffName, selectAffiliate]);
+
     const clearAffiliate = useCallback(() => {
         setAffiliate(null); setAffSearch(''); setShowConsumptions(false);
         setConsumptions([]); setDetailedConsumptions([]); setPlanName('');
-        setAffiliatePlan(null); setRulesResult(null);
+        setAffiliatePlan(null); setRulesResult(null); setAiAffName(null);
         setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter('');
     }, []);
 
@@ -488,6 +531,7 @@ export default function NewExpedientPage() {
                     copay_amount: pi.ruleResult?.copay_amount ?? finalRulesResult?.practices[idx]?.copay_amount,
                     copay_percent: pi.ruleResult?.copay_percent ?? finalRulesResult?.practices[idx]?.copay_percent,
                     rule_result: pi.ruleResult?.result ?? finalRulesResult?.practices[idx]?.result,
+                    rule_classification: pi.ruleResult?.classification ?? finalRulesResult?.practices[idx]?.classification,
                     rule_messages: pi.ruleResult?.messages ?? finalRulesResult?.practices[idx]?.messages,
                     sort_order: idx,
                 })),
@@ -526,7 +570,7 @@ export default function NewExpedientPage() {
         setDoctorName(''); setDoctorRegistration(''); setDoctorSpecialty('');
         setProviderName(''); setPrescriptionDate(''); setPrescriptionNumber('');
         setOrderExpiryDate(''); setAssignedAuditorId('');
-        setLoadMode('ia'); setActiveSection(1);
+        setLoadMode('ia'); setActiveSection(1); setAiAffName(null); setAiDiagTerms([]);
     };
 
     if (submitted) {
@@ -542,6 +586,7 @@ export default function NewExpedientPage() {
 
     return (
         <div className="max-w-3xl mx-auto p-4 space-y-4">
+            <GuidedTour tourId="creation" />
             <div className="flex items-center gap-3">
                 <Link href="/audits/requests">
                     <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
@@ -553,7 +598,7 @@ export default function NewExpedientPage() {
             </div>
 
             {/* Tabs IA / Manual */}
-            <div className="flex rounded-lg border bg-muted/30 p-0.5">
+            <div data-tour="mode-tabs" className="flex rounded-lg border bg-muted/30 p-0.5">
                 <button onClick={() => setLoadMode('ia')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${loadMode === 'ia' ? 'bg-white shadow-sm text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
                     <Sparkles className="h-4 w-4" /> Carga con IA
@@ -567,13 +612,14 @@ export default function NewExpedientPage() {
             {loadMode === 'ia' && <AIUploadModal onDataParsed={handleAIParsed} />}
 
             {/* Sección 1: Tipo y Afiliado */}
-            <div className="border rounded-xl overflow-hidden">
+            <div data-tour="section-1" className="border rounded-xl overflow-hidden">
                 <button onClick={() => setActiveSection(activeSection === 1 ? 0 : 1)}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section1Complete ? 'bg-green-100 text-green-700' : activeSection === 1 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                         {section1Complete ? <Check className="h-4 w-4" /> : '1'}
                     </div>
                     <span className="font-semibold text-sm flex-1 text-left">Tipo y Afiliado</span>
+                    <HelpTooltip text="Seleccioná el tipo de solicitud (ambulatoria, internación, etc.) y buscá al afiliado por número, DNI o nombre." position="bottom" />
                     {section1Complete && affiliate && <span className="text-xs text-muted-foreground mr-2 truncate max-w-[200px]">{affiliate.full_name}</span>}
                     <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 1 ? 'rotate-180' : ''}`} />
                 </button>
@@ -637,13 +683,14 @@ export default function NewExpedientPage() {
             </div>
 
             {/* Sección 2: Prácticas y Prescripción */}
-            <div className="border rounded-xl overflow-hidden">
+            <div data-tour="section-2" className="border rounded-xl overflow-hidden">
                 <button onClick={() => setActiveSection(activeSection === 2 ? 0 : 2)}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section2Complete ? 'bg-green-100 text-green-700' : activeSection === 2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                         {section2Complete ? <Check className="h-4 w-4" /> : '2'}
                     </div>
                     <span className="font-semibold text-sm flex-1 text-left">Prácticas y Prescripción</span>
+                    <HelpTooltip text="Agregá las prácticas médicas, el prescriptor y diagnóstico. El semáforo indica si es auto-aprobable." position="bottom" />
                     {section2Complete && <span className="text-xs text-muted-foreground mr-2">{practiceItems.length} práctica{practiceItems.length !== 1 ? 's' : ''}</span>}
                     <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 2 ? 'rotate-180' : ''}`} />
                 </button>
@@ -718,19 +765,22 @@ export default function NewExpedientPage() {
                     onSelect={handleDiseaseSelect}
                     onClear={handleDiseaseClear}
                     initialSearch={diagInitialSearch}
+                    fallbackSearchTerms={aiDiagTerms}
+                    autoSelectOnExactCode={!!diagInitialSearch}
                 />
                 </div>
                 )}
             </div>
 
             {/* Sección 3: Documentos y Envío */}
-            <div className="border rounded-xl overflow-hidden">
+            <div data-tour="section-3" className="border rounded-xl overflow-hidden">
                 <button onClick={() => setActiveSection(activeSection === 3 ? 0 : 3)}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${activeSection === 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                         3
                     </div>
                     <span className="font-semibold text-sm flex-1 text-left">Documentos y Envío</span>
+                    <HelpTooltip text="Adjuntá la orden médica (obligatoria) y documentación adicional. Dejá notas internas antes de enviar." position="bottom" />
                     {files.length > 0 && <span className="text-xs text-muted-foreground mr-2">{files.length} archivo{files.length !== 1 ? 's' : ''}</span>}
                     <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 3 ? 'rotate-180' : ''}`} />
                 </button>

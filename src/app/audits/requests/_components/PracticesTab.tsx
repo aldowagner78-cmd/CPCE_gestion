@@ -8,11 +8,12 @@ import {
     CheckCircle, XCircle, Eye, AlertTriangle, ChevronDown,
     Pause, Loader2, Printer,
 } from 'lucide-react';
-import { PRACTICE_STATUS_CONFIG, RULE_COLORS, formatShortDate } from './configUI';
-import type { ExpedientPractice, Expedient, RulesResult } from '@/types/database';
+import { PRACTICE_STATUS_CONFIG, RULE_COLORS, CLASSIFICATION_CONFIG, formatShortDate } from './configUI';
+import type { ExpedientPractice, Expedient, RulesResult, PracticeClassification } from '@/types/database';
 import type { PracticeResolutionStatus } from '@/services/expedientService';
 import { ExpedientService } from '@/services/expedientService';
 import { generatePracticePDF } from '@/lib/expedientPDF';
+import { HelpTooltip } from '@/components/HelpTooltip';
 
 interface PracticesTabProps {
     expedient: Expedient;
@@ -34,6 +35,50 @@ export function PracticesTab({ expedient, practices, canResolve, isMine, userId,
     const [coveragePercent, setCoveragePercent] = useState(80);
     const [adjustedQuantity, setAdjustedQuantity] = useState(1);
     const [resolving, setResolving] = useState(false);
+    const [filterClassification, setFilterClassification] = useState<PracticeClassification | 'todas'>('todas');
+    const [batchMode, setBatchMode] = useState(false);
+    const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set());
+    const [batchAction, setBatchAction] = useState<'autorizar' | 'denegar' | null>(null);
+    const [batchNotes, setBatchNotes] = useState('');
+
+    // Filter practices by classification
+    const filteredPractices = filterClassification === 'todas'
+        ? practices
+        : practices.filter(p => p.rule_classification === filterClassification);
+
+    // Get unique classifications present
+    const presentClassifications = [...new Set(practices.map(p => p.rule_classification).filter(Boolean))] as PracticeClassification[];
+
+    // Batch resolve
+    const handleBatchResolve = async () => {
+        if (!userId || !batchAction || batchSelected.size === 0) return;
+        setResolving(true);
+        try {
+            for (const practiceId of batchSelected) {
+                const p = practices.find(pr => pr.id === practiceId);
+                if (!p || !['pendiente', 'en_revision', 'observada'].includes(p.status)) continue;
+                if (batchAction === 'autorizar') {
+                    await ExpedientService.authorizePractice(expedient.id, practiceId, userId, {
+                        resolution_notes: batchNotes || undefined,
+                        coverage_percent: 80,
+                        covered_amount: (p.practice_value || 0) * 0.8,
+                        copay_amount: (p.practice_value || 0) * 0.2,
+                    });
+                } else {
+                    await ExpedientService.denyPractice(expedient.id, practiceId, userId, {
+                        resolution_notes: batchNotes,
+                    });
+                }
+            }
+            setBatchMode(false);
+            setBatchSelected(new Set());
+            setBatchAction(null);
+            setBatchNotes('');
+            await onCheckCompletion();
+            await onReload();
+        } catch { /* error */ }
+        setResolving(false);
+    };
 
     const handleResolvePractice = async () => {
         if (!userId || !selectedPractice || !resolutionAction) return;
@@ -124,10 +169,82 @@ export function PracticesTab({ expedient, practices, canResolve, isMine, userId,
 
             {/* Lista de prácticas */}
             <div className="space-y-2">
-                <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest">
-                    Prácticas solicitadas
-                </p>
-                {practices.map((p, idx) => {
+                <div className="flex items-center justify-between">
+                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                        Prácticas solicitadas
+                        <HelpTooltip text="Cada práctica tiene un semáforo de clasificación automática. Usá 'Resolución en lote' para autorizar o denegar varias a la vez." position="right" size={12} />
+                    </p>
+                    {canResolve && practices.length > 1 && (
+                        <button
+                            onClick={() => { setBatchMode(!batchMode); setBatchSelected(new Set()); setBatchAction(null); }}
+                            className={`text-[10px] px-2 py-1 rounded-full font-semibold transition-colors ${batchMode ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                        >
+                            {batchMode ? '✕ Cancelar lote' : '☰ Resolución en lote'}
+                        </button>
+                    )}
+                </div>
+
+                {/* Filtro por clasificación */}
+                {presentClassifications.length > 0 && (
+                    <div className="flex gap-1.5 flex-wrap">
+                        <button
+                            onClick={() => setFilterClassification('todas')}
+                            className={`text-[10px] px-2 py-1 rounded-full font-medium transition-colors ${filterClassification === 'todas' ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                        >
+                            Todas ({practices.length})
+                        </button>
+                        {presentClassifications.map(cls => {
+                            const cfg = CLASSIFICATION_CONFIG[cls];
+                            const count = practices.filter(p => p.rule_classification === cls).length;
+                            return (
+                                <button
+                                    key={cls}
+                                    onClick={() => setFilterClassification(cls)}
+                                    className={`text-[10px] px-2 py-1 rounded-full font-medium transition-colors ${filterClassification === cls ? `${cfg.bg} ${cfg.color} ring-1 ring-current` : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                >
+                                    {cfg.emoji} {cfg.short} ({count})
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Panel de acción en lote */}
+                {batchMode && batchSelected.size > 0 && (
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
+                        <p className="text-xs font-semibold">{batchSelected.size} práctica{batchSelected.size > 1 ? 's' : ''} seleccionada{batchSelected.size > 1 ? 's' : ''}</p>
+                        <div className="flex gap-2">
+                            <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-xs" onClick={() => setBatchAction('autorizar')} disabled={resolving}>
+                                <CheckCircle className="h-3.5 w-3.5 mr-1" /> Autorizar todas
+                            </Button>
+                            <Button size="sm" className="flex-1 bg-red-600 hover:bg-red-700 text-xs" onClick={() => setBatchAction('denegar')} disabled={resolving}>
+                                <XCircle className="h-3.5 w-3.5 mr-1" /> Denegar todas
+                            </Button>
+                        </div>
+                        {batchAction && (
+                            <div className="space-y-2">
+                                <textarea
+                                    value={batchNotes}
+                                    onChange={e => setBatchNotes(e.target.value)}
+                                    placeholder={batchAction === 'denegar' ? 'Motivo de denegación (obligatorio)...' : 'Observaciones (opcional)...'}
+                                    rows={2}
+                                    className="w-full border rounded-lg px-3 py-2 text-xs bg-background resize-none"
+                                />
+                                <Button
+                                    size="sm"
+                                    onClick={handleBatchResolve}
+                                    disabled={resolving || (batchAction === 'denegar' && !batchNotes.trim())}
+                                    className={`w-full ${batchAction === 'autorizar' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+                                >
+                                    {resolving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                    Confirmar {batchAction === 'autorizar' ? 'autorización' : 'denegación'} en lote
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {filteredPractices.map((p, idx) => {
                     const ps = PRACTICE_STATUS_CONFIG[p.status as PracticeResolutionStatus];
                     const PStatusIcon = ps.icon;
                     const isSelected = selectedPractice?.id === p.id;
@@ -140,14 +257,22 @@ export function PracticesTab({ expedient, practices, canResolve, isMine, userId,
                             <div
                                 className={`p-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors ${canResolvePractice ? '' : 'opacity-70'}`}
                                 onClick={() => {
-                                    if (canResolvePractice) {
+                                    if (batchMode && canResolvePractice) {
+                                        const next = new Set(batchSelected);
+                                        next.has(p.id) ? next.delete(p.id) : next.add(p.id);
+                                        setBatchSelected(next);
+                                    } else if (canResolvePractice) {
                                         setSelectedPractice(isSelected ? null : p);
                                         setResolutionAction(null);
                                     }
                                 }}
                             >
                                 <div className="flex items-center gap-3 min-w-0">
-                                    <span className="text-xs font-bold text-muted-foreground w-5">#{idx + 1}</span>
+                                    {batchMode && canResolvePractice ? (
+                                        <input type="checkbox" checked={batchSelected.has(p.id)} readOnly className="h-4 w-4 rounded accent-primary" />
+                                    ) : (
+                                        <span className="text-xs font-bold text-muted-foreground w-5">#{idx + 1}</span>
+                                    )}
                                     <div className="min-w-0">
                                         <p className="text-sm font-medium truncate">Práctica #{p.practice_id}</p>
                                         <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
@@ -158,6 +283,14 @@ export function PracticesTab({ expedient, practices, canResolve, isMine, userId,
                                                     {p.rule_result}
                                                 </span>
                                             )}
+                                            {p.rule_classification && (() => {
+                                                const clsCfg = CLASSIFICATION_CONFIG[p.rule_classification];
+                                                return (
+                                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${clsCfg.bg} ${clsCfg.color}`}>
+                                                        {clsCfg.emoji} {clsCfg.short}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 </div>

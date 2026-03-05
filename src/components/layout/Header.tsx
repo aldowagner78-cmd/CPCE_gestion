@@ -128,7 +128,7 @@ export function Header() {
                 </Link>
 
                 {/* Avatar con iniciales del usuario */}
-                <Link href="/settings">
+                <Link href="/settings" data-tour="user-menu">
                     <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border border-primary/20 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all" title={user?.full_name || 'Usuario'}>
                         {user?.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                     </div>

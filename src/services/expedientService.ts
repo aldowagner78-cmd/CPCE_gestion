@@ -13,6 +13,7 @@ import type {
     ExpedientDocumentType,
     ExpedientLog,
     RulesResult,
+    PracticeClassification,
 } from '@/types/database';
 
 // Re-export types used by consumers
@@ -97,6 +98,7 @@ interface CreatePracticeInput {
     copay_amount?: number;
     copay_percent?: number;
     rule_result?: RulesResult;
+    rule_classification?: PracticeClassification;
     rule_messages?: string[];
     sort_order?: number;
 }
@@ -181,6 +183,7 @@ export const ExpedientService = {
                 copay_amount: p.copay_amount,
                 copay_percent: p.copay_percent,
                 rule_result: p.rule_result,
+                rule_classification: p.rule_classification,
                 rule_messages: p.rule_messages || [],
                 sort_order: p.sort_order ?? idx,
                 status: 'pendiente',

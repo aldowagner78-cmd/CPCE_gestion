@@ -44,6 +44,10 @@ interface DiseaseAutocompleteProps {
     onClear: () => void;
     /** Optional: initial search text from AI extraction */
     initialSearch?: string;
+    /** Optional: additional AI search terms to try if primary search fails */
+    fallbackSearchTerms?: string[];
+    /** Optional: auto-select if exact CIE code match found */
+    autoSelectOnExactCode?: boolean;
     /** Optional: label override */
     label?: string;
     /** Optional: placeholder override */
@@ -60,6 +64,8 @@ export function DiseaseAutocomplete({
     onSelect,
     onClear,
     initialSearch,
+    fallbackSearchTerms,
+    autoSelectOnExactCode,
     label = 'Diagnóstico presuntivo',
     placeholder = 'Buscar diagnóstico por código o nombre (ej: diabetes, J45, fractura...)',
     disabled = false,
@@ -73,6 +79,7 @@ export function DiseaseAutocomplete({
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const initialSearchDone = useRef(false);
+    const fallbackTriedRef = useRef(false);
 
     // ── AI initial search: auto-trigger search when initialSearch changes ──
     useEffect(() => {
@@ -87,6 +94,7 @@ export function DiseaseAutocomplete({
     // Reset initialSearchDone when initialSearch actually changes to a new value
     useEffect(() => {
         initialSearchDone.current = false;
+        fallbackTriedRef.current = false;
     }, [initialSearch]);
 
     // ── Debounced search (fast-clear + delayed API call) ──
@@ -125,6 +133,39 @@ export function DiseaseAutocomplete({
                 setResults(items);
                 setIsOpen(items.length > 0);
                 setHighlightIndex(-1);
+
+                // Auto-select if exact CIE code match found (from IA)
+                if (autoSelectOnExactCode && items.length > 0 && !value) {
+                    const exactMatch = items.find(d => d.code.toLowerCase() === search.trim().toLowerCase());
+                    if (exactMatch) {
+                        onSelect({ code: exactMatch.code, name: exactMatch.name, classification: exactMatch.classification || 'CIE-10' });
+                        setSearch('');
+                        setResults([]);
+                        setIsOpen(false);
+                        setSearching(false);
+                        return;
+                    }
+                }
+
+                // Fallback: if no results and we have alternative search terms from AI
+                if (items.length === 0 && fallbackSearchTerms && fallbackSearchTerms.length > 0 && !fallbackTriedRef.current) {
+                    fallbackTriedRef.current = true;
+                    for (const term of fallbackSearchTerms) {
+                        if (term.length < 2 || term === search) continue;
+                        const { data: fbData } = await db('diseases')
+                            .select('id, code, name, classification, level, category, description, synonyms, criteria, exclusions, clinical_notes, is_chronic, requires_authorization')
+                            .or(`name.ilike.%${term}%,code.ilike.%${term}%`)
+                            .order('code')
+                            .limit(20);
+                        const fbItems = (fbData || []) as DiseaseRecord[];
+                        if (fbItems.length > 0) {
+                            setResults(fbItems);
+                            setIsOpen(true);
+                            setSearch(term);
+                            break;
+                        }
+                    }
+                }
             } catch {
                 setResults([]);
             }

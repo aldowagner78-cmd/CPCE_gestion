@@ -112,7 +112,7 @@ export function Sidebar() {
                 {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
 
-            <div className={cn(
+            <div data-tour="sidebar" className={cn(
                 "fixed inset-y-0 left-0 z-40 w-64 border-r shadow-sm transform transition-transform duration-300 ease-in-out md:translate-x-0 flex flex-col",
                 getSidebarBg(),
                 isOpen ? "translate-x-0" : "-translate-x-full"
@@ -139,7 +139,7 @@ export function Sidebar() {
 
                     {/* Selector de Cámara — solo superusuarios y gerentes */}
                     {user && (user.is_superuser || user.role === 'gerencia') && (
-                        <div className="mt-3">
+                        <div className="mt-3" data-tour="jurisdiction">
                             <JurisdictionToggle />
                         </div>
                     )}
@@ -233,6 +233,7 @@ export function Sidebar() {
                             <button
                                 onClick={() => setAuditOpen(!auditOpen)}
                                 className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 w-full text-muted-foreground hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                                data-tour="audits-link"
                             >
                                 {auditOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                 <ClipboardCheck size={16} />
