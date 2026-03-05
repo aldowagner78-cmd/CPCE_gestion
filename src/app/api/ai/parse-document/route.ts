@@ -28,7 +28,14 @@ export async function POST(req: Request) {
         const base64Data = buffer.toString('base64');
 
         // Choose the model: User specified gemini-2.5-flash
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        // Optimized for speed: low temperature = fewer inference steps, limited tokens = faster completion
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-2.5-flash',
+            generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 2048,
+            },
+        });
 
         const prompt = `
 Eres un asistente experto en auditoría médica argentina, especializado en interpretar órdenes médicas, recetas y prescripciones manuscritas o escaneadas.
@@ -131,10 +138,10 @@ Tu tarea es extraer la información clave del documento y devolver ÚNICAMENTE u
 
         return NextResponse.json(parsedContent);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error procesando imagen con Gemini:', error);
         return NextResponse.json(
-            { error: 'Error interno procesando la imagen.', details: error.message },
+            { error: 'Error interno procesando la imagen.', details: error instanceof Error ? error.message : String(error) },
             { status: 500 }
         );
     }
