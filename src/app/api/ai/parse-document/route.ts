@@ -43,31 +43,45 @@ Eres un asistente experto en auditoría médica argentina, especializado en inte
 
 Tu tarea es extraer la información clave del documento y devolver ÚNICAMENTE un objeto JSON válido (sin texto adicional, sin bloques markdown, sin comentarios).
 
+## CLASIFICACIÓN DEL DOCUMENTO
+
+### "document_type"
+- Identifica el tipo de documento: "orden_medica" | "receta" | "laboratorio" | "estudio" | "historia_clinica" | "factura" | "otro"
+- Valor: string.
+
 ## CAMPOS REQUERIDOS:
+
+Cada campo principal debe incluir un nivel de confianza (confidence: 0-100) que refleje cuán seguro estás de la lectura.
+- 90-100: Lectura clara y segura
+- 70-89: Bastante seguro, texto legible con alguna ambigüedad
+- 50-69: Lectura incierta, caligrafía difícil
+- 0-49: Muy incierto, casi ilegible
+
+Cuando la confianza sea menor a 70, incluye un campo "alternatives" con hasta 3 lecturas alternativas posibles.
 
 ### "affiliate"
 - Número de afiliado, credencial, o DNI del paciente.
 - Busca: número de credencial, N° socio, DNI, CUIL, número de afiliado.
 - Si no puedes leerlo con certeza, haz tu mejor deducción y agrégalo igual.
-- Valor: string (solo el número o texto identificatorio).
+- Valor: { "value": string, "confidence": number, "alternatives"?: string[] }
 
 ### "affiliateName"
 - Nombre completo del paciente/afiliado si está visible.
-- Valor: string o null.
+- Valor: { "value": string, "confidence": number, "alternatives"?: string[] } o null.
 
 ### "doctor"
-- Nombre completo del médico prescriptor Y su número de matrícula (MP, MN, etc.).
-- Formato ideal: "Dr. Nombre Apellido / MN 12345" o "MN 98765 - Dr. Apellido".
-- Si la matrícula es ilegible, incluye el nombre solo.
-- Valor: string.
+- Nombre completo del médico prescriptor.
+- NO incluir matrícula aquí, solo nombre.
+- Valor: { "value": string, "confidence": number, "alternatives"?: string[] }
 
 ### "doctorRegistration"
-- Solo el número de matrícula (sin letras) si fue claramente visible.
-- Valor: string o null.
+- Número de matrícula del médico (MP, MN, etc.) incluyendo prefijo si es visible.
+- Formato: "MN 12345" o "MP 67890" o solo "12345" si no hay prefijo.
+- Valor: { "value": string, "confidence": number, "alternatives"?: string[] } o null.
 
 ### "practices"
 - Array de objetos con las prácticas médicas solicitadas.
-- Cada práctica tiene: { "name": string, "code": string|null, "quantity": number }
+- Cada práctica tiene: { "name": string, "code": string|null, "quantity": number, "confidence": number }
 - Interpreta abreviaturas comunes:
   * "eco abd" → "Ecografía Abdominal"
   * "hemo c/c" → "Hemograma con Recuento Diferencial"
@@ -81,38 +95,54 @@ Tu tarea es extraer la información clave del documento y devolver ÚNICAMENTE u
 
 ### "diagnosisText"
 - Diagnóstico clínico literal tal como aparece en la receta/orden.
-- Puede ser un texto corto ("HTA", "Diabetes tipo 2", "Artritis reumatoide").
 - Interpreta caligrafía médica: "DM2" → "Diabetes Mellitus tipo 2", "IRC" → "Insuficiencia Renal Crónica".
-- NUNCA dejes este campo vacío si hay texto médico en el documento. Hace tu mejor interpretación.
-- Valor: string (vacío "" solo si el documento no tiene absolutamente ningún diagnóstico).
+- NUNCA dejes este campo vacío si hay texto médico en el documento.
+- Valor: { "value": string, "confidence": number, "alternatives"?: string[] }
 
 ### "diagnosisCIE"
 - Código CIE-10 más probable para el diagnóstico detectado (ej: "E11", "I10", "J45.0").
 - Usa tu conocimiento de CIE-10 para asignarlo aunque no esté escrito en la receta.
-- Solo deja null si el diagnóstico es demasiado vago para asignar código.
 - Valor: string o null.
 
 ### "diagnosisSearchTerms"
 - Array de 2-4 términos de búsqueda alternativos para encontrar el diagnóstico en una base de datos.
 - Incluye sinónimos, nombre oficial en español, abreviatura oficial.
-- Ej para "HTA": ["hipertensión arterial", "hipertensión esencial", "I10", "presión arterial elevada"]
 - Valor: string[] (al menos 1 término siempre).
 
 ### "prescriptionDate"
-- Fecha de la prescripción si es visible (formato ISO "YYYY-MM-DD" o texto libre).
-- Valor: string o null.
+- Fecha de la prescripción si es visible. Formato: "DD/MM/AAAA" siempre.
+- Si la fecha dice "5/3/26", interpretar como "05/03/2026".
+- Si está en formato YYYY-MM-DD, convertir a DD/MM/AAAA.
+- Valor: { "value": string, "confidence": number, "alternatives"?: string[] } o null.
 
 ### "notes"
-- Cualquier información clínica adicional relevante que no encaje en los campos anteriores.
-- Ej: indicaciones de urgencia, especialidad del médico, estabelcimiento o sanatorio.
+- Cualquier información clínica adicional relevante.
 - Valor: string o null.
+
+### "missing_fields"
+- Lista de campos que NO pudiste encontrar o leer en el documento.
+- Valores posibles: "affiliate", "affiliateName", "doctor", "doctorRegistration", "practices", "diagnosis", "prescriptionDate"
+- Solo incluir campos que deberían estar presentes pero no fueron encontrados.
+- Valor: string[]
+
+### "warnings"
+- Advertencias sobre la calidad del procesamiento.
+- Ejemplos:
+  * "Caligrafía de difícil lectura en zona superior del documento"
+  * "Imagen con baja resolución, algunos campos pueden ser imprecisos"
+  * "Sello médico parcialmente cortado"
+  * "Fecha posiblemente incorrecta — verificar"
+  * "No se detectó diagnóstico en el documento"
+- Valor: string[]
 
 ## REGLAS CRÍTICAS:
 1. Devuelve ÚNICAMENTE JSON válido, sin ningún texto antes o después.
 2. Nunca uses caracteres de control ni saltos de línea dentro de strings.
-3. Si la caligrafía es difícil de leer, intenta inferir. Incluye tu mejor interpretación — es preferible una inferencia marcada como incierta a dejar el campo vacío.
-4. Para prácticas, aunque no puedas leer el nombre exacto, incluye lo que puedas inferir.
+3. Si la caligrafía es difícil de leer, intenta inferir. Incluye tu mejor interpretación con confidence bajo y alternatives.
+4. Para prácticas, aunque no puedas leer el nombre exacto, incluye lo que puedas inferir con su confidence.
 5. El campo "diagnosisText" es el MÁS IMPORTANTE — nunca lo dejes vacío si hay texto médico visible.
+6. Siempre incluye "missing_fields" (array vacío si no falta nada) y "warnings" (array vacío si todo está bien).
+7. Las fechas SIEMPRE en formato DD/MM/AAAA.
 `;
 
         const result = await model.generateContent([
@@ -137,7 +167,34 @@ Tu tarea es extraer la información clave del documento y devolver ÚNICAMENTE u
 
         const parsedContent = JSON.parse(jsonMatch[0]);
 
-        return NextResponse.json(parsedContent);
+        // Normalize: handle both old format (string) and new format ({ value, confidence })
+        const normalize = (field: unknown): { value: string; confidence: number; alternatives?: string[] } | null => {
+            if (!field) return null;
+            if (typeof field === 'string') return { value: field, confidence: 85 };
+            if (typeof field === 'object' && field !== null && 'value' in field) return field as { value: string; confidence: number; alternatives?: string[] };
+            return null;
+        };
+
+        const normalized = {
+            ...parsedContent,
+            affiliate: normalize(parsedContent.affiliate),
+            affiliateName: normalize(parsedContent.affiliateName),
+            doctor: normalize(parsedContent.doctor),
+            doctorRegistration: normalize(parsedContent.doctorRegistration),
+            diagnosisText: normalize(parsedContent.diagnosisText),
+            prescriptionDate: normalize(parsedContent.prescriptionDate),
+            document_type: parsedContent.document_type || 'orden_medica',
+            missing_fields: parsedContent.missing_fields || [],
+            warnings: parsedContent.warnings || [],
+            practices: (parsedContent.practices || []).map((p: Record<string, unknown>) => ({
+                name: p.name || '',
+                code: p.code || null,
+                quantity: p.quantity || 1,
+                confidence: typeof p.confidence === 'number' ? p.confidence : 85,
+            })),
+        };
+
+        return NextResponse.json(normalized);
 
     } catch (error: unknown) {
         console.error('Error procesando imagen con Gemini:', error);

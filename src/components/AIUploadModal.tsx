@@ -2,14 +2,44 @@
 
 import { useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Sparkles, Upload, FileText, CheckCircle, X, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles, Upload, FileText, CheckCircle, X, Image as ImageIcon, AlertTriangle, ChevronDown, Info } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompressor';
 
-interface AIParsedData {
+// Formato enriquecido que viene del API
+interface AIFieldValue {
+    value: string;
+    confidence: number;
+    alternatives?: string[];
+}
+
+interface AIPractice {
+    name: string;
+    code?: string | null;
+    quantity?: number;
+    confidence: number;
+}
+
+interface AIRichResponse {
+    affiliate?: AIFieldValue | null;
+    affiliateName?: AIFieldValue | null;
+    doctor?: AIFieldValue | null;
+    doctorRegistration?: AIFieldValue | null;
+    diagnosisText?: AIFieldValue | null;
+    diagnosisCIE?: string | null;
+    diagnosisSearchTerms?: string[];
+    prescriptionDate?: AIFieldValue | null;
+    notes?: string | null;
+    practices?: AIPractice[];
+    document_type?: string;
+    missing_fields?: string[];
+    warnings?: string[];
+}
+
+// Formato plano para el callback (compatible con page.tsx)
+interface AIParsedDataFlat {
     affiliate?: string;
     doctor?: string;
-    practices?: string[] | Array<{ name: string; code?: string | null; quantity?: number }>;
-    diagnosis?: string;
+    practices?: Array<{ name: string; code?: string | null; quantity?: number }>;
     affiliateName?: string | null;
     doctorRegistration?: string | null;
     diagnosisText?: string;
@@ -25,31 +55,89 @@ interface FieldState {
     selected: boolean;
     editing: boolean;
     editValue: string;
+    confidence: number;
+    alternatives: string[];
 }
 
 interface AIUploadModalProps {
-    onDataParsed: (data: AIParsedData, file: File) => void;
+    onDataParsed: (data: AIParsedDataFlat, file: File) => void;
 }
 
-function buildFields(data: AIParsedData): FieldState[] {
+function getConfidenceColor(c: number): string {
+    if (c >= 90) return 'bg-green-500';
+    if (c >= 70) return 'bg-yellow-500';
+    if (c >= 50) return 'bg-orange-500';
+    return 'bg-red-500';
+}
+
+function getConfidenceLabel(c: number): string {
+    if (c >= 90) return 'Alta';
+    if (c >= 70) return 'Media';
+    if (c >= 50) return 'Baja';
+    return 'Muy baja';
+}
+
+function buildFields(data: AIRichResponse): FieldState[] {
     const fields: FieldState[] = [];
-    const add = (label: string, val: string | null | undefined) => {
-        if (val && val.trim()) fields.push({ label, value: val.trim(), selected: true, editing: false, editValue: val.trim() });
+    const add = (label: string, field: AIFieldValue | null | undefined) => {
+        if (!field || !field.value?.trim()) return;
+        fields.push({
+            label,
+            value: field.value.trim(),
+            selected: true,
+            editing: false,
+            editValue: field.value.trim(),
+            confidence: field.confidence ?? 85,
+            alternatives: field.alternatives || [],
+        });
     };
     add('N° Afiliado / DNI', data.affiliate);
     add('Nombre paciente', data.affiliateName);
     add('Médico prescriptor', data.doctor);
     add('Matrícula médico', data.doctorRegistration);
     add('Fecha prescripción', data.prescriptionDate);
-    const diagText = data.diagnosisText || data.diagnosis;
-    const diagFull = diagText ? (data.diagnosisCIE ? `${diagText} (${data.diagnosisCIE})` : diagText) : null;
-    add('Diagnóstico', diagFull);
+
+    const diagField = data.diagnosisText;
+    if (diagField?.value?.trim()) {
+        const diagFull = data.diagnosisCIE ? `${diagField.value.trim()} (${data.diagnosisCIE})` : diagField.value.trim();
+        fields.push({
+            label: 'Diagnóstico',
+            value: diagFull,
+            selected: true,
+            editing: false,
+            editValue: diagFull,
+            confidence: diagField.confidence ?? 85,
+            alternatives: diagField.alternatives || [],
+        });
+    }
+
     const practices = data.practices || [];
     if (practices.length > 0) {
-        const practiceStr = practices.map(p => typeof p === 'string' ? p : `${p.name}${p.code ? ` [${p.code}]` : ''}${p.quantity && p.quantity > 1 ? ` x${p.quantity}` : ''}`).join(', ');
-        add('Prácticas solicitadas', practiceStr);
+        const avgConf = Math.round(practices.reduce((s, p) => s + (p.confidence ?? 85), 0) / practices.length);
+        const practiceStr = practices.map(p => `${p.name}${p.code ? ` [${p.code}]` : ''}${p.quantity && p.quantity > 1 ? ` x${p.quantity}` : ''}`).join(', ');
+        fields.push({
+            label: 'Prácticas solicitadas',
+            value: practiceStr,
+            selected: true,
+            editing: false,
+            editValue: practiceStr,
+            confidence: avgConf,
+            alternatives: [],
+        });
     }
-    add('Notas adicionales', data.notes);
+
+    if (data.notes?.trim()) {
+        fields.push({
+            label: 'Notas adicionales',
+            value: data.notes.trim(),
+            selected: true,
+            editing: false,
+            editValue: data.notes.trim(),
+            confidence: 85,
+            alternatives: [],
+        });
+    }
+
     return fields;
 }
 
@@ -57,7 +145,7 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [parsedData, setParsedData] = useState<AIParsedData | null>(null);
+    const [parsedData, setParsedData] = useState<AIRichResponse | null>(null);
     const [processedFile, setProcessedFile] = useState<File | null>(null);
     const [fields, setFields] = useState<FieldState[]>([]);
     const [showReview, setShowReview] = useState(false);
@@ -65,11 +153,34 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
 
     const isPdf = useMemo(() => processedFile?.type === 'application/pdf', [processedFile]);
 
+    const warnings = parsedData?.warnings || [];
+    const missingFields = parsedData?.missing_fields || [];
+    const documentType = parsedData?.document_type;
+
+    const docTypeLabels: Record<string, string> = {
+        orden_medica: 'Orden Médica',
+        receta: 'Receta',
+        laboratorio: 'Laboratorio',
+        estudio: 'Estudio',
+        historia_clinica: 'Historia Clínica',
+        factura: 'Factura',
+        otro: 'Otro',
+    };
+
+    const missingLabels: Record<string, string> = {
+        affiliate: 'N° Afiliado',
+        affiliateName: 'Nombre paciente',
+        doctor: 'Médico',
+        doctorRegistration: 'Matrícula',
+        practices: 'Prácticas',
+        diagnosis: 'Diagnóstico',
+        prescriptionDate: 'Fecha',
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Mostrar preview de imagen inmediatamente
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (ev) => setImagePreview(ev.target?.result as string);
@@ -108,7 +219,7 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                 throw new Error(data.error || 'Error procesando la imagen con IA');
             }
 
-            const result: AIParsedData = await res.json();
+            const result: AIRichResponse = await res.json();
             setParsedData(result);
             setProcessedFile(fileToProcess);
             setFields(buildFields(result));
@@ -134,34 +245,41 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
         setFields(prev => prev.map((f, idx) => idx === i ? { ...f, selected: !f.selected } : f));
     };
 
+    const selectAlternative = (fieldIdx: number, alt: string) => {
+        setFields(prev => prev.map((f, idx) => idx === fieldIdx ? { ...f, value: alt, editValue: alt, selected: true } : f));
+    };
+
     const confirmAndSend = () => {
         if (!parsedData || !processedFile) return;
         const selected = fields.filter(f => f.selected);
         const get = (label: string) => selected.find(f => f.label === label)?.value;
 
-        const finalData: AIParsedData = { ...parsedData };
+        const finalData: AIParsedDataFlat = {};
         const affVal = get('N° Afiliado / DNI');
-        if (affVal !== undefined) finalData.affiliate = affVal;
-        else delete finalData.affiliate;
+        if (affVal) finalData.affiliate = affVal;
 
-        const nameVal = get('Nombre paciente');
-        finalData.affiliateName = nameVal || null;
+        finalData.affiliateName = get('Nombre paciente') || null;
+        if (get('Médico prescriptor')) finalData.doctor = get('Médico prescriptor');
+        finalData.doctorRegistration = get('Matrícula médico') || null;
+        finalData.prescriptionDate = get('Fecha prescripción') || null;
+        finalData.notes = get('Notas adicionales') || null;
 
-        const docVal = get('Médico prescriptor');
-        if (docVal !== undefined) finalData.doctor = docVal;
-        else delete finalData.doctor;
-
-        const matVal = get('Matrícula médico');
-        finalData.doctorRegistration = matVal || null;
-
-        const dateVal = get('Fecha prescripción');
-        finalData.prescriptionDate = dateVal || null;
-
-        const notesVal = get('Notas adicionales');
-        finalData.notes = notesVal || null;
+        // Diagnosis: split back from "Text (CIE)" format
+        const diagVal = get('Diagnóstico');
+        if (diagVal) {
+            const match = diagVal.match(/^(.+?)\s*\(([A-Z]\d[\d.]*)\)$/);
+            if (match) {
+                finalData.diagnosisText = match[1].trim();
+                finalData.diagnosisCIE = match[2];
+            } else {
+                finalData.diagnosisText = diagVal;
+                finalData.diagnosisCIE = parsedData.diagnosisCIE || null;
+            }
+        }
+        finalData.diagnosisSearchTerms = parsedData.diagnosisSearchTerms || [];
+        finalData.practices = parsedData.practices?.map(p => ({ name: p.name, code: p.code, quantity: p.quantity })) || [];
 
         onDataParsed(finalData, processedFile);
-        // Limpiar estado
         setShowReview(false);
         setParsedData(null);
         setFields([]);
@@ -214,7 +332,6 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                     </div>
                 </div>
 
-                {/* Error sin review abierto */}
                 {error && !showReview && (
                     <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
                         <X className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
@@ -226,7 +343,7 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                 )}
             </div>
 
-            {/* Panel de revisión: imagen + campos extraídos */}
+            {/* Panel de revisión */}
             {showReview && (
                 <div className="border-2 border-blue-300 rounded-xl overflow-hidden bg-white shadow-lg">
                     {/* Header */}
@@ -234,14 +351,39 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                         <div className="flex items-center gap-2">
                             <Sparkles className="h-4 w-4" />
                             <span className="font-semibold text-sm">Revisión de datos extraídos por IA</span>
+                            {documentType && (
+                                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">
+                                    {docTypeLabels[documentType] || documentType}
+                                </span>
+                            )}
                         </div>
                         <button onClick={cancelReview} className="text-white/80 hover:text-white">
                             <X className="h-5 w-5" />
                         </button>
                     </div>
 
+                    {/* Warnings banner */}
+                    {(warnings.length > 0 || missingFields.length > 0) && !isProcessing && (
+                        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 space-y-1">
+                            {warnings.map((w, i) => (
+                                <div key={`w-${i}`} className="flex items-start gap-2 text-xs text-amber-800">
+                                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                                    <span>{w}</span>
+                                </div>
+                            ))}
+                            {missingFields.length > 0 && (
+                                <div className="flex items-start gap-2 text-xs text-amber-800">
+                                    <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                                    <span>
+                                        No detectado: {missingFields.map(f => missingLabels[f] || f).join(', ')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-blue-100">
-                        {/* Columna izquierda: Preview de imagen */}
+                        {/* Columna izquierda: Preview */}
                         <div className="p-4 bg-gray-50 min-h-[300px] flex flex-col">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                 <ImageIcon className="h-3.5 w-3.5" /> Documento subido
@@ -249,11 +391,7 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                             {imagePreview ? (
                                 <div className="flex-1 flex items-center justify-center rounded-lg overflow-hidden border bg-white">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={imagePreview}
-                                        alt="Orden médica subida"
-                                        className="max-w-full max-h-[500px] object-contain"
-                                    />
+                                    <img src={imagePreview} alt="Orden médica subida" className="max-w-full max-h-[500px] object-contain" />
                                 </div>
                             ) : isPdf ? (
                                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-white rounded-lg border p-8">
@@ -269,7 +407,7 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                             )}
                         </div>
 
-                        {/* Columna derecha: Campos extraídos */}
+                        {/* Columna derecha: Campos */}
                         <div className="p-4 flex flex-col">
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
@@ -324,7 +462,22 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                                                     className="mt-1.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                                                 />
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{field.label}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{field.label}</p>
+                                                        {/* Confidence indicator */}
+                                                        <div className="flex items-center gap-1" title={`Confianza: ${field.confidence}% — ${getConfidenceLabel(field.confidence)}`}>
+                                                            <div className="h-1.5 w-8 bg-gray-200 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className={`h-full rounded-full transition-all ${getConfidenceColor(field.confidence)}`}
+                                                                    style={{ width: `${field.confidence}%` }}
+                                                                />
+                                                            </div>
+                                                            {field.confidence < 70 && (
+                                                                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                                            )}
+                                                        </div>
+                                                    </div>
+
                                                     {field.editing ? (
                                                         <input
                                                             value={field.editValue}
@@ -342,6 +495,29 @@ export function AIUploadModal({ onDataParsed }: AIUploadModalProps) {
                                                         >
                                                             {field.value}
                                                         </p>
+                                                    )}
+
+                                                    {/* Alternatives for low-confidence fields */}
+                                                    {field.alternatives.length > 0 && field.confidence < 70 && !field.editing && (
+                                                        <div className="mt-1">
+                                                            <details className="group">
+                                                                <summary className="text-[10px] text-amber-700 cursor-pointer flex items-center gap-1 hover:text-amber-900">
+                                                                    <ChevronDown className="h-3 w-3 group-open:rotate-180 transition-transform" />
+                                                                    {field.alternatives.length} alternativa{field.alternatives.length > 1 ? 's' : ''}
+                                                                </summary>
+                                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                                    {field.alternatives.map((alt, ai) => (
+                                                                        <button
+                                                                            key={ai}
+                                                                            onClick={() => selectAlternative(i, alt)}
+                                                                            className="text-[11px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded border border-amber-200 transition-colors"
+                                                                        >
+                                                                            {alt}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </details>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
