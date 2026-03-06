@@ -28,10 +28,9 @@ export async function POST(req: Request) {
         // Convert to base64
         const base64Data = buffer.toString('base64');
 
-        // Choose the model: User specified gemini-2.5-flash
-        // Optimized for speed: low temperature = fewer inference steps, limited tokens = faster completion
+        // gemini-2.0-flash: 1500 RPD free tier (vs 20 RPD de 2.5-flash)
         const model = genAI.getGenerativeModel({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.0-flash',
             generationConfig: {
                 temperature: 0.1,
                 maxOutputTokens: 65536,
