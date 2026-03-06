@@ -28,9 +28,9 @@ export async function POST(req: Request) {
         // Convert to base64
         const base64Data = buffer.toString('base64');
 
-        // gemini-2.0-flash-lite: cuota separada, bajo consumo
+        // gemini-2.0-flash: 1500 RPD free tier
         const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash-lite',
+            model: 'gemini-2.0-flash',
             generationConfig: {
                 temperature: 0.1,
                 maxOutputTokens: 65536,
