@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { ExpedientService } from '@/services/expedientService';
@@ -89,6 +89,7 @@ export default function NewExpedientPage() {
     const [providerName, setProviderName] = useState('');
     const [prescriptionDate, setPrescriptionDate] = useState('');
     const [prescriptionNumber, setPrescriptionNumber] = useState('');
+    const [coseguroNumber, setCoseguroNumber] = useState('');
     const [orderExpiryDate, setOrderExpiryDate] = useState('');
     const [assignedAuditorId, setAssignedAuditorId] = useState('');
     const [auditorsList, setAuditorsList] = useState<{ id: string; full_name: string; role: string }[]>([]);
@@ -445,16 +446,21 @@ export default function NewExpedientPage() {
     const handleDiseaseSelect = useCallback((sel: DiseaseSelection) => { setDiagnosisCode(sel.code); setDiagnosis(sel.name); }, []);
     const handleDiseaseClear = useCallback(() => { setDiagnosis(''); setDiagnosisCode(''); setDiagInitialSearch(''); }, []);
 
-    // Auto-advance sections
+    // Auto-advance sections (only once each)
+    const section1Advanced = useRef(false);
+    const section2Advanced = useRef(false);
+
     useEffect(() => {
-        if (affiliate && activeSection === 1) {
+        if (affiliate && activeSection === 1 && !section1Advanced.current) {
+            section1Advanced.current = true;
             const timer = setTimeout(() => setActiveSection(2), 400);
             return () => clearTimeout(timer);
         }
     }, [affiliate, activeSection]);
 
     useEffect(() => {
-        if (diagnosisCode && practiceItems.length > 0 && activeSection === 2) {
+        if (diagnosisCode && practiceItems.length > 0 && activeSection === 2 && !section2Advanced.current) {
+            section2Advanced.current = true;
             const timer = setTimeout(() => setActiveSection(3), 400);
             return () => clearTimeout(timer);
         }
@@ -569,8 +575,9 @@ export default function NewExpedientPage() {
         setShowPreview(false); setChatMessages([]);
         setDoctorName(''); setDoctorRegistration(''); setDoctorSpecialty('');
         setProviderName(''); setPrescriptionDate(''); setPrescriptionNumber('');
-        setOrderExpiryDate(''); setAssignedAuditorId('');
+        setOrderExpiryDate(''); setAssignedAuditorId(''); setCoseguroNumber('');
         setLoadMode('ia'); setActiveSection(1); setAiAffName(null); setAiDiagTerms([]);
+        section1Advanced.current = false; section2Advanced.current = false;
     };
 
     if (submitted) {
@@ -591,9 +598,29 @@ export default function NewExpedientPage() {
                 <Link href="/audits/requests">
                     <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
                 </Link>
-                <div>
+                <div className="flex-1">
                     <h1 className="text-xl font-bold">Solicitud Nueva</h1>
                     <p className="text-xs text-muted-foreground">Apertura de expediente digital de auditoría</p>
+                </div>
+                {(() => {
+                    const typeInfo = EXPEDIENT_TYPES.find(t => t.value === expedientType);
+                    if (!typeInfo) return null;
+                    const Icon = typeInfo.icon;
+                    return (
+                        <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${typeInfo.cls}`}>
+                            <Icon className="h-3.5 w-3.5" /> {typeInfo.label}
+                        </span>
+                    );
+                })()}
+                <div className="flex items-center gap-1.5">
+                    <label className="text-xs text-muted-foreground whitespace-nowrap">Coseguro N°</label>
+                    <input
+                        type="text"
+                        placeholder="—"
+                        value={coseguroNumber}
+                        onChange={e => setCoseguroNumber(e.target.value)}
+                        className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
                 </div>
             </div>
 
@@ -720,14 +747,12 @@ export default function NewExpedientPage() {
                 doctorSpecialty={doctorSpecialty}
                 providerName={providerName}
                 prescriptionDate={prescriptionDate}
-                prescriptionNumber={prescriptionNumber}
                 orderExpiryDate={orderExpiryDate}
                 onDoctorNameChange={setDoctorName}
                 onDoctorRegistrationChange={setDoctorRegistration}
                 onDoctorSpecialtyChange={setDoctorSpecialty}
                 onProviderNameChange={setProviderName}
                 onPrescriptionDateChange={setPrescriptionDate}
-                onPrescriptionNumberChange={setPrescriptionNumber}
                 onOrderExpiryDateChange={setOrderExpiryDate}
             />
 
@@ -836,6 +861,7 @@ export default function NewExpedientPage() {
                 providerName={providerName}
                 prescriptionDate={prescriptionDate}
                 prescriptionNumber={prescriptionNumber}
+                coseguroNumber={coseguroNumber}
                 orderExpiryDate={orderExpiryDate}
                 assignedAuditorId={assignedAuditorId}
                 auditorsList={auditorsList}

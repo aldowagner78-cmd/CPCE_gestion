@@ -32,22 +32,20 @@ interface PrescriptionFormProps {
     doctorSpecialty: string;
     providerName: string;
     prescriptionDate: string;
-    prescriptionNumber: string;
     orderExpiryDate: string;
     onDoctorNameChange: (v: string) => void;
     onDoctorRegistrationChange: (v: string) => void;
     onDoctorSpecialtyChange: (v: string) => void;
     onProviderNameChange: (v: string) => void;
     onPrescriptionDateChange: (v: string) => void;
-    onPrescriptionNumberChange: (v: string) => void;
     onOrderExpiryDateChange: (v: string) => void;
 }
 
 export function PrescriptionForm({
     doctorName, doctorRegistration, doctorSpecialty, providerName,
-    prescriptionDate, prescriptionNumber, orderExpiryDate,
+    prescriptionDate, orderExpiryDate,
     onDoctorNameChange, onDoctorRegistrationChange, onDoctorSpecialtyChange,
-    onProviderNameChange, onPrescriptionDateChange, onPrescriptionNumberChange, onOrderExpiryDateChange,
+    onProviderNameChange, onPrescriptionDateChange, onOrderExpiryDateChange,
 }: PrescriptionFormProps) {
     return (
         <div className="border rounded-xl overflow-hidden">
@@ -78,14 +76,10 @@ export function PrescriptionForm({
                         <Input placeholder="Clínica, sanatorio, laboratorio" value={providerName} onChange={e => onProviderNameChange(e.target.value)} className="text-sm" />
                     </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Fecha prescripción</label>
                         <DateMaskedInput value={prescriptionDate} onChange={onPrescriptionDateChange} className="text-sm" />
-                    </div>
-                    <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">Nro. receta / orden</label>
-                        <Input placeholder="Nro. referencia" value={prescriptionNumber} onChange={e => onPrescriptionNumberChange(e.target.value)} className="text-sm" />
                     </div>
                     <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Vencimiento orden</label>

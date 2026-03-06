@@ -32,6 +32,7 @@ interface SubmitPreviewProps {
     providerName: string;
     prescriptionDate: string;
     prescriptionNumber: string;
+    coseguroNumber: string;
     orderExpiryDate: string;
     assignedAuditorId: string;
     auditorsList: { id: string; full_name: string; role: string }[];
@@ -48,7 +49,7 @@ export function SubmitPreview({
     showPreview, canSubmit, submitting, expedientType, priority,
     affiliate, planName, diagnosisCode, diagnosis,
     doctorName, doctorRegistration, doctorSpecialty, providerName,
-    prescriptionDate, prescriptionNumber, orderExpiryDate,
+    prescriptionDate, prescriptionNumber, coseguroNumber, orderExpiryDate,
     assignedAuditorId, auditorsList, practiceItems, totalValue,
     files, chatMessages, onShowPreview, onHidePreview, onSubmit,
 }: SubmitPreviewProps) {
@@ -74,6 +75,7 @@ export function SubmitPreview({
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                             <div><span className="text-muted-foreground">Tipo:</span> <span className="font-medium">{EXP_TYPE_LABELS[expedientType] || expedientType}</span></div>
                             <div><span className="text-muted-foreground">Prioridad:</span> <span className={`font-medium ${priority === 'urgente' ? 'text-red-600' : ''}`}>{priority === 'urgente' ? '🔴 Urgente' : 'Normal'}</span></div>
+                            {coseguroNumber && <div><span className="text-muted-foreground">Coseguro N°:</span> <span className="font-mono font-medium">{coseguroNumber}</span></div>}
                             <div className="col-span-2"><span className="text-muted-foreground">Afiliado:</span> <span className="font-medium">{affiliate.full_name}</span> <span className="text-muted-foreground">· DNI {affiliate.document_number}</span></div>
                             <div><span className="text-muted-foreground">Plan:</span> <span className="font-medium">{planName}</span></div>
                             {diagnosis && (
@@ -90,7 +92,7 @@ export function SubmitPreview({
                                     {doctorSpecialty && <div><span className="text-muted-foreground">Especialidad:</span> <span className="font-medium">{doctorSpecialty}</span></div>}
                                     {providerName && <div><span className="text-muted-foreground">Prestador:</span> <span className="font-medium">{providerName}</span></div>}
                                     {prescriptionDate && <div><span className="text-muted-foreground">Fecha prescripción:</span> <span className="font-medium">{prescriptionDate}</span></div>}
-                                    {prescriptionNumber && <div><span className="text-muted-foreground">Nro. receta:</span> <span className="font-mono font-medium">{prescriptionNumber}</span></div>}
+                                    {prescriptionNumber && <div><span className="text-muted-foreground">Nro. orden:</span> <span className="font-mono font-medium">{prescriptionNumber}</span></div>}
                                     {orderExpiryDate && <div><span className="text-muted-foreground">Vencimiento orden:</span> <span className="font-medium">{orderExpiryDate}</span></div>}
                                 </div>
                             </div>
