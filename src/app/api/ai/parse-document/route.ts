@@ -8,31 +8,45 @@ const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GE
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const XAI_API_KEY = process.env.XAI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-type ProviderName = 'gemini' | 'openai' | 'anthropic' | 'xai';
+type ProviderName = 'gemini' | 'openai' | 'anthropic' | 'xai' | 'groq';
+
+const GEMINI_MODELS = (process.env.GEMINI_MODEL || 'gemini-2.5-flash,gemini-2.5-pro,gemini-2.0-flash').split(',').map(m => m.trim());
 
 async function generateWithGemini(prompt: string, base64Data: string, mimeType: string): Promise<string> {
     if (!genAI) throw new Error('GEMINI_API_KEY no configurada');
 
-    const model = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
-        generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 65536,
-        },
-    });
+    const errors: string[] = [];
+    for (const modelName of GEMINI_MODELS) {
+        try {
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                generationConfig: {
+                    temperature: 0.1,
+                    maxOutputTokens: 65536,
+                },
+            });
 
-    const result = await model.generateContent([
-        prompt,
-        {
-            inlineData: {
-                data: base64Data,
-                mimeType,
-            },
-        },
-    ]);
+            const result = await model.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType,
+                    },
+                },
+            ]);
 
-    return result.response.text();
+            return result.response.text();
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn(`Gemini modelo ${modelName} falló: ${msg.substring(0, 120)}`);
+            errors.push(`${modelName}: ${msg.substring(0, 120)}`);
+        }
+    }
+
+    throw new Error(`Todos los modelos Gemini fallaron: ${errors.join(' | ')}`);
 }
 
 async function generateWithOpenAI(prompt: string, base64Data: string, mimeType: string): Promise<string> {
@@ -165,11 +179,52 @@ async function generateWithXai(prompt: string, base64Data: string, mimeType: str
     return text;
 }
 
+async function generateWithGroq(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+    if (!GROQ_API_KEY) throw new Error('GROQ_API_KEY no configurada');
+
+    const model = process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model,
+            temperature: 0.1,
+            max_tokens: 8192,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } },
+                    ],
+                },
+            ],
+        }),
+    });
+
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Groq ${response.status}: ${detail.substring(0, 200)}`);
+    }
+
+    const payload = await response.json() as {
+        choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const text = payload.choices?.[0]?.message?.content;
+    if (!text) throw new Error('Groq devolvió respuesta vacía');
+    return text;
+}
+
 async function generateWithFallbacks(prompt: string, base64Data: string, mimeType: string): Promise<{ provider: ProviderName; text: string }> {
     const errors: string[] = [];
 
     const providers: Array<{ name: ProviderName; enabled: boolean; run: () => Promise<string> }> = [
         { name: 'gemini', enabled: !!genAI, run: () => generateWithGemini(prompt, base64Data, mimeType) },
+        { name: 'groq', enabled: !!GROQ_API_KEY, run: () => generateWithGroq(prompt, base64Data, mimeType) },
         { name: 'openai', enabled: !!OPENAI_API_KEY, run: () => generateWithOpenAI(prompt, base64Data, mimeType) },
         { name: 'anthropic', enabled: !!ANTHROPIC_API_KEY, run: () => generateWithAnthropic(prompt, base64Data, mimeType) },
         { name: 'xai', enabled: !!XAI_API_KEY, run: () => generateWithXai(prompt, base64Data, mimeType) },
@@ -188,14 +243,14 @@ async function generateWithFallbacks(prompt: string, base64Data: string, mimeTyp
 
     throw new Error(errors.length > 0
         ? `Todos los proveedores fallaron. ${errors.join(' | ')}`
-        : 'No hay proveedores de IA configurados (Gemini/OpenAI/Anthropic/XAI).');
+        : 'No hay proveedores de IA configurados (Gemini/OpenAI/Anthropic/XAI/Groq).');
 }
 
 export async function POST(req: Request) {
     try {
-        if (!genAI && !OPENAI_API_KEY && !ANTHROPIC_API_KEY && !XAI_API_KEY) {
+        if (!genAI && !OPENAI_API_KEY && !ANTHROPIC_API_KEY && !XAI_API_KEY && !GROQ_API_KEY) {
             return NextResponse.json(
-                { error: 'No hay proveedores IA configurados (Gemini/OpenAI/Anthropic/XAI).' },
+                { error: 'No hay proveedores IA configurados (Gemini/OpenAI/Anthropic/XAI/Groq).' },
                 { status: 500 }
             );
         }

@@ -4,14 +4,16 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export async function GET() {
     const providers = {
         gemini: !!process.env.GEMINI_API_KEY,
+        groq: !!process.env.GROQ_API_KEY,
         openai: !!process.env.OPENAI_API_KEY,
         anthropic: !!process.env.ANTHROPIC_API_KEY,
         xai: !!process.env.XAI_API_KEY,
     };
 
+    const geminiModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').split(',')[0].trim();
     const keyPrefix = process.env.GEMINI_API_KEY?.substring(0, 8) || 'N/A';
 
-    if (!providers.gemini && !providers.openai && !providers.anthropic && !providers.xai) {
+    if (!providers.gemini && !providers.openai && !providers.anthropic && !providers.xai && !providers.groq) {
         return NextResponse.json({
             status: 'error',
             message: 'No hay providers IA configurados.',
@@ -30,13 +32,13 @@ export async function GET() {
 
     try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: geminiModel });
         const result = await model.generateContent('Responde solo "OK"');
         const text = result.response.text().trim();
 
         return NextResponse.json({
             status: 'ok',
-            message: 'Conexión con Gemini exitosa.',
+            message: `Conexión con Gemini (${geminiModel}) exitosa.`,
             keyExists: true,
             keyPrefix: keyPrefix + '...',
             providers,
