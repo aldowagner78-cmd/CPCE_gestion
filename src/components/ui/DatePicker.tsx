@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -60,21 +60,20 @@ export function DatePicker({
     const [displayYear, setDisplayYear] = useState(new Date().getFullYear());
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Parse value to date
-    const selectedDate = value ? new Date(value + 'T00:00:00') : null;
-    const displayedDate = value && !isNaN(selectedDate!.getTime())
-        ? selectedDate!.toLocaleDateString(locale === 'es' ? 'es-AR' : 'en-US', {
+    // Parse selected value once per value change
+    const selectedDate = useMemo(() => {
+        if (!value) return null;
+        const parsed = new Date(value + 'T00:00:00');
+        return isNaN(parsed.getTime()) ? null : parsed;
+    }, [value]);
+
+    const displayedDate = selectedDate
+        ? selectedDate.toLocaleDateString(locale === 'es' ? 'es-AR' : 'en-US', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
         })
         : '';
-
-    // Check if date is valid
-    const isDateValid = (dateStr: string): boolean => {
-        const d = new Date(dateStr + 'T00:00:00');
-        return !isNaN(d.getTime());
-    };
 
     // Check if date is within range
     const isInRange = (dateStr: string): boolean => {
@@ -90,6 +89,14 @@ export function DatePicker({
             onChange(dateStr);
             setIsOpen(false);
         }
+    };
+
+    const handleToggleCalendar = () => {
+        if (!isOpen && selectedDate) {
+            setDisplayMonth(selectedDate.getMonth());
+            setDisplayYear(selectedDate.getFullYear());
+        }
+        setIsOpen(!isOpen);
     };
 
     // Generate calendar days
@@ -121,14 +128,6 @@ export function DatePicker({
         }
     }, [isOpen]);
 
-    // Sync calendar display with selected date
-    useEffect(() => {
-        if (selectedDate && !isNaN(selectedDate.getTime())) {
-            setDisplayMonth(selectedDate.getMonth());
-            setDisplayYear(selectedDate.getFullYear());
-        }
-    }, [selectedDate, isOpen]);
-
     return (
         <div ref={containerRef} className="relative w-full">
             {label && (
@@ -143,7 +142,7 @@ export function DatePicker({
                     value={displayedDate}
                     placeholder={placeholder}
                     disabled={disabled}
-                    onClick={() => !disabled && setIsOpen(!isOpen)}
+                    onClick={() => !disabled && handleToggleCalendar()}
                     readOnly
                     className="cursor-pointer pr-10"
                 />

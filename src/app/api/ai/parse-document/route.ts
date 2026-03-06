@@ -5,12 +5,197 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export const maxDuration = 60;
 
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const XAI_API_KEY = process.env.XAI_API_KEY;
+
+type ProviderName = 'gemini' | 'openai' | 'anthropic' | 'xai';
+
+async function generateWithGemini(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+    if (!genAI) throw new Error('GEMINI_API_KEY no configurada');
+
+    const model = genAI.getGenerativeModel({
+        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+        generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 65536,
+        },
+    });
+
+    const result = await model.generateContent([
+        prompt,
+        {
+            inlineData: {
+                data: base64Data,
+                mimeType,
+            },
+        },
+    ]);
+
+    return result.response.text();
+}
+
+async function generateWithOpenAI(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+    if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY no configurada');
+
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model,
+            temperature: 0.1,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } },
+                    ],
+                },
+            ],
+        }),
+    });
+
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`OpenAI ${response.status}: ${detail.substring(0, 200)}`);
+    }
+
+    const payload = await response.json() as {
+        choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const text = payload.choices?.[0]?.message?.content;
+    if (!text) throw new Error('OpenAI devolvió respuesta vacía');
+    return text;
+}
+
+async function generateWithAnthropic(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+    if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY no configurada');
+
+    const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+            model,
+            max_tokens: 4096,
+            temperature: 0.1,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'text',
+                            text: prompt,
+                        },
+                        {
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: mimeType,
+                                data: base64Data,
+                            },
+                        },
+                    ],
+                },
+            ],
+        }),
+    });
+
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Anthropic ${response.status}: ${detail.substring(0, 200)}`);
+    }
+
+    const payload = await response.json() as {
+        content?: Array<{ type?: string; text?: string }>;
+    };
+
+    const textBlock = payload.content?.find(c => c.type === 'text' && !!c.text)?.text;
+    if (!textBlock) throw new Error('Anthropic devolvió respuesta vacía');
+    return textBlock;
+}
+
+async function generateWithXai(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+    if (!XAI_API_KEY) throw new Error('XAI_API_KEY no configurada');
+
+    const model = process.env.XAI_MODEL || 'grok-2-vision-latest';
+    const baseUrl = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${XAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model,
+            temperature: 0.1,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } },
+                    ],
+                },
+            ],
+        }),
+    });
+
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`XAI ${response.status}: ${detail.substring(0, 200)}`);
+    }
+
+    const payload = await response.json() as {
+        choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const text = payload.choices?.[0]?.message?.content;
+    if (!text) throw new Error('XAI devolvió respuesta vacía');
+    return text;
+}
+
+async function generateWithFallbacks(prompt: string, base64Data: string, mimeType: string): Promise<{ provider: ProviderName; text: string }> {
+    const errors: string[] = [];
+
+    const providers: Array<{ name: ProviderName; enabled: boolean; run: () => Promise<string> }> = [
+        { name: 'gemini', enabled: !!genAI, run: () => generateWithGemini(prompt, base64Data, mimeType) },
+        { name: 'openai', enabled: !!OPENAI_API_KEY, run: () => generateWithOpenAI(prompt, base64Data, mimeType) },
+        { name: 'anthropic', enabled: !!ANTHROPIC_API_KEY, run: () => generateWithAnthropic(prompt, base64Data, mimeType) },
+        { name: 'xai', enabled: !!XAI_API_KEY, run: () => generateWithXai(prompt, base64Data, mimeType) },
+    ];
+
+    for (const provider of providers) {
+        if (!provider.enabled) continue;
+        try {
+            const text = await provider.run();
+            return { provider: provider.name, text };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            errors.push(`${provider.name}: ${message.substring(0, 180)}`);
+        }
+    }
+
+    throw new Error(errors.length > 0
+        ? `Todos los proveedores fallaron. ${errors.join(' | ')}`
+        : 'No hay proveedores de IA configurados (Gemini/OpenAI/Anthropic/XAI).');
+}
 
 export async function POST(req: Request) {
     try {
-        if (!genAI) {
+        if (!genAI && !OPENAI_API_KEY && !ANTHROPIC_API_KEY && !XAI_API_KEY) {
             return NextResponse.json(
-                { error: 'La API Key de Gemini no está configurada.' },
+                { error: 'No hay proveedores IA configurados (Gemini/OpenAI/Anthropic/XAI).' },
                 { status: 500 }
             );
         }
@@ -27,15 +212,6 @@ export async function POST(req: Request) {
 
         // Convert to base64
         const base64Data = buffer.toString('base64');
-
-        // gemini-2.0-flash: 1500 RPD free tier
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
-            generationConfig: {
-                temperature: 0.1,
-                maxOutputTokens: 65536,
-            },
-        });
 
         const prompt = `
 Eres un asistente experto en auditoría médica argentina, especializado en interpretar órdenes médicas, recetas y prescripciones manuscritas o escaneadas.
@@ -144,24 +320,16 @@ Cuando la confianza sea menor a 70, incluye un campo "alternatives" con hasta 3 
 7. Las fechas SIEMPRE en formato DD/MM/AAAA.
 `;
 
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: base64Data,
-                    mimeType: file.type
-                }
-            }
-        ]);
+        const generation = await generateWithFallbacks(prompt, base64Data, file.type);
 
         // Extraer texto de forma segura
         let responseText: string;
         try {
-            responseText = result.response.text();
+            responseText = generation.text;
         } catch (textError) {
             const textMsg = textError instanceof Error ? textError.message : String(textError);
             return NextResponse.json({
-                error: `Gemini devolvió una respuesta inválida: ${textMsg}`,
+                error: `El proveedor IA devolvió una respuesta inválida: ${textMsg}`,
                 details: textMsg,
             }, { status: 500 });
         }
@@ -220,7 +388,10 @@ Cuando la confianza sea menor a 70, incluye un campo "alternatives" con hasta 3 
             })),
         };
 
-        return NextResponse.json(normalized);
+        return NextResponse.json({
+            ...normalized,
+            _provider: generation.provider,
+        });
 
     } catch (error: unknown) {
         console.error('Error procesando imagen con Gemini:', error);

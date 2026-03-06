@@ -2,6 +2,9 @@
 
 import { X, Clock, Paperclip, FileText, Loader2 } from 'lucide-react';
 import type { DetailedConsumption, PracticeItem } from './types';
+import { createClient } from '@/lib/supabase';
+
+const supabase = createClient();
 
 interface HistoryModalProps {
     viewingHistoryFor: { id: number; name: string } | null;
@@ -117,6 +120,17 @@ export function PracticeHistoryModal({
 export function AttachmentsModal({ viewingAttachmentsFor, attachments, loadingAttachments, onClose }: AttachmentsModalProps) {
     if (!viewingAttachmentsFor) return null;
 
+    const resolveAttachmentUrl = (attachment: Record<string, unknown>): string => {
+        const fileUrl = attachment.file_url;
+        if (typeof fileUrl === 'string' && fileUrl.length > 0) return fileUrl;
+
+        const storagePath = attachment.storage_path;
+        if (typeof storagePath !== 'string' || storagePath.length === 0) return '';
+
+        const { data } = supabase.storage.from('audit-attachments').getPublicUrl(storagePath);
+        return data.publicUrl || '';
+    };
+
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-background rounded-xl p-5 w-full max-w-2xl shadow-xl flex flex-col max-h-[80vh]">
@@ -144,37 +158,55 @@ export function AttachmentsModal({ viewingAttachmentsFor, attachments, loadingAt
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {attachments.map((att) => {
-                                const a = att as Record<string, string>;
+                                const a = att as Record<string, unknown>;
+                                const fileUrl = resolveAttachmentUrl(a);
+                                const fileName = typeof a.file_name === 'string' ? a.file_name : 'archivo';
+                                const fileType = typeof a.file_type === 'string' ? a.file_type : 'Archivo';
+                                const uploader = typeof a.attached_by_name === 'string'
+                                    ? a.attached_by_name
+                                    : typeof a.uploaded_by === 'string'
+                                        ? a.uploaded_by
+                                        : 'Sistema';
+                                const createdAt = typeof a.created_at === 'string' ? a.created_at : '';
+                                const attachmentId = typeof a.id === 'string' ? a.id : `${fileName}-${createdAt}`;
                                 return (
-                                    <div key={a.id} className="border rounded-lg overflow-hidden group bg-card flex flex-col">
+                                    <div key={attachmentId} className="border rounded-lg overflow-hidden group bg-card flex flex-col">
                                         <div className="p-3 bg-muted/40 border-b flex items-start justify-between gap-2">
                                             <div className="min-w-0">
-                                                <p className="text-xs font-semibold truncate" title={a.file_name}>{a.file_name}</p>
-                                                <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">{a.file_type || 'Archivo'}</p>
+                                                <p className="text-xs font-semibold truncate" title={fileName}>{fileName}</p>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">{fileType}</p>
                                             </div>
                                         </div>
                                         <div className="p-3 flex items-center justify-center flex-1 bg-muted/10">
-                                            {a.file_type?.toLowerCase().includes('pdf') ? (
+                                            {fileType.toLowerCase().includes('pdf') ? (
                                                 <div className="text-center">
                                                     <FileText className="h-8 w-8 mx-auto text-red-500 mb-2 opacity-80" />
-                                                    <a href={a.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Abrir PDF</a>
+                                                    {fileUrl ? (
+                                                        <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Abrir PDF</a>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">URL no disponible</span>
+                                                    )}
                                                 </div>
-                                            ) : a.file_type?.toLowerCase().includes('image') ? (
-                                                <a href={a.file_url} target="_blank" rel="noopener noreferrer" className="block w-full text-center">
+                                            ) : fileType.toLowerCase().includes('image') ? (
+                                                <a href={fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="block w-full text-center">
                                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img src={a.file_url} alt={a.file_name} className="max-h-32 mx-auto object-contain rounded border bg-background" />
+                                                    <img src={fileUrl || ''} alt={fileName} className="max-h-32 mx-auto object-contain rounded border bg-background" />
                                                     <span className="text-xs text-blue-600 hover:underline mt-2 inline-block">Ampliar imagen</span>
                                                 </a>
                                             ) : (
                                                 <div className="text-center">
                                                     <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
-                                                    <a href={a.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Descargar</a>
+                                                    {fileUrl ? (
+                                                        <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Descargar</a>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">URL no disponible</span>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
                                         <div className="p-2 border-t bg-muted/20 text-[10px] text-muted-foreground flex justify-between">
-                                            <span className="truncate">Por: {a.attached_by_name || 'Sistema'}</span>
-                                            <span className="shrink-0">{new Date(a.created_at).toLocaleDateString('es-AR')}</span>
+                                            <span className="truncate">Por: {uploader}</span>
+                                            <span className="shrink-0">{createdAt ? new Date(createdAt).toLocaleDateString('es-AR') : 'S/F'}</span>
                                         </div>
                                     </div>
                                 );

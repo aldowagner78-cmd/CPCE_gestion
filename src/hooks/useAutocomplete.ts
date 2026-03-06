@@ -37,6 +37,14 @@ export function useAutocomplete<T extends AutocompleteOption>({
     const abortControllerRef = useRef<AbortController | null>(null);
     const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Select an option
+    const selectOption = useCallback((option: T) => {
+        setQuery(option.label);
+        setIsOpen(false);
+        setSelectedIndex(-1);
+        setResults([]);
+    }, []);
+
     // Perform search
     const performSearch = useCallback(async (q: string) => {
         if (q.length < minChars) {
@@ -125,15 +133,7 @@ export function useAutocomplete<T extends AutocompleteOption>({
                 }
                 break;
         }
-    }, [isOpen, results, selectedIndex]);
-
-    // Select an option
-    const selectOption = useCallback((option: T) => {
-        setQuery(option.label);
-        setIsOpen(false);
-        setSelectedIndex(-1);
-        setResults([]);
-    }, []);
+    }, [isOpen, results, selectedIndex, selectOption]);
 
     // Clear selection
     const clear = useCallback(() => {

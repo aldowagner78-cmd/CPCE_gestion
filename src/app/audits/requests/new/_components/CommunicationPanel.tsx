@@ -33,6 +33,16 @@ export function CommunicationPanel({
     const intCount = chatMessages.filter(m => m.channel === 'interna').length;
     const activeMessages = chatMessages.filter(m => m.channel === commChannel);
 
+    const handleQuickReply = (text: string) => {
+        const current = notes.trim();
+        const merged = current
+            ? current.includes(text)
+                ? current
+                : `${current}${/[.!?]$/.test(current) ? '' : '.'} ${text}`
+            : text;
+        onNotesChange('para_afiliado', merged);
+    };
+
     if (!expanded) {
         return (
             <button onClick={() => setExpanded(true)}
@@ -50,11 +60,11 @@ export function CommunicationPanel({
         <div className="border rounded-xl overflow-hidden">
             {/* Toggle tabs */}
             <div className="flex border-b">
-                <button onClick={() => onNotesChange('para_afiliado', commChannel === 'para_afiliado' ? notes : '')}
+                <button onClick={() => onNotesChange('para_afiliado', notes)}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold uppercase tracking-wider transition-colors ${commChannel === 'para_afiliado' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-muted-foreground hover:bg-muted/30'}`}>
                     <Megaphone className="h-3 w-3" /> Afiliado {affCount > 0 && <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 rounded-full">{affCount}</span>}
                 </button>
-                <button onClick={() => onNotesChange('interna', commChannel === 'interna' ? notes : '')}
+                <button onClick={() => onNotesChange('interna', notes)}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold uppercase tracking-wider transition-colors ${commChannel === 'interna' ? 'bg-slate-100 text-slate-700 border-b-2 border-slate-500' : 'text-muted-foreground hover:bg-muted/30'}`}>
                     <Lock className="h-3 w-3" /> Interna {intCount > 0 && <span className="bg-slate-200 text-slate-700 text-[9px] px-1.5 rounded-full">{intCount}</span>}
                 </button>
@@ -78,7 +88,7 @@ export function CommunicationPanel({
             {commChannel === 'para_afiliado' && (
                 <div className="flex flex-wrap gap-1 px-2 py-1.5 border-t bg-blue-50/30">
                     {QUICK_REPLIES.map((qr, qi) => (
-                        <button key={qi} onClick={() => onNotesChange('para_afiliado', qr.text)}
+                        <button key={qi} onClick={() => handleQuickReply(qr.text)}
                             className="px-2 py-1 text-[10px] font-medium border rounded-md bg-white hover:bg-blue-50 transition-colors" title={qr.text}>
                             {qr.emoji} {qr.label}
                         </button>

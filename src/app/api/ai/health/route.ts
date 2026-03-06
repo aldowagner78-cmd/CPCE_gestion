@@ -2,15 +2,31 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function GET() {
-    const keyExists = !!process.env.GEMINI_API_KEY;
+    const providers = {
+        gemini: !!process.env.GEMINI_API_KEY,
+        openai: !!process.env.OPENAI_API_KEY,
+        anthropic: !!process.env.ANTHROPIC_API_KEY,
+        xai: !!process.env.XAI_API_KEY,
+    };
+
+    const keyExists = providers.gemini;
     const keyPrefix = process.env.GEMINI_API_KEY?.substring(0, 8) || 'N/A';
 
-    if (!keyExists) {
+    if (!providers.gemini && !providers.openai && !providers.anthropic && !providers.xai) {
         return NextResponse.json({
             status: 'error',
-            message: 'GEMINI_API_KEY no está configurada en las variables de entorno.',
-            keyExists: false,
+            message: 'No hay providers IA configurados.',
+            providers,
         }, { status: 500 });
+    }
+
+    if (!providers.gemini) {
+        return NextResponse.json({
+            status: 'ok',
+            message: 'Gemini no configurado, pero hay proveedores alternativos disponibles.',
+            providers,
+            nodeVersion: process.version,
+        });
     }
 
     try {
@@ -24,6 +40,7 @@ export async function GET() {
             message: 'Conexión con Gemini exitosa.',
             keyExists: true,
             keyPrefix: keyPrefix + '...',
+            providers,
             geminiResponse: text,
             nodeVersion: process.version,
         });
@@ -34,6 +51,7 @@ export async function GET() {
             message: `API key presente pero fallo al conectar con Gemini: ${message}`,
             keyExists: true,
             keyPrefix: keyPrefix + '...',
+            providers,
             nodeVersion: process.version,
         }, { status: 500 });
     }

@@ -113,7 +113,7 @@ export function Sidebar() {
             </button>
 
             <div data-tour="sidebar" className={cn(
-                "fixed inset-y-0 left-0 z-40 w-64 border-r shadow-sm transform transition-transform duration-300 ease-in-out md:translate-x-0 flex flex-col",
+                "fixed inset-y-0 left-0 z-40 w-64 border-r shadow-sm transform transition-transform duration-300 ease-in-out md:translate-x-0 flex flex-col min-h-0",
                 getSidebarBg(),
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
@@ -149,7 +149,7 @@ export function Sidebar() {
                     <div className="h-px bg-border w-full" />
                 </div>
 
-                <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+                <nav className="flex-1 min-h-0 px-4 pt-1 pb-20 md:pb-6 space-y-1 overflow-y-auto overscroll-contain scroll-smooth">
                     {/* Buscador como primer item */}
                     <Link
                         href="/buscador"
