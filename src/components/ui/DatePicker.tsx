@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -58,7 +59,9 @@ export function DatePicker({
     const [isOpen, setIsOpen] = useState(false);
     const [displayMonth, setDisplayMonth] = useState(new Date().getMonth());
     const [displayYear, setDisplayYear] = useState(new Date().getFullYear());
-    const containerRef = useRef<HTMLDivElement>(null);
+    const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 288 });
+    const triggerRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Parse selected value once per value change
     const selectedDate = useMemo(() => {
@@ -96,6 +99,13 @@ export function DatePicker({
             setDisplayMonth(selectedDate.getMonth());
             setDisplayYear(selectedDate.getFullYear());
         }
+        if (!isOpen && triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const dropdownH = 370;
+            const top = spaceBelow >= dropdownH ? rect.bottom + 4 : rect.top - dropdownH - 4;
+            setDropdownPos({ top: top + window.scrollY, left: rect.left + window.scrollX, width: Math.max(rect.width, 288) });
+        }
         setIsOpen(!isOpen);
     };
 
@@ -117,9 +127,10 @@ export function DatePicker({
     // Close on click outside
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-                setIsOpen(false);
-            }
+            const t = e.target as Node;
+            if (triggerRef.current?.contains(t)) return;
+            if (dropdownRef.current?.contains(t)) return;
+            setIsOpen(false);
         };
 
         if (isOpen) {
@@ -128,8 +139,111 @@ export function DatePicker({
         }
     }, [isOpen]);
 
+    const calendarDropdown = isOpen && !disabled ? createPortal(
+        <div
+            ref={dropdownRef}
+            style={{ position: 'absolute', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999, width: dropdownPos.width, maxWidth: 320 }}
+            className="bg-background border rounded-lg shadow-xl p-4"
+        >
+            {/* Month/Year Navigation */}
+            <div className="flex items-center justify-between mb-4">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                        if (displayMonth === 0) {
+                            setDisplayMonth(11);
+                            setDisplayYear(displayYear - 1);
+                        } else {
+                            setDisplayMonth(displayMonth - 1);
+                        }
+                    }}
+                    className="h-8 w-8"
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                <div className="text-sm font-semibold">
+                    {MONTHS[locale][displayMonth]} {displayYear}
+                </div>
+
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                        if (displayMonth === 11) {
+                            setDisplayMonth(0);
+                            setDisplayYear(displayYear + 1);
+                        } else {
+                            setDisplayMonth(displayMonth + 1);
+                        }
+                    }}
+                    className="h-8 w-8"
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+            </div>
+
+            {/* Weekdays */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+                {WEEKDAYS[locale].map(day => (
+                    <div key={day} className="text-xs font-semibold text-muted-foreground text-center py-1">
+                        {day}
+                    </div>
+                ))}
+            </div>
+
+            {/* Calendar Days */}
+            <div className="grid grid-cols-7 gap-1">
+                {calendarDays.map((day, idx) => {
+                    const dateStr = day
+                        ? `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                        : null;
+                    const isSelected = dateStr === value;
+                    const isDisabled = !day || !isInRange(dateStr || '');
+                    const isToday = day && new Date().toDateString() === new Date(dateStr + 'T00:00:00').toDateString();
+
+                    return (
+                        <button
+                            key={idx}
+                            onClick={() => day && !isDisabled && handleDateSelect(day)}
+                            disabled={isDisabled}
+                            className={`
+                                h-8 text-sm rounded transition-colors
+                                ${!day ? 'invisible' : ''}
+                                ${isDisabled ? 'text-muted-foreground/50 cursor-not-allowed' : ''}
+                                ${isSelected ? 'bg-primary text-primary-foreground font-semibold' : ''}
+                                ${isToday && !isSelected ? 'border border-primary text-primary font-medium' : ''}
+                                ${!isDisabled && !isSelected && !isToday ? 'hover:bg-muted' : ''}
+                            `}
+                        >
+                            {day}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Today Button */}
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    if (isInRange(today)) {
+                        onChange(today);
+                        setIsOpen(false);
+                    }
+                }}
+                className="w-full mt-3 text-xs"
+            >
+                {locale === 'es' ? 'Hoy' : 'Today'}
+            </Button>
+        </div>,
+        document.body
+    ) : null;
+
     return (
-        <div ref={containerRef} className="relative w-full">
+        <div ref={triggerRef} className="relative w-full">
             {label && (
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1.5">
                     {label}
@@ -144,117 +258,25 @@ export function DatePicker({
                     disabled={disabled}
                     onClick={() => !disabled && handleToggleCalendar()}
                     readOnly
-                    className="cursor-pointer pr-10"
+                    className="cursor-pointer pl-9 pr-10"
                 />
 
-                {clearable && value && (
+                <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+
+                {clearable && value ? (
                     <button
-                        onClick={() => onChange('')}
+                        onClick={(e) => { e.stopPropagation(); onChange(''); }}
                         disabled={disabled}
                         className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
                     >
                         <X className="h-4 w-4" />
                     </button>
+                ) : (
+                    <ChevronRight className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none rotate-90" />
                 )}
             </div>
 
-            {isOpen && !disabled && (
-                <div className="absolute z-50 mt-1 w-72 bg-background border rounded-lg shadow-xl p-4">
-                    {/* Month/Year Navigation */}
-                    <div className="flex items-center justify-between mb-4">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                                if (displayMonth === 0) {
-                                    setDisplayMonth(11);
-                                    setDisplayYear(displayYear - 1);
-                                } else {
-                                    setDisplayMonth(displayMonth - 1);
-                                }
-                            }}
-                            className="h-8 w-8"
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-
-                        <div className="text-sm font-semibold">
-                            {MONTHS[locale][displayMonth]} {displayYear}
-                        </div>
-
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                                if (displayMonth === 11) {
-                                    setDisplayMonth(0);
-                                    setDisplayYear(displayYear + 1);
-                                } else {
-                                    setDisplayMonth(displayMonth + 1);
-                                }
-                            }}
-                            className="h-8 w-8"
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-
-                    {/* Weekdays */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
-                        {WEEKDAYS[locale].map(day => (
-                            <div key={day} className="text-xs font-semibold text-muted-foreground text-center py-1">
-                                {day}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Calendar Days */}
-                    <div className="grid grid-cols-7 gap-1">
-                        {calendarDays.map((day, idx) => {
-                            const dateStr = day
-                                ? `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                                : null;
-                            const isSelected = dateStr === value;
-                            const isDisabled = !day || !isInRange(dateStr || '');
-                            const isToday = day && new Date().toDateString() === new Date(dateStr + 'T00:00:00').toDateString();
-
-                            return (
-                                <button
-                                    key={idx}
-                                    onClick={() => day && !isDisabled && handleDateSelect(day)}
-                                    disabled={isDisabled}
-                                    className={`
-                                        h-8 text-sm rounded transition-colors
-                                        ${!day ? 'invisible' : ''}
-                                        ${isDisabled ? 'text-muted-foreground/50 cursor-not-allowed' : ''}
-                                        ${isSelected ? 'bg-primary text-primary-foreground font-semibold' : ''}
-                                        ${isToday && !isSelected ? 'border border-primary text-primary font-medium' : ''}
-                                        ${!isDisabled && !isSelected && !isToday ? 'hover:bg-muted' : ''}
-                                    `}
-                                >
-                                    {day}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* Today Button */}
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            const today = new Date().toISOString().split('T')[0];
-                            if (isInRange(today)) {
-                                onChange(today);
-                                setIsOpen(false);
-                            }
-                        }}
-                        className="w-full mt-3 text-xs"
-                    >
-                        {locale === 'es' ? 'Hoy' : 'Today'}
-                    </Button>
-                </div>
-            )}
+            {calendarDropdown}
         </div>
     );
 }
