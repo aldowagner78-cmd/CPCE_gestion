@@ -136,6 +136,17 @@ export function PracticesTab({ expedient, practices, canResolve, isMine, userId,
 
     return (
         <>
+            {/* Bloqueo visual si está resuelto */}
+            {expedient.status === 'resuelto' && (
+                <div className="p-3 bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800 rounded-lg flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-blue-600" />
+                    <div className="flex-1">
+                        <p className="text-xs font-bold text-blue-800 dark:text-blue-300">Expediente Resuelto - Solo Lectura</p>
+                        <p className="text-xs text-blue-700 dark:text-blue-400">Para re-editar prácticas, diferí el expediente a Auditoría Médica.</p>
+                    </div>
+                </div>
+            )}
+
             {/* Info del afiliado */}
             <div className="bg-muted/30 rounded-xl p-3 space-y-1.5 text-sm">
                 <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest mb-2">Afiliado</p>

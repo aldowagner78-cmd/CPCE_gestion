@@ -694,6 +694,40 @@ export const ExpedientService = {
     },
 
     // ────────────────────────────────────────────────────
+    // DIFERIR A AUDITORÍA MÉDICA (reabrir expediente resuelto)
+    // ────────────────────────────────────────────────────
+
+    async deferToAuditor(id: string, userId: string, reason: string): Promise<void> {
+        const { error } = await db('expedients')
+            .update({
+                status: 'pendiente',
+                assigned_to: null,
+                resolution_notes: reason,
+            })
+            .eq('id', id)
+            .in('status', ['resuelto', 'parcialmente_resuelto']);
+
+        if (error) throw new Error(`Error diferiendo a auditoría: ${error.message}`);
+
+        // Reabrir todas las prácticas resueltas
+        await db('expedient_practices')
+            .update({ status: 'pendiente' })
+            .eq('expedient_id', id)
+            .in('status', ['autorizada', 'autorizada_parcial', 'denegada']);
+
+        await ExpedientService.addLog(id, 'deferred_to_auditor', userId, { reason });
+
+        await ExpedientService.addNote({
+            expedient_id: id,
+            author_id: userId,
+            content: `Expediente diferido a Auditoría Médica. Motivo: ${reason}`,
+            note_type: 'sistema',
+            status_from: 'resuelto',
+            status_to: 'pendiente',
+        });
+    },
+
+    // ────────────────────────────────────────────────────
     // ANULAR EXPEDIENTE
     // ────────────────────────────────────────────────────
 

@@ -33,7 +33,7 @@ export default function AuditRequestsPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState<ExpedientType | 'todas'>('todas');
-    const [filterStatus, setFilterStatus] = useState<'pendientes' | ExpedientStatus>('pendientes');
+    const [filterStatus, setFilterStatus] = useState<ExpedientStatus | 'todas'>('todas');
     const [reloadKey, setReloadKey] = useState(0);
     const [counts, setCounts] = useState<Record<ExpedientStatus, number>>({
         borrador: 0,
@@ -54,11 +54,14 @@ export default function AuditRequestsPage() {
             try {
                 let result: Expedient[];
 
-                if (filterStatus === 'pendientes') {
-                    result = await ExpedientService.fetchPending(
-                        activeJurisdiction.id,
-                        filterType !== 'todas' ? filterType : undefined,
-                    );
+                if (filterStatus === 'todas') {
+                    // Mostrar todos los estados (pendientes + resueltos)
+                    const { data } = await ExpedientService.fetchAll({
+                        jurisdiction_id: activeJurisdiction.id,
+                        type: filterType !== 'todas' ? filterType : undefined,
+                        limit: 100,
+                    });
+                    result = data;
                 } else {
                     const { data } = await ExpedientService.fetchAll({
                         jurisdiction_id: activeJurisdiction.id,
@@ -99,9 +102,13 @@ export default function AuditRequestsPage() {
 
     const pendingTotal = counts.pendiente + counts.en_revision + counts.observada + counts.parcialmente_resuelto;
 
-    const statusTabs: Array<{ key: 'pendientes' | ExpedientStatus; label: string; count: number; color: string }> = [
-        { key: 'pendientes', label: 'Pendientes', count: pendingTotal, color: 'bg-yellow-100 text-yellow-800 ring-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-300 dark:ring-yellow-700' },
+    const statusTabs: Array<{ key: ExpedientStatus | 'todas'; label: string; count: number; color: string }> = [
+        { key: 'todas', label: 'Todas', count: pendingTotal + counts.resuelto + counts.en_apelacion + counts.anulada, color: 'bg-slate-100 text-slate-800 ring-slate-300 dark:bg-slate-900/40 dark:text-slate-300 dark:ring-slate-700' },
+        { key: 'pendiente', label: 'Pendientes', count: counts.pendiente, color: 'bg-yellow-100 text-yellow-800 ring-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-300 dark:ring-yellow-700' },
+        { key: 'en_revision', label: 'En Revisión', count: counts.en_revision, color: 'bg-blue-100 text-blue-800 ring-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:ring-blue-700' },
+        { key: 'parcialmente_resuelto', label: 'Parciales', count: counts.parcialmente_resuelto, color: 'bg-indigo-100 text-indigo-800 ring-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:ring-indigo-700' },
         { key: 'resuelto', label: 'Resueltos', count: counts.resuelto, color: 'bg-green-100 text-green-800 ring-green-300 dark:bg-green-900/40 dark:text-green-300 dark:ring-green-700' },
+        { key: 'observada', label: 'Observadas', count: counts.observada, color: 'bg-orange-100 text-orange-800 ring-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:ring-orange-700' },
         { key: 'en_apelacion', label: 'Apelaciones', count: counts.en_apelacion, color: 'bg-red-100 text-red-700 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700' },
         { key: 'anulada', label: 'Anuladas', count: counts.anulada, color: 'bg-gray-100 text-gray-600 ring-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700' },
     ];

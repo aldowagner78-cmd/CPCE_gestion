@@ -40,7 +40,7 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
     const [loading, setLoading] = useState(true);
     const [resolving, setResolving] = useState(false);
     const [resolutionNotes, setResolutionNotes] = useState('');
-    const [showExpedientAction, setShowExpedientAction] = useState<'observar' | 'anular' | null>(null);
+    const [showExpedientAction, setShowExpedientAction] = useState<'observar' | 'anular' | 'diferir' | null>(null);
 
     const tc = TYPE_CONFIG[expedient.type];
     const sc = STATUS_CONFIG[expedient.status];
@@ -126,6 +126,13 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
         if (!user || !resolutionNotes.trim()) return;
         setResolving(true);
         try { await ExpedientService.cancel(expedient.id, user.id, resolutionNotes); setResolutionNotes(''); await loadFullData(); } catch { /* */ }
+        setResolving(false);
+    };
+
+    const handleDeferToAuditor = async () => {
+        if (!user || !resolutionNotes.trim()) return;
+        setResolving(true);
+        try { await ExpedientService.deferToAuditor(expedient.id, user.id, resolutionNotes); setResolutionNotes(''); setShowExpedientAction(null); await loadFullData(); } catch { /* */ }
         setResolving(false);
     };
 
@@ -260,6 +267,12 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
                             <Gavel className="h-4 w-4 mr-1" /> Apelar
                         </Button>
                     )}
+                    {isResolved && (isAdmin || isSupervisor) && (
+                        <Button variant="outline" size="sm" className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                            onClick={() => setShowExpedientAction(showExpedientAction === 'diferir' ? null : 'diferir')} title="Diferir a auditoría médica para re-editar">
+                            <RotateCcw className="h-4 w-4 mr-1" /> Diferir
+                        </Button>
+                    )}
                     {canResolve && (isMine || isAdmin || isSupervisor) && (
                         <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             onClick={() => setShowExpedientAction(showExpedientAction === 'anular' ? null : 'anular')} title="Anular solicitud">
@@ -299,6 +312,18 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
                         <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)} placeholder="Motivo de anulación (obligatorio)..." rows={2} className="w-full border border-red-200 rounded-lg px-3 py-2 text-xs bg-background resize-none" />
                         <div className="flex gap-2">
                             <Button size="sm" className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleCancel} disabled={resolving || !resolutionNotes.trim()}><XOctagon className="h-4 w-4 mr-1" /> Confirmar Anulación</Button>
+                            <Button size="sm" variant="outline" onClick={() => setShowExpedientAction(null)}>Cancelar</Button>
+                        </div>
+                    </div>
+                )}
+
+                {showExpedientAction === 'diferir' && (
+                    <div className="mx-4 mb-3 p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl space-y-2">
+                        <p className="text-xs font-bold text-purple-800 dark:text-purple-300 uppercase tracking-wider"><RotateCcw className="h-3.5 w-3.5 inline mr-1" />Diferir a Auditoría Médica</p>
+                        <p className="text-xs text-purple-700 dark:text-purple-400">El expediente volverá a estado pendiente para re-editarse.</p>
+                        <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)} placeholder="Motivo de la devolución (obligatorio)..." rows={2} className="w-full border border-purple-200 rounded-lg px-3 py-2 text-xs bg-background resize-none" />
+                        <div className="flex gap-2">
+                            <Button size="sm" className="flex-1 bg-purple-600 hover:bg-purple-700" onClick={handleDeferToAuditor} disabled={resolving || !resolutionNotes.trim()}><RotateCcw className="h-4 w-4 mr-1" /> Confirmar Devolución</Button>
                             <Button size="sm" variant="outline" onClick={() => setShowExpedientAction(null)}>Cancelar</Button>
                         </div>
                     </div>
