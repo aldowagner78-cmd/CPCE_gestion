@@ -53,11 +53,8 @@ export default function ValuesPage() {
                     dental: ros?.dental_value.toString() || ''
                 }
             })
-        } catch (err) {
-            console.error(err)
+        } catch {
             setMessage({ text: 'Error al cargar valores', type: 'error' })
-        } finally {
-            setLoading(false)
         }
     }
 
