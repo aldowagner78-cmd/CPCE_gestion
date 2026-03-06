@@ -41,7 +41,10 @@ export function SLATab() {
         setLoading(false);
     }, [jid]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        const t = setTimeout(() => { void load(); }, 0);
+        return () => clearTimeout(t);
+    }, [load]);
 
     const getConfig = (type: string, priority: SlaConfig['priority_level']) =>
         configs.find(c => c.expedient_type === type && c.priority_level === priority);

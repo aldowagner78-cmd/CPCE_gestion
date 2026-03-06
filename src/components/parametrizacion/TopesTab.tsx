@@ -49,7 +49,10 @@ export function TopesTab() {
         setLoading(false);
     }, [jid]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        const t = setTimeout(() => { void load(); }, 0);
+        return () => clearTimeout(t);
+    }, [load]);
 
     const resetForm = () => { setForm({ ...EMPTY, jurisdiction_id: jid }); setEditId(null); setShowForm(false); };
 

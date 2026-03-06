@@ -9,7 +9,6 @@ export async function GET() {
         xai: !!process.env.XAI_API_KEY,
     };
 
-    const keyExists = providers.gemini;
     const keyPrefix = process.env.GEMINI_API_KEY?.substring(0, 8) || 'N/A';
 
     if (!providers.gemini && !providers.openai && !providers.anthropic && !providers.xai) {

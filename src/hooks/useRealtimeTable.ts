@@ -16,7 +16,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 export function useRealtimeTable<T>(
     tableName: string,
     initialFetch: () => Promise<T[]>,
-    filter?: { column: string; value: any }
+    filter?: { column: string; value: unknown }
 ) {
     const [data, setData] = useState<T[]>([])
     const [loading, setLoading] = useState(true)
@@ -37,15 +37,14 @@ export function useRealtimeTable<T>(
     }
 
     useEffect(() => {
-        fetchData()
+        void fetchData()
 
         const supabase = createClient()
-        let channel: RealtimeChannel
 
         // Suscripción a cambios en tiempo real
         const filterString = filter ? `${filter.column}=eq.${filter.value}` : undefined
 
-        channel = supabase
+        const channel: RealtimeChannel = supabase
             .channel(`${tableName}-changes-${filterString || 'all'}`)
             .on(
                 'postgres_changes',
@@ -59,7 +58,7 @@ export function useRealtimeTable<T>(
                     console.log(`[Realtime] ${tableName} cambió:`, payload.eventType, payload.new || payload.old)
                     
                     // Refetch completo para simplificar
-                    fetchData()
+                    void fetchData()
                 }
             )
             .subscribe()

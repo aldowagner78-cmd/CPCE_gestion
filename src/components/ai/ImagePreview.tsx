@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -11,22 +11,21 @@ interface ImagePreviewProps {
 }
 
 export function ImagePreview({ file, src }: ImagePreviewProps) {
-    const [imageUrl, setImageUrl] = useState<string | null>(src || null);
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (src) {
-            setImageUrl(src);
-            return;
-        }
-        if (!file) { setImageUrl(null); return; }
-
-        const url = URL.createObjectURL(file);
-        setImageUrl(url);
-        return () => URL.revokeObjectURL(url);
+    const imageUrl = useMemo(() => {
+        if (src) return src;
+        if (!file) return null;
+        return URL.createObjectURL(file);
     }, [file, src]);
+
+    useEffect(() => {
+        // Revoke blob URLs created locally; external src is not managed here.
+        if (!imageUrl || src) return;
+        return () => URL.revokeObjectURL(imageUrl);
+    }, [imageUrl, src]);
 
     const isPdf = file?.type === 'application/pdf';
 

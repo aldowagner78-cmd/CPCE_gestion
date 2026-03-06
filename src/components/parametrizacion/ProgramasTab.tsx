@@ -48,7 +48,10 @@ export function ProgramasTab() {
         setLoading(false);
     }, [jid]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        const t = setTimeout(() => { void load(); }, 0);
+        return () => clearTimeout(t);
+    }, [load]);
 
     const resetForm = () => {
         setForm({ ...EMPTY, jurisdiction_id: jid });
@@ -75,7 +78,10 @@ export function ProgramasTab() {
             else await specialProgramsService.create(payload);
             await load(); resetForm();
             setMsg({ text: 'Programa guardado', type: 'success' });
-        } catch (e: any) { setMsg({ text: e?.message || 'Error al guardar', type: 'error' }); }
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Error al guardar';
+            setMsg({ text: message, type: 'error' });
+        }
         setSaving(false);
     };
 

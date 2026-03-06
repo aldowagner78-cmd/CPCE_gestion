@@ -45,7 +45,10 @@ export function CoberturaTab() {
         setLoading(false);
     }, [jid]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        const t = setTimeout(() => { void load(); }, 0);
+        return () => clearTimeout(t);
+    }, [load]);
 
     const resetForm = () => {
         setForm({ jurisdiction_id: jid, plan_id: 0, practice_id: null, practice_category: '', coverage_percent: 80, copay_type: 'percent', copay_value: 0, notes: '', valid_from: new Date().toISOString().split('T')[0], valid_to: null, is_active: true });

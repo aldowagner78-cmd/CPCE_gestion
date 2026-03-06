@@ -10,49 +10,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DollarSign, Loader2, Save, History, TrendingUp } from 'lucide-react';
 import { valuesService, type UnitValues } from '@/services/valuesService';
 
-export function ValoresTab() {
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-    const [sfValues, setSfValues] = useState<UnitValues | null>(null);
-    const [rosValues, setRosValues] = useState<UnitValues | null>(null);
-    const [form, setForm] = useState({
-        sf: { medical: '', biochemical: '', dental: '' },
-        ros: { medical: '', biochemical: '', dental: '' },
-    });
+type FormKey = 'sf' | 'ros';
+type ValuesFormState = Record<FormKey, { medical: string; biochemical: string; dental: string }>;
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        const [sf, ros] = await Promise.all([valuesService.getCurrentValues(1), valuesService.getCurrentValues(2)]);
-        setSfValues(sf); setRosValues(ros);
-        setForm({
-            sf: { medical: sf?.medical_value?.toString() || '', biochemical: sf?.biochemical_value?.toString() || '', dental: sf?.dental_value?.toString() || '' },
-            ros: { medical: ros?.medical_value?.toString() || '', biochemical: ros?.biochemical_value?.toString() || '', dental: ros?.dental_value?.toString() || '' },
-        });
-        setLoading(false);
-    }, []);
+interface JurisdictionCardProps {
+    jid: number;
+    label: string;
+    vals: UnitValues | null;
+    formKey: FormKey;
+    form: ValuesFormState;
+    setForm: React.Dispatch<React.SetStateAction<ValuesFormState>>;
+    saving: boolean;
+    onSave: (jid: number) => void;
+}
 
-    useEffect(() => { load(); }, [load]);
-
-    const save = async (jid: number) => {
-        setSaving(true);
-        setMessage(null);
-        try {
-            const v = jid === 1 ? form.sf : form.ros;
-            await valuesService.updateValues(jid, {
-                medical: parseFloat(v.medical) || 0,
-                biochemical: parseFloat(v.biochemical) || 0,
-                dental: parseFloat(v.dental) || 0,
-            });
-            await load();
-            setMessage({ text: 'Valores actualizados correctamente', type: 'success' });
-        } catch { setMessage({ text: 'Error al guardar valores', type: 'error' }); }
-        setSaving(false);
-    };
-
-    if (loading) return <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
-
-    const JurisdictionCard = ({ jid, label, vals, formKey }: { jid: number; label: string; vals: UnitValues | null; formKey: 'sf' | 'ros' }) => (
+function JurisdictionCard({ jid, label, vals, formKey, form, setForm, saving, onSave }: JurisdictionCardProps) {
+    return (
         <Card className="p-6 space-y-6">
             <div className="flex items-center justify-between">
                 <div>
@@ -60,7 +33,7 @@ export function ValoresTab() {
                         <DollarSign className="h-5 w-5 text-primary" /> {label}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                        Último cambio: {vals?.valid_from ? new Date(vals.valid_from).toLocaleDateString('es-AR') : 'Sin datos'}
+                        Ultimo cambio: {vals?.valid_from ? new Date(vals.valid_from).toLocaleDateString('es-AR') : 'Sin datos'}
                     </p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
@@ -68,9 +41,9 @@ export function ValoresTab() {
 
             <div className="grid sm:grid-cols-3 gap-4">
                 {([
-                    { key: 'medical', label: 'Galeno (Médico)', current: vals?.medical_value },
-                    { key: 'biochemical', label: 'NBU (Bioquímico)', current: vals?.biochemical_value },
-                    { key: 'dental', label: 'UO (Odontológico)', current: vals?.dental_value },
+                    { key: 'medical', label: 'Galeno (Medico)', current: vals?.medical_value },
+                    { key: 'biochemical', label: 'NBU (Bioquimico)', current: vals?.biochemical_value },
+                    { key: 'dental', label: 'UO (Odontologico)', current: vals?.dental_value },
                 ] as const).map(f => (
                     <div key={f.key} className="space-y-1.5">
                         <Label className="text-xs font-medium">{f.label}</Label>
@@ -91,12 +64,60 @@ export function ValoresTab() {
             </div>
 
             <div className="flex justify-end pt-2 border-t">
-                <Button onClick={() => save(jid)} disabled={saving} size="sm">
-                    {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : <><Save className="mr-2 h-4 w-4" />Actualizar</>}
+                <Button onClick={() => onSave(jid)} disabled={saving} size="sm">
+                    {saving
+                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>
+                        : <><Save className="mr-2 h-4 w-4" />Actualizar</>}
                 </Button>
             </div>
         </Card>
     );
+}
+
+export function ValoresTab() {
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+    const [sfValues, setSfValues] = useState<UnitValues | null>(null);
+    const [rosValues, setRosValues] = useState<UnitValues | null>(null);
+    const [form, setForm] = useState<ValuesFormState>({
+        sf: { medical: '', biochemical: '', dental: '' },
+        ros: { medical: '', biochemical: '', dental: '' },
+    });
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        const [sf, ros] = await Promise.all([valuesService.getCurrentValues(1), valuesService.getCurrentValues(2)]);
+        setSfValues(sf); setRosValues(ros);
+        setForm({
+            sf: { medical: sf?.medical_value?.toString() || '', biochemical: sf?.biochemical_value?.toString() || '', dental: sf?.dental_value?.toString() || '' },
+            ros: { medical: ros?.medical_value?.toString() || '', biochemical: ros?.biochemical_value?.toString() || '', dental: ros?.dental_value?.toString() || '' },
+        });
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        const t = setTimeout(() => { void load(); }, 0);
+        return () => clearTimeout(t);
+    }, [load]);
+
+    const save = async (jid: number) => {
+        setSaving(true);
+        setMessage(null);
+        try {
+            const v = jid === 1 ? form.sf : form.ros;
+            await valuesService.updateValues(jid, {
+                medical: parseFloat(v.medical) || 0,
+                biochemical: parseFloat(v.biochemical) || 0,
+                dental: parseFloat(v.dental) || 0,
+            });
+            await load();
+            setMessage({ text: 'Valores actualizados correctamente', type: 'success' });
+        } catch { setMessage({ text: 'Error al guardar valores', type: 'error' }); }
+        setSaving(false);
+    };
+
+    if (loading) return <div className="flex justify-center p-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
     return (
         <div className="space-y-4">
@@ -112,10 +133,28 @@ export function ValoresTab() {
                     <TabsTrigger value="ros">Cámara II — Rosario</TabsTrigger>
                 </TabsList>
                 <TabsContent value="sf" className="mt-4">
-                    <JurisdictionCard jid={1} label="Valores Santa Fe" vals={sfValues} formKey="sf" />
+                    <JurisdictionCard
+                        jid={1}
+                        label="Valores Santa Fe"
+                        vals={sfValues}
+                        formKey="sf"
+                        form={form}
+                        setForm={setForm}
+                        saving={saving}
+                        onSave={save}
+                    />
                 </TabsContent>
                 <TabsContent value="ros" className="mt-4">
-                    <JurisdictionCard jid={2} label="Valores Rosario" vals={rosValues} formKey="ros" />
+                    <JurisdictionCard
+                        jid={2}
+                        label="Valores Rosario"
+                        vals={rosValues}
+                        formKey="ros"
+                        form={form}
+                        setForm={setForm}
+                        saving={saving}
+                        onSave={save}
+                    />
                 </TabsContent>
             </Tabs>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-1">

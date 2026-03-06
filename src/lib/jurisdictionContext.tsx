@@ -29,24 +29,18 @@ const CAMERA_II: Jurisdiction = {
 const JurisdictionContext = createContext<JurisdictionContextType | undefined>(undefined)
 
 export function JurisdictionProvider({ children }: { children: ReactNode }) {
-    const [activeJurisdiction, setActiveJurisdiction] = useState<Jurisdiction | null>(CAMERA_I) // Default to Camera I
+    const [activeJurisdiction, setActiveJurisdiction] = useState<Jurisdiction | null>(() => {
+        if (typeof window === 'undefined') return CAMERA_I;
+        const savedJurisdictionId = localStorage.getItem('jurisdictionId');
+        if (savedJurisdictionId === '2') return CAMERA_II;
+        return CAMERA_I;
+    })
     const [isLoading, setIsLoading] = useState(false)
-    const [isDarkMode, setIsDarkMode] = useState(false)
-
-    // Load saved settings
-    useEffect(() => {
-        const savedJurisdictionId = localStorage.getItem('jurisdictionId')
-        if (savedJurisdictionId) {
-            const id = parseInt(savedJurisdictionId)
-            if (id === 1) setActiveJurisdiction(CAMERA_I)
-            if (id === 2) setActiveJurisdiction(CAMERA_II)
-        }
-
-        const savedTheme = localStorage.getItem('theme')
-        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            setIsDarkMode(true)
-        }
-    }, [])
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        const savedTheme = localStorage.getItem('theme');
+        return savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    })
 
     // Apply Jurisdiction Theme
     useEffect(() => {
