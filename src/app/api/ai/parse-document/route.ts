@@ -177,24 +177,21 @@ Cuando la confianza sea menor a 70, incluye un campo "alternatives" con hasta 3 
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let parsedContent: any;
+        // Limpiar SIEMPRE antes de parsear: Gemini mete saltos de línea literales dentro de strings
+        const jsonStr = jsonMatch[0]
+            .replace(/\r?\n/g, ' ')                    // newlines → espacios
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')  // chars de control
+            .replace(/,\s*([}\]])/g, '$1')             // trailing commas
+            .replace(/[\u201C\u201D]/g, '"')           // comillas tipográficas
+            .replace(/[\u2018\u2019]/g, "'");          // apóstrofes tipográficos
         try {
-            parsedContent = JSON.parse(jsonMatch[0]);
-        } catch {
-            // Limpiar caracteres problemáticos e intentar de nuevo
-            const cleaned = jsonMatch[0]
-                .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-                .replace(/,\s*([}\]])/g, '$1')
-                .replace(/[\u201C\u201D]/g, '"')
-                .replace(/[\u2018\u2019]/g, "'");
-            try {
-                parsedContent = JSON.parse(cleaned);
-            } catch (e2) {
-                const errMsg = e2 instanceof Error ? e2.message : String(e2);
-                return NextResponse.json({
-                    error: `La IA devolvió JSON malformado: ${errMsg}`,
-                    details: cleaned.substring(0, 500),
-                }, { status: 500 });
-            }
+            parsedContent = JSON.parse(jsonStr);
+        } catch (e2) {
+            const errMsg = e2 instanceof Error ? e2.message : String(e2);
+            return NextResponse.json({
+                error: `La IA devolvió JSON malformado: ${errMsg}`,
+                details: jsonStr.substring(0, 500),
+            }, { status: 500 });
         }
 
         // Normalize: handle both old format (string) and new format ({ value, confidence })
