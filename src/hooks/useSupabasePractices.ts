@@ -63,6 +63,7 @@ export function useSupabasePractices(jurisdictionId?: number) {
         return () => {
             supabase.removeChannel(channel)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [jurisdictionId])
 
     return { practices, loading, error, refetch: fetchPractices }

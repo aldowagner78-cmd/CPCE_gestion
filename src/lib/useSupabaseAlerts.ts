@@ -55,6 +55,7 @@ export function useSupabaseAlerts(jurisdictionId?: number) {
         return () => {
             supabase.removeChannel(channel)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [jurisdictionId])
 
     const updateStatus = async (id: string, status: AlertStatus) => {

@@ -35,6 +35,7 @@ export default function PracticesPage() {
 
     useEffect(() => {
         loadPracticeTypes()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeJurisdiction])
 
     useEffect(() => {
@@ -44,6 +45,7 @@ export default function PracticesPage() {
                 loadPractices(typeId)
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, practiceTypes])
 
     const loadPracticeTypes = async () => {

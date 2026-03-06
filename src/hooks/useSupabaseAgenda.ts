@@ -63,6 +63,7 @@ export function useSupabaseAgenda(jurisdictionId?: number) {
         return () => {
             supabase.removeChannel(channel)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [jurisdictionId])
 
     return { events, loading, error, refetch: fetchEvents }

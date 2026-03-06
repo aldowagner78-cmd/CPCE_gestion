@@ -7,14 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Save, History, TrendingUp, DollarSign } from 'lucide-react'
+import { Loader2, Save, History, DollarSign } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { valuesService, type UnitValues } from '@/services/valuesService'
-import { Badge } from '@/components/ui/badge'
 
 export default function ValuesPage() {
     const { hasPermission } = useAuth()
-    const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null)
 
@@ -34,7 +32,6 @@ export default function ValuesPage() {
 
     const loadValues = async () => {
         try {
-            setLoading(true)
             const [sf, ros] = await Promise.all([
                 valuesService.getCurrentValues(1),
                 valuesService.getCurrentValues(2)
@@ -78,7 +75,7 @@ export default function ValuesPage() {
 
             await loadValues() // Recargar para confirmar
             setMessage({ text: 'Valores actualizados correctamente', type: 'success' })
-        } catch (err) {
+        } catch {
             setMessage({ text: 'Error al guardar valores', type: 'error' })
         } finally {
             setSaving(false)

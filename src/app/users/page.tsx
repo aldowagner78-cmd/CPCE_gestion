@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Pagination, paginateArray } from '@/components/ui/pagination'
 import {
@@ -33,7 +33,7 @@ import type { AuthUser, UserRole } from '@/types/auth'
 import { ROLE_LABELS, ROLE_COLORS } from '@/types/auth'
 
 export default function UsersPage() {
-    const { user: currentUser, hasPermission } = useAuth()
+    const { hasPermission } = useAuth()
     const [users, setUsers] = useState<AuthUser[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -93,8 +93,7 @@ export default function UsersPage() {
     })
 
     // Reset page when filters change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const _resetPage = useMemo(() => { setPage(1); return null }, [searchQuery, roleFilter, statusFilter])
+    useMemo(() => { setPage(1); return null }, [searchQuery, roleFilter, statusFilter])
     const pagedUsersRows = paginateArray(filteredUsers, page, PAGE_SIZE)
 
     // Create user
@@ -105,7 +104,7 @@ export default function UsersPage() {
             await loadUsers()
             setShowCreateModal(false)
             resetForm()
-        } catch (err) {
+        } catch {
             setError('Error al crear usuario')
         } finally {
             setSaving(false)
@@ -126,7 +125,7 @@ export default function UsersPage() {
             setShowEditModal(false)
             setSelectedUser(null)
             resetForm()
-        } catch (err) {
+        } catch {
             setError('Error al actualizar usuario')
         } finally {
             setSaving(false)
@@ -142,7 +141,7 @@ export default function UsersPage() {
                 await userService.activate(user.id)
             }
             await loadUsers()
-        } catch (err) {
+        } catch {
             setError('Error al cambiar estado')
         }
     }

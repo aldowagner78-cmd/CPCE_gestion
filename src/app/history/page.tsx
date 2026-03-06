@@ -108,7 +108,7 @@ export default function HistoryPage() {
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
     // Estado: Adjuntos (Linterna Auditor)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const [viewingAttachmentsFor, setViewingAttachmentsFor] = useState<{ expedientId: string, expedientNumber: string } | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [attachments, setAttachments] = useState<any[]>([]);

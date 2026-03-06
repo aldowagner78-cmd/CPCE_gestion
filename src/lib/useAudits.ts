@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { AuditService } from '@/services/auditService'
 import { AuditRecord } from '@/types/database'
 
@@ -7,11 +7,9 @@ import { AuditRecord } from '@/types/database'
  * Carga datos al montar y se actualiza con el store reactivo.
  */
 export function useAudits(jurisdictionId?: number): AuditRecord[] {
-    const [loaded, setLoaded] = useState(false)
-
     // Trigger initial fetch from Supabase
     useEffect(() => {
-        AuditService.fetchAll(jurisdictionId).then(() => setLoaded(true))
+        void AuditService.fetchAll(jurisdictionId)
     }, [jurisdictionId])
 
     // React to cache changes

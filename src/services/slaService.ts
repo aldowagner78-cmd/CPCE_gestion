@@ -47,7 +47,6 @@ const FIXED_HOLIDAYS_AR: Set<string> = new Set([
 
 const BUSINESS_HOUR_START = 8;  // 08:00
 const BUSINESS_HOUR_END = 18; // 18:00
-const WORK_HOURS_PER_DAY = BUSINESS_HOUR_END - BUSINESS_HOUR_START; // 10h
 
 // ── Helpers ──────────────────────────────────────────────────
 

@@ -163,9 +163,10 @@ export const userService = {
     /**
      * Invitar usuario (crea en Auth y envía email)
      */
-    async invite(email: string, userData: Omit<CreateUserData, 'email'>): Promise<void> {
+    async invite(_email: string, _userData: Omit<CreateUserData, 'email'>): Promise<void> {
         // Por seguridad, las invitaciones deben hacerse desde el servidor
         // Este es un placeholder que debe implementarse con Server Actions
+        void _email; void _userData // Placeholder params
         throw new Error('Invite debe implementarse con Server Actions para seguridad')
     }
 }

@@ -5,7 +5,7 @@ import Papa from 'papaparse'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Upload, Loader2, FileText, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Upload, Loader2 } from 'lucide-react'
 import { externalNomenclatorService } from '@/services/externalNomenclatorService'
 
 interface CsvImporterProps {
@@ -17,13 +17,11 @@ export function CsvImporter({ nomenclatorId, onImportComplete }: CsvImporterProp
     const [file, setFile] = useState<File | null>(null)
     const [loading, setLoading] = useState(false)
     const [status, setStatus] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null)
-    const [stats, setStats] = useState({ total: 0, distinct: 0 })
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0])
             setStatus(null)
-            setStats({ total: 0, distinct: 0 })
         }
     }
 

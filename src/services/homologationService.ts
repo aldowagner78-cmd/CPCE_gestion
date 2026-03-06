@@ -191,7 +191,6 @@ export const homologationService = {
 
         let suggestionsByDescription: any[] = []
         if (keywords.length > 0) {
-            const searchPattern = keywords.join('|')
             const { data: byDesc, error: errorDesc } = await supabase
                 .from('practices')
                 .select('id, code, name, practice_type_id')

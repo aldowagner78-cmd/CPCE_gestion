@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
     Settings, User, Shield, Palette, Bell, Database,
@@ -13,10 +12,8 @@ import {
 import Link from "next/link"
 import { SuperuserCredentialPanel } from "@/components/auth/SuperuserCredentialPanel"
 
-type ThemeOption = 'light' | 'dark' | 'system'
-
 export default function SettingsPage() {
-    const { user, hasPermission } = useAuth()
+    const { user } = useAuth()
     const { activeJurisdiction, isDarkMode, toggleDarkMode } = useJurisdiction()
     const [activeSection, setActiveSection] = useState<string>('perfil')
 

@@ -1,5 +1,5 @@
 
-import { Affiliate, Plan, Practice, Jurisdiction, UserProfile } from '@/types/database'
+import { Affiliate, Plan, Practice, Jurisdiction } from '@/types/database'
 import { CAMERA_I, CAMERA_II } from './jurisdictionContext'
 import { GENERATED_AFFILIATES, GENERATED_PRACTICES } from './mockDataExtended'
 

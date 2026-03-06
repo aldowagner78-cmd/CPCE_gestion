@@ -66,6 +66,7 @@ export function useRealtimeTable<T>(
         return () => {
             supabase.removeChannel(channel)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tableName, filter?.column, filter?.value])
 
     return { data, loading, error, refetch: fetchData }

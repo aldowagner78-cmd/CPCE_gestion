@@ -175,7 +175,7 @@ export default function NewExpedientPage() {
             setFiles(prev => [...prev, { file: compressed.file, documentType: 'orden_medica' as ExpedientDocumentType, originalSize: compressed.originalSize, wasCompressed: compressed.wasCompressed, savingsPercent: compressed.savingsPercent }]);
             setAiDocumentFile(null);
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [aiDocumentFile]);
 
     const searchAffs = useCallback(async (q: string) => {
