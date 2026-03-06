@@ -7,7 +7,9 @@ export const maxDuration = 60;
 const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 
-const PROMPT = `Eres un asistente experto en auditoría médica argentina. Extraé la información del documento y devolvé ÚNICAMENTE un JSON válido.
+const PROMPT = `Eres un asistente experto en auditoría médica argentina. Extraé la información del documento y devolvé ÚNICAMENTE un JSON válido. NO uses bloques markdown. NO agregues texto antes ni después del JSON.
+
+IMPORTANTE: Escapá correctamente comillas dobles dentro de strings con \\". No uses saltos de línea literales dentro de strings.
 
 Campos (cada uno con "value", "confidence" 0-100, y "alternatives" si confidence<70):
 - "document_type": "orden_medica"|"receta"|"laboratorio"|"estudio"|"historia_clinica"|"factura"|"otro"
@@ -24,7 +26,7 @@ Campos (cada uno con "value", "confidence" 0-100, y "alternatives" si confidence
 - "missing_fields": campos no encontrados
 - "warnings": advertencias de calidad
 
-Reglas: Solo JSON válido, sin markdown. Fechas en DD/MM/AAAA. Si la caligrafía es difícil, inferí con confidence bajo.`;
+Reglas: Solo JSON válido sin ningún wrapper. Fechas en DD/MM/AAAA. Si la caligrafía es difícil, inferí con confidence bajo.`;
 
 export async function POST(req: Request) {
     const startTime = Date.now();
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
             generationConfig: {
                 temperature: 0.1,
                 maxOutputTokens: 2048,
+                responseMimeType: 'application/json',
             },
         });
 
@@ -123,7 +126,36 @@ export async function POST(req: Request) {
             }, { status: 500 });
         }
 
-        const parsedContent = JSON.parse(jsonMatch[0]);
+        // Limpiar el JSON antes de parsear
+        let jsonStr = jsonMatch[0];
+        // Eliminar caracteres de control dentro de strings (saltos de línea literales, tabs, etc.)
+        jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+            if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
+            return '';
+        });
+        // Fix trailing commas before } or ]
+        jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+
+        let parsedContent: Record<string, unknown>;
+        try {
+            parsedContent = JSON.parse(jsonStr);
+        } catch (parseError) {
+            // Segundo intento: reparar comillas problemáticas
+            try {
+                // A veces Gemini usa comillas tipográficas o apóstrofes dentro de valores
+                const cleaned = jsonStr
+                    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+                    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+                parsedContent = JSON.parse(cleaned);
+            } catch {
+                const errMsg = parseError instanceof Error ? parseError.message : String(parseError);
+                console.error('[AI] JSON inválido:', errMsg, 'Texto:', jsonStr.substring(0, 300));
+                return NextResponse.json({
+                    error: `La IA devolvió JSON malformado: ${errMsg}`,
+                    details: `JSON (primeros 300 chars): ${jsonStr.substring(0, 300)}`,
+                }, { status: 500 });
+            }
+        }
 
         // Normalize: handle both old format (string) and new format ({ value, confidence })
         const normalize = (field: unknown): { value: string; confidence: number; alternatives?: string[] } | null => {
@@ -133,18 +165,21 @@ export async function POST(req: Request) {
             return null;
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pc = parsedContent as any;
+
         const normalized = {
-            ...parsedContent,
-            affiliate: normalize(parsedContent.affiliate),
-            affiliateName: normalize(parsedContent.affiliateName),
-            doctor: normalize(parsedContent.doctor),
-            doctorRegistration: normalize(parsedContent.doctorRegistration),
-            diagnosisText: normalize(parsedContent.diagnosisText),
-            prescriptionDate: normalize(parsedContent.prescriptionDate),
-            document_type: parsedContent.document_type || 'orden_medica',
-            missing_fields: parsedContent.missing_fields || [],
-            warnings: parsedContent.warnings || [],
-            practices: (parsedContent.practices || []).map((p: Record<string, unknown>) => ({
+            ...pc,
+            affiliate: normalize(pc.affiliate),
+            affiliateName: normalize(pc.affiliateName),
+            doctor: normalize(pc.doctor),
+            doctorRegistration: normalize(pc.doctorRegistration),
+            diagnosisText: normalize(pc.diagnosisText),
+            prescriptionDate: normalize(pc.prescriptionDate),
+            document_type: pc.document_type || 'orden_medica',
+            missing_fields: pc.missing_fields || [],
+            warnings: pc.warnings || [],
+            practices: (Array.isArray(pc.practices) ? pc.practices : []).map((p: Record<string, unknown>) => ({
                 name: p.name || '',
                 code: p.code || null,
                 quantity: p.quantity || 1,
