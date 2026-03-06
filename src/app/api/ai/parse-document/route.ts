@@ -268,8 +268,13 @@ export async function POST(req: Request) {
         // Convert to base64
         const base64Data = buffer.toString('base64');
 
+        const today = new Date();
+        const todayStr = `${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
+
         const prompt = `
 Eres un asistente experto en auditoría médica argentina, especializado en interpretar órdenes médicas, recetas y prescripciones manuscritas o escaneadas.
+
+LA FECHA DE HOY ES: ${todayStr}. Estamos en el año ${today.getFullYear()}. Usa esta referencia para interpretar fechas correctamente.
 
 Tu tarea es extraer la información clave del documento y devolver ÚNICAMENTE un objeto JSON válido (sin texto adicional, sin bloques markdown, sin comentarios).
 
@@ -341,7 +346,9 @@ Cuando la confianza sea menor a 70, incluye un campo "alternatives" con hasta 3 
 
 ### "prescriptionDate"
 - Fecha de la prescripción si es visible. Formato: "DD/MM/AAAA" siempre.
-- Si la fecha dice "5/3/26", interpretar como "05/03/2026".
+- Estamos en el año ${today.getFullYear()}. Los años abreviados a 2 dígitos (ej: "26") se interpretan como 20XX del siglo actual.
+- Si la fecha dice "5/3/26", interpretar como "05/03/2026". Si dice "26/2/26", interpretar como "26/02/2026".
+- Fechas del año ${today.getFullYear()} o cercanas NO son futuras, son completamente normales. NO generes warnings sobre fechas futuras si están dentro del año actual.
 - Si está en formato YYYY-MM-DD, convertir a DD/MM/AAAA.
 - Valor: { "value": string, "confidence": number, "alternatives"?: string[] } o null.
 
@@ -357,12 +364,13 @@ Cuando la confianza sea menor a 70, incluye un campo "alternatives" con hasta 3 
 
 ### "warnings"
 - Advertencias sobre la calidad del procesamiento.
-- Ejemplos:
+- Ejemplos válidos:
   * "Caligrafía de difícil lectura en zona superior del documento"
   * "Imagen con baja resolución, algunos campos pueden ser imprecisos"
   * "Sello médico parcialmente cortado"
-  * "Fecha posiblemente incorrecta — verificar"
   * "No se detectó diagnóstico en el documento"
+- NUNCA generes warnings sobre fechas "futuras" si la fecha extraída es del año ${today.getFullYear()} o anterior. Hoy es ${todayStr}.
+- Solo genera warning de fecha si la fecha es claramente ilegible o imposible (ej: día 32, mes 13).
 - Valor: string[]
 
 ## REGLAS CRÍTICAS:
