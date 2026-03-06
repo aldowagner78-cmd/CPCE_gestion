@@ -1,7 +1,8 @@
 'use client';
 
 import { Input } from '@/components/ui/input';
-import { Search, Trash2, Clock, CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Search, Trash2, Clock, CheckCircle, AlertTriangle, ShieldAlert, Plus } from 'lucide-react';
+import { useState } from 'react';
 import type { PracticeItem } from './types';
 import type { Practice } from '@/types/database';
 import type { PracticeRuleResult } from '@/services/rulesEngine';
@@ -34,44 +35,74 @@ export function PracticeSelector({
     rulesEvaluated, greenCount, yellowCount, redCount, totalValue,
     onPracSearchChange, onAddPractice, onRemovePractice, onUpdateQuantity, onViewHistory,
 }: PracticeSelectorProps) {
+    const [isSearcherOpen, setIsSearcherOpen] = useState(true);
+
+    const handleAddPractice = (p: Practice) => {
+        onAddPractice(p);
+        // Close searcher when first practice is added (collapse behavior)
+        if (practiceItems.length === 0) {
+            setIsSearcherOpen(false);
+        }
+    };
+
+    const handleRemovePractice = (idx: number) => {
+        onRemovePractice(idx);
+        // Re-open searcher when last practice is removed
+        if (practiceItems.length === 1) {
+            setIsSearcherOpen(true);
+        }
+    };
     return (
         <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Prácticas * <span className="normal-case text-muted-foreground/60">(buscar en nomenclador)</span>
             </label>
-            <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Buscar por código o descripción (ej: RMN, consulta, 420101)..."
-                    value={pracSearch}
-                    onChange={e => onPracSearchChange(e.target.value)}
-                    className="pl-9"
-                />
-                {searchingPrac && <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando en nomenclador...</p>}
-                {pracResults.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-56 overflow-y-auto">
-                        {pracResults.map(p => {
-                            const alreadyAdded = practiceItems.some(pi => pi.practice.id === p.id);
-                            return (
-                                <button key={p.id} onClick={() => !alreadyAdded && onAddPractice(p)} disabled={alreadyAdded}
-                                    className={`w-full px-3 py-2.5 text-left text-sm border-b last:border-0 flex justify-between items-center gap-2 ${alreadyAdded ? 'bg-muted/30 text-muted-foreground' : 'hover:bg-muted/50'}`}>
-                                    <div className="min-w-0">
-                                        <span className="font-mono font-semibold">{p.code}</span>
-                                        <span className="ml-2">{p.description}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        <span className="font-mono text-muted-foreground">${p.financial_value?.toLocaleString()}</span>
-                                        {alreadyAdded && <span className="text-xs text-green-600">✓ agregada</span>}
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-                {pracSearch.length >= 2 && !searchingPrac && pracResults.length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">No se encontraron prácticas para &quot;{pracSearch}&quot;</p>
-                )}
-            </div>
+            
+            {!isSearcherOpen && practiceItems.length > 0 ? (
+                // Collapsed view with "+" button
+                <button
+                    onClick={() => setIsSearcherOpen(true)}
+                    className="w-full h-9 flex items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/20 hover:bg-muted/40 hover:border-muted-foreground/50 transition-colors"
+                >
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Agregar más prácticas</span>
+                </button>
+            ) : (
+                // Expanded search view
+                <div className="relative">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Buscar por código o descripción (ej: RMN, consulta, 420101)..."
+                        value={pracSearch}
+                        onChange={e => onPracSearchChange(e.target.value)}
+                        className="pl-9"
+                    />
+                    {searchingPrac && <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando en nomenclador...</p>}
+                    {pracResults.length > 0 && (
+                        <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-56 overflow-y-auto">
+                            {pracResults.map(p => {
+                                const alreadyAdded = practiceItems.some(pi => pi.practice.id === p.id);
+                                return (
+                                    <button key={p.id} onClick={() => !alreadyAdded && handleAddPractice(p)} disabled={alreadyAdded}
+                                        className={`w-full px-3 py-2.5 text-left text-sm border-b last:border-0 flex justify-between items-center gap-2 ${alreadyAdded ? 'bg-muted/30 text-muted-foreground' : 'hover:bg-muted/50'}`}>
+                                        <div className="min-w-0">
+                                            <span className="font-mono font-semibold">{p.code}</span>
+                                            <span className="ml-2">{p.description}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="font-mono text-muted-foreground">${p.financial_value?.toLocaleString()}</span>
+                                            {alreadyAdded && <span className="text-xs text-green-600">✓ agregada</span>}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                    {pracSearch.length >= 2 && !searchingPrac && pracResults.length === 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">No se encontraron prácticas para &quot;{pracSearch}&quot;</p>
+                    )}
+                </div>
+            )}
 
             {practiceItems.length > 0 && (
                 <div className="border rounded-lg overflow-hidden">
@@ -112,7 +143,7 @@ export function PracticeSelector({
                                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Ver consumos previos">
                                         <Clock className="h-4 w-4" />
                                     </button>
-                                    <button onClick={() => onRemovePractice(idx)} className="text-muted-foreground hover:text-red-500 p-1">
+                                    <button onClick={() => handleRemovePractice(idx)} className="text-muted-foreground hover:text-red-500 p-1">
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                 </div>
