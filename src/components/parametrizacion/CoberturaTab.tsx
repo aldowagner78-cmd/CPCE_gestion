@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Package, Plus, Trash2, Pencil, Check, X } from 'lucide-react';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { planCoverageService, type PlanCoverageOverride } from '@/services/parametrizacionService';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { Input } from '@/components/ui/input';
@@ -131,11 +132,11 @@ export function CoberturaTab() {
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">Válido desde</Label>
-                            <Input type="date" value={form.valid_from} onChange={e => setForm(p => ({ ...p, valid_from: e.target.value }))} />
+                            <DatePicker value={form.valid_from} onChange={v => setForm(p => ({ ...p, valid_from: v }))} placeholder="Desde" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">Válido hasta (opcional)</Label>
-                            <Input type="date" value={form.valid_to ?? ''} onChange={e => setForm(p => ({ ...p, valid_to: e.target.value || null }))} />
+                            <DatePicker value={form.valid_to ?? ''} onChange={v => setForm(p => ({ ...p, valid_to: v || null }))} placeholder="Hasta (opcional)" clearable />
                         </div>
                         <div className="space-y-1 sm:col-span-3">
                             <Label className="text-xs">Observaciones</Label>

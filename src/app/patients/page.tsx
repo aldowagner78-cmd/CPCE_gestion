@@ -5,6 +5,7 @@ import { useJurisdiction } from "@/lib/jurisdictionContext"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/DatePicker"
 import { Pagination, paginateArray } from "@/components/ui/pagination"
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -169,12 +170,12 @@ export default function PatientsPage() {
                         <div><label className="text-xs font-medium">Nro. Afiliado</label><Input value={form.affiliate_number} onChange={e => setForm({ ...form, affiliate_number: e.target.value })} placeholder="AF-001" /></div>
                         <div className="md:col-span-2"><label className="text-xs font-medium">Nombre Completo *</label><Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Pérez, Juan Carlos" /></div>
                         <div><label className="text-xs font-medium">DNI *</label><Input value={form.document_number} onChange={e => setForm({ ...form, document_number: e.target.value })} placeholder="12345678" /></div>
-                        <div><label className="text-xs font-medium">Fecha Nacimiento</label><Input type="date" value={form.birth_date} onChange={e => setForm({ ...form, birth_date: e.target.value })} /></div>
+                        <div><label className="text-xs font-medium">Fecha Nacimiento</label><DatePicker value={form.birth_date} onChange={v => setForm({ ...form, birth_date: v })} placeholder="Seleccionar" /></div>
                         <div><label className="text-xs font-medium">Género</label><select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}><option value="">—</option>{GENDERS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}</select></div>
                         <div><label className="text-xs font-medium">Parentesco</label><select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.relationship} onChange={e => setForm({ ...form, relationship: e.target.value })}>{RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                         <div><label className="text-xs font-medium">Plan</label><select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.plan_id} onChange={e => setForm({ ...form, plan_id: e.target.value })}><option value="">Sin plan</option>{plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                         <div><label className="text-xs font-medium">Estado</label><select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}><option value="activo">Activo</option><option value="suspendido">Suspendido</option><option value="baja">Baja</option></select></div>
-                        <div><label className="text-xs font-medium">Fecha Alta</label><Input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} /></div>
+                        <div><label className="text-xs font-medium">Fecha Alta</label><DatePicker value={form.start_date} onChange={v => setForm({ ...form, start_date: v })} placeholder="Seleccionar" /></div>
                     </div>
                     <div className="flex gap-2 mt-4">
                         <Button onClick={handleSave} disabled={saving || !form.full_name || !form.document_number}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -397,21 +398,11 @@ export default function AuditReportsPage() {
                 </div>
                 <div>
                     <label className="text-xs font-medium text-muted-foreground block mb-1">Desde</label>
-                    <input
-                        type="date"
-                        value={dateFrom}
-                        onChange={e => setDateFrom(e.target.value)}
-                        className="h-9 px-3 rounded-md border text-sm bg-background"
-                    />
+                    <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Desde" clearable />
                 </div>
                 <div>
                     <label className="text-xs font-medium text-muted-foreground block mb-1">Hasta</label>
-                    <input
-                        type="date"
-                        value={dateTo}
-                        onChange={e => setDateTo(e.target.value)}
-                        className="h-9 px-3 rounded-md border text-sm bg-background"
-                    />
+                    <DatePicker value={dateTo} onChange={setDateTo} placeholder="Hasta" clearable />
                 </div>
                 <button
                     onClick={loadMetrics}

@@ -4,6 +4,7 @@ import { useState, useMemo, useSyncExternalStore, useCallback, useEffect } from 
 import { AgendaService, CalendarEvent, EventType, EventPriority, EventStatus } from '@/services/agendaService'
 import { useAuth } from '@/contexts/AuthContext'
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Bell, X, Check, Trash2 } from 'lucide-react'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 // ── Helpers ──
 
@@ -290,12 +291,9 @@ function CreateEventModal({ onClose, onSubmit, initialDate, userId }: {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <input
-                            type="date"
-                            value={form.date}
-                            onChange={(e) => setForm({ ...form, date: e.target.value })}
-                            className="flex-1 px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                        />
+                        <div className="flex-1">
+                            <DatePicker value={form.date} onChange={(v) => setForm({ ...form, date: v })} placeholder="Seleccionar fecha" />
+                        </div>
                         <label className="flex items-center gap-2 text-sm dark:text-white">
                             <input
                                 type="checkbox"

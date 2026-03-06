@@ -1,6 +1,7 @@
 'use client';
 
 import { Filter, Clock, Stethoscope, ExternalLink, Plus } from 'lucide-react';
+import { DatePicker } from '@/components/ui/DatePicker';
 import Link from 'next/link';
 import type { DetailedConsumption, PracticeItem } from './types';
 
@@ -72,11 +73,9 @@ export function AffiliateConsumptions({
                                 onChange={e => onFilterChange('practice', e.target.value)}
                                 className="border rounded px-2 py-1 text-xs bg-background min-w-[120px]" />
                             <label className="text-xs text-muted-foreground ml-2">Desde:</label>
-                            <input type="date" value={consumptionDateFrom} onChange={e => onFilterChange('from', e.target.value)}
-                                className="border rounded px-2 py-1 text-xs bg-background" />
+                            <DatePicker value={consumptionDateFrom} onChange={v => onFilterChange('from', v)} placeholder="Desde" clearable />
                             <label className="text-xs text-muted-foreground">Hasta:</label>
-                            <input type="date" value={consumptionDateTo} onChange={e => onFilterChange('to', e.target.value)}
-                                className="border rounded px-2 py-1 text-xs bg-background" />
+                            <DatePicker value={consumptionDateTo} onChange={v => onFilterChange('to', v)} placeholder="Hasta" clearable />
                             {(consumptionDateFrom || consumptionDateTo || consumptionPracticeFilter) && (
                                 <button onClick={onClearFilters} className="text-xs text-red-500 hover:text-red-700 ml-1">Limpiar</button>
                             )}

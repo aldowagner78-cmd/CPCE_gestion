@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJurisdiction } from '@/lib/jurisdictionContext';
 import { createClient } from '@/lib/supabase';
@@ -565,13 +566,11 @@ export default function HistoryPage() {
                         <div className="flex gap-3 items-end flex-wrap bg-muted/20 rounded-lg p-3 border">
                             <div>
                                 <label className="text-[10px] text-muted-foreground block mb-0.5">Desde</label>
-                                <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
-                                    className="border rounded px-2 py-1.5 text-xs bg-background" />
+                                <DatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="Desde" clearable />
                             </div>
                             <div>
                                 <label className="text-[10px] text-muted-foreground block mb-0.5">Hasta</label>
-                                <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
-                                    className="border rounded px-2 py-1.5 text-xs bg-background" />
+                                <DatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="Hasta" clearable />
                             </div>
                             <div>
                                 <label className="text-[10px] text-muted-foreground block mb-0.5">Estado</label>

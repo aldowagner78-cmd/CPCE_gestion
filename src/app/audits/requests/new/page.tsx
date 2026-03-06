@@ -147,8 +147,10 @@ export default function NewExpedientPage() {
         if (data.prescriptionDate) {
             const d = data.prescriptionDate;
             if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-                const [y, m, dd] = d.split('-');
-                setPrescriptionDate(`${dd}/${m}/${y}`);
+                setPrescriptionDate(d);
+            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
+                const [dd, m, y] = d.split('/');
+                setPrescriptionDate(`${y}-${m}-${dd}`);
             } else {
                 setPrescriptionDate(d);
             }
@@ -507,8 +509,6 @@ export default function NewExpedientPage() {
             const toISO = (d: string) => {
                 if (!d || d.length < 10) return undefined;
                 if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-                const parts = d.split('/');
-                if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
                 return undefined;
             };
             const expedient = await ExpedientService.create({

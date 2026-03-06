@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Badge } from '@/components/ui/badge';
 import {
     CheckCircle, XCircle, Eye, AlertTriangle, ChevronDown,
@@ -419,7 +420,7 @@ export function PracticesTab({ expedient, practices, canResolve, isMine, userId,
                                             {resolutionAction === 'diferir' && (
                                                 <div className="flex items-center gap-2">
                                                     <label className="text-xs text-muted-foreground whitespace-nowrap">Revisar el:</label>
-                                                    <Input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)} className="h-8 text-xs" />
+                                                    <DatePicker value={reviewDate} onChange={setReviewDate} placeholder="Fecha revisión" />
                                                 </div>
                                             )}
 
