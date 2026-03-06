@@ -113,7 +113,7 @@ export function Sidebar() {
             </button>
 
             <div data-tour="sidebar" className={cn(
-                "fixed inset-y-0 left-0 z-40 w-64 border-r shadow-sm transform transition-transform duration-300 ease-in-out md:translate-x-0 flex flex-col min-h-0",
+                "fixed inset-y-0 left-0 z-40 w-64 border-r shadow-sm transform transition-transform duration-300 ease-in-out md:translate-x-0 flex flex-col h-screen overflow-hidden",
                 getSidebarBg(),
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
