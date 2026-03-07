@@ -198,10 +198,11 @@ export function AffiliateSearch({
                         )}
                     </div>
 
-                    {(specialConds.length > 0 || affiliate.special_pharmacy || Number(affiliate.copay_debt) > 0) && (
+                    {(specialConds.length > 0 || affiliate.special_pharmacy || Number(affiliate.copay_debt) > 0 || Number(affiliate.quota_debt) > 0) && (
                         <div className="px-4 pb-3 flex flex-wrap gap-1.5">
                             {specialConds.map(sc => <span key={sc} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">⚠️ {sc}</span>)}
                             {affiliate.special_pharmacy && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-medium">💊 Farmacia especial</span>}
+                            {Number(affiliate.quota_debt) > 0 && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold border border-red-300">💸 Deuda cuota: ${affiliate.quota_debt!.toLocaleString()}</span>}
                             {Number(affiliate.copay_debt) > 0 && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">💰 Deuda coseguro: ${affiliate.copay_debt!.toLocaleString()}</span>}
                             {affiliate.frozen_quota && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">❄️ Cuota congelada</span>}
                             {affiliate.has_life_insurance && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">🛡️ Seguro de vida</span>}

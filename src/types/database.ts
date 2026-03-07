@@ -103,6 +103,7 @@ export type Affiliate = {
     // Datos adicionales
     observations?: string
     copay_debt?: number              // deuda de coseguro
+    quota_debt?: number              // deuda de cuota mensual
     quota_coefficient?: number       // coeficiente de cuota
     agreement?: string               // convenio/empresa
     frozen_quota?: boolean           // cuota congelada

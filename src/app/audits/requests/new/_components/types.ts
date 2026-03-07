@@ -6,6 +6,8 @@ export interface PracticeItem {
     practice: Practice;
     quantity: number;
     ruleResult?: PracticeRuleResult;
+    prescription_ref?: string;           // N° de receta para esta práctica
+    prescribing_doctor_code?: string;    // Matrícula del médico prescriptor
 }
 
 export interface ConsumptionItem {

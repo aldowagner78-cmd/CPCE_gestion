@@ -41,6 +41,7 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
     const [resolving, setResolving] = useState(false);
     const [resolutionNotes, setResolutionNotes] = useState('');
     const [showExpedientAction, setShowExpedientAction] = useState<'observar' | 'anular' | 'diferir' | null>(null);
+    const [sendNotification, setSendNotification] = useState(false);
 
     const tc = TYPE_CONFIG[expedient.type];
     const sc = STATUS_CONFIG[expedient.status];
@@ -94,6 +95,24 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
         const db = (table: string): any => supabase.from(table as any);
         if (allResolved && user) {
             await db('expedients').update({ status: 'resuelto', resolved_by: user.id, resolved_at: new Date().toISOString() }).eq('id', expedient.id);
+            // Enviar notificación al afiliado si el toggle está activo
+            if (sendNotification) {
+                const authorizedPractices = full.practices
+                    .filter(p => ['autorizada', 'autorizada_parcial'].includes(p.status))
+                    .map(p => `${(p as Record<string, unknown>).practice_code ?? ''} — ${(p as Record<string, unknown>).practice_name ?? 'Práctica'}`);
+                await fetch('/api/notify-affiliate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        expedientId: expedient.id,
+                        expedientNumber: expedient.expedient_number,
+                        affiliateEmail: expedient.affiliate?.email ?? '',
+                        affiliateName: expedient.affiliate?.full_name ?? '',
+                        authorizedPractices,
+                        userId: user.id,
+                    }),
+                }).catch(() => { /* best-effort */ });
+            }
         } else if (someObserved) {
             await db('expedients').update({ status: 'observada' }).eq('id', expedient.id);
         } else if (someResolved) {
@@ -255,6 +274,23 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
                         <Printer className="h-4 w-4 mr-1" />
                         {hasAuthorizedPractices ? 'Constancia' : 'Imprimir'}
                     </Button>
+                    {/* Toggle notificación al afiliado — solo si puede resolverse */}
+                    {(canResolve || isResolved) && (
+                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors" title={expedient.affiliate?.email ? `Notificar a ${expedient.affiliate.email}` : 'El afiliado no tiene correo registrado'}>
+                            <input
+                                type="checkbox"
+                                checked={sendNotification}
+                                onChange={e => setSendNotification(e.target.checked)}
+                                className="accent-primary h-3.5 w-3.5 rounded"
+                            />
+                            <span>Notificar afiliado</span>
+                            {!expedient.affiliate?.email && (
+                                <span title="Sin correo registrado">
+                                    <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                </span>
+                            )}
+                        </label>
+                    )}
                     {isObserved && isAdmin && (
                         <Button className="flex-1 bg-orange-600 hover:bg-orange-700" size="sm" onClick={handleResubmit} disabled={resolving}>
                             {resolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}

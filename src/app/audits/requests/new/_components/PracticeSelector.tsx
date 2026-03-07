@@ -45,6 +45,7 @@ interface PracticeSelectorProps {
     onAddPractice: (p: Practice) => void;
     onRemovePractice: (idx: number) => void;
     onUpdateQuantity: (idx: number, qty: number) => void;
+    onUpdatePracticeField: (idx: number, field: 'prescription_ref' | 'prescribing_doctor_code', value: string) => void;
     onViewHistory: (id: number, name: string) => void;
     onViewFullHistory?: () => void;
     affiliateSelected?: boolean;
@@ -55,7 +56,7 @@ export function PracticeSelector({
     rulesEvaluated, greenCount, yellowCount, redCount, totalValue,
     jurisdictionId = 1,
     affiliateSelected = false,
-    onPracSearchChange, onAddPractice, onRemovePractice, onUpdateQuantity, onViewHistory,
+    onPracSearchChange, onAddPractice, onRemovePractice, onUpdateQuantity, onUpdatePracticeField, onViewHistory,
     onViewFullHistory,
 }: PracticeSelectorProps) {
 
@@ -212,10 +213,12 @@ export function PracticeSelector({
             {practiceItems.length > 0 && (
                 <div className="border rounded-lg overflow-hidden">
                     {/* Encabezado */}
-                    <div className="hidden sm:grid grid-cols-[1.5rem_6rem_1fr_3.5rem_5rem_5rem_3rem_5rem_2rem_2rem] gap-1 px-3 py-1.5 bg-muted/40 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    <div className="hidden sm:grid grid-cols-[1.5rem_6rem_1fr_5rem_5rem_3.5rem_5rem_5rem_3rem_5rem_2rem_2rem] gap-1 px-3 py-1.5 bg-muted/40 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                         <span></span>
                         <span>Codigo</span>
                         <span>Denominacion</span>
+                        <span className="text-center">Receta</span>
+                        <span className="text-center">Médico</span>
                         <span className="text-center">Cant.</span>
                         <span className="text-right">Unitario</span>
                         <span className="text-right">Total</span>
@@ -252,7 +255,7 @@ export function PracticeSelector({
 
                         return (
                             <div key={pi.practice.id} className={`border-b last:border-0 transition-colors duration-700 ${isNew ? 'bg-green-50 ring-1 ring-inset ring-green-200' : color ? color.bg : ''}`}>
-                                <div className="grid grid-cols-[1.5rem_6rem_1fr_3.5rem_5rem_5rem_3rem_5rem_2rem_2rem] gap-1 items-center px-3 py-2 text-sm">
+                                <div className="grid grid-cols-[1.5rem_6rem_1fr_5rem_5rem_3.5rem_5rem_5rem_3rem_5rem_2rem_2rem] gap-1 items-center px-3 py-2 text-sm">
                                     {/* Semáforo — siempre en su propia columna */}
                                     <div className="flex justify-center">
                                         {rc && RuleIcon ? (
@@ -274,6 +277,30 @@ export function PracticeSelector({
                                     <span className="text-xs leading-tight" title={pi.practice.description}>
                                         {pi.practice.description}
                                     </span>
+
+                                    {/* Receta */}
+                                    <div className="flex justify-center">
+                                        <Input
+                                            type="text"
+                                            placeholder="N°..."
+                                            value={pi.prescription_ref ?? ''}
+                                            onChange={e => onUpdatePracticeField(idx, 'prescription_ref', e.target.value)}
+                                            className="w-full h-7 text-center text-[10px] px-1"
+                                            title="N° de receta"
+                                        />
+                                    </div>
+
+                                    {/* Médico prescriptor */}
+                                    <div className="flex justify-center">
+                                        <Input
+                                            type="text"
+                                            placeholder="MN..."
+                                            value={pi.prescribing_doctor_code ?? ''}
+                                            onChange={e => onUpdatePracticeField(idx, 'prescribing_doctor_code', e.target.value)}
+                                            className="w-full h-7 text-center text-[10px] px-1"
+                                            title="Matrícula del médico prescriptor"
+                                        />
+                                    </div>
 
                                     {/* Cantidad */}
                                     <div className="flex justify-center">

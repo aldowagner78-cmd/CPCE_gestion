@@ -391,6 +391,9 @@ export default function NewExpedientPage() {
     };
     const removePractice = (index: number) => { setPracticeItems(prev => prev.filter((_, i) => i !== index)); setRulesEvaluated(false); setRulesResult(null); };
     const updateQuantity = (index: number, qty: number) => { setPracticeItems(prev => prev.map((item, i) => i === index ? { ...item, quantity: Math.max(1, qty) } : item)); setRulesEvaluated(false); setRulesResult(null); };
+    const updatePracticeField = (index: number, field: 'prescription_ref' | 'prescribing_doctor_code', value: string) => {
+        setPracticeItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    };
 
     const triggerFileUpload = (targetDocType: ExpedientDocumentType) => {
         const input = document.createElement('input');
@@ -734,6 +737,7 @@ export default function NewExpedientPage() {
                 onAddPractice={addPractice}
                 onRemovePractice={removePractice}
                 onUpdateQuantity={updateQuantity}
+                onUpdatePracticeField={updatePracticeField}
                 onViewHistory={(id, name) => setViewingHistoryFor({ id, name })}
                 jurisdictionId={activeJurisdiction?.id ?? 1}
                 affiliateSelected={!!affiliate}
