@@ -126,6 +126,11 @@ export function FamilyMemberSelector({
                     <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">
                         Grupo Familiar
                     </span>
+                    {affiliate.certificate_number && (
+                        <span className="text-xs text-blue-500 dark:text-blue-400 font-mono">
+                            #{affiliate.certificate_number}
+                        </span>
+                    )}
                     {loading && (
                         <span className="text-xs text-muted-foreground animate-pulse">cargando...</span>
                     )}

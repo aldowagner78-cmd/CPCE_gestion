@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { ExpedientService } from '@/services/expedientService';
-import { generateExpedientPDF } from '@/lib/expedientPDF';
+import { generateExpedientPDF, generateCoseguroPDF } from '@/lib/expedientPDF';
 import { HelpTooltip } from '@/components/HelpTooltip';
 import {
     Eye, AlertTriangle, ArrowLeft, Stethoscope, Paperclip, MessageSquare, History,
@@ -274,6 +274,19 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
                         <Printer className="h-4 w-4 mr-1" />
                         {hasAuthorizedPractices ? 'Constancia' : 'Imprimir'}
                     </Button>
+                    {/* Orden de coseguro — visible cuando hay prácticas con copay */}
+                    {hasAuthorizedPractices && practices.some(p => ['autorizada', 'autorizada_parcial'].includes(p.status) && (p.copay_amount ?? 0) > 0) && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generateCoseguroPDF(expedient)}
+                            title="Imprimir orden de cobro de coseguro al afiliado"
+                            className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                        >
+                            <Printer className="h-4 w-4 mr-1" />
+                            Coseguro
+                        </Button>
+                    )}
                     {/* Toggle notificación al afiliado — solo si puede resolverse */}
                     {(canResolve || isResolved) && (
                         <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors" title={expedient.affiliate?.email ? `Notificar a ${expedient.affiliate.email}` : 'El afiliado no tiene correo registrado'}>

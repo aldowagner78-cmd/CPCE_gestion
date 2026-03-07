@@ -12,6 +12,7 @@ import {
     ArrowLeft,
     Plus,
     Loader2,
+    Download,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -34,6 +35,7 @@ export default function AuditRequestsPage() {
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState<ExpedientType | 'todas'>('todas');
     const [filterStatus, setFilterStatus] = useState<ExpedientStatus | 'todas'>('todas');
+    const [filterPeriod, setFilterPeriod] = useState('');
     const [reloadKey, setReloadKey] = useState(0);
     const [counts, setCounts] = useState<Record<ExpedientStatus, number>>({
         borrador: 0,
@@ -91,14 +93,48 @@ export default function AuditRequestsPage() {
     }, []);
 
     const filtered = expedients.filter(e => {
-        if (!search) return true;
-        const q = search.toLowerCase();
-        return (
-            e.expedient_number?.toLowerCase().includes(q) ||
-            String(e.affiliate_id).toLowerCase().includes(q) ||
-            e.request_notes?.toLowerCase().includes(q)
-        );
+        if (search) {
+            const q = search.toLowerCase();
+            const matchSearch = (
+                e.expedient_number?.toLowerCase().includes(q) ||
+                String(e.affiliate_id).toLowerCase().includes(q) ||
+                e.request_notes?.toLowerCase().includes(q) ||
+                e.affiliate?.full_name?.toLowerCase().includes(q) ||
+                e.affiliate?.document_number?.toLowerCase().includes(q)
+            );
+            if (!matchSearch) return false;
+        }
+        if (filterPeriod) {
+            const created = e.created_at?.slice(0, 7); // "YYYY-MM"
+            if (created !== filterPeriod) return false;
+        }
+        return true;
     });
+
+    const handleExportCSV = () => {
+        const rows = [
+            ['Número', 'Tipo', 'Estado', 'Afiliado', 'DNI', 'Prestador', 'Fecha', 'Prácticas', 'Resuelto por'],
+            ...filtered.map(e => [
+                e.expedient_number ?? '',
+                e.type,
+                e.status,
+                e.affiliate?.full_name ?? String(e.affiliate_id),
+                e.affiliate?.document_number ?? '',
+                e.provider_name ?? '',
+                e.created_at?.slice(0, 10) ?? '',
+                String(e.practices?.length ?? 0),
+                e.resolver?.full_name ?? '',
+            ]),
+        ];
+        const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `expedientes_${filterPeriod || new Date().toISOString().slice(0, 7)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
 
     const pendingTotal = counts.pendiente + counts.en_revision + counts.observada + counts.parcialmente_resuelto;
 
@@ -154,11 +190,11 @@ export default function AuditRequestsPage() {
                 </div>
 
                 {/* Filtros */}
-                <div className="flex gap-2">
-                    <div className="relative flex-1">
+                <div className="flex gap-2 flex-wrap">
+                    <div className="relative flex-1 min-w-[160px]">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Buscar por número, afiliado..."
+                            placeholder="Buscar por número, afiliado, DNI..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             className="pl-10 h-9"
@@ -174,6 +210,31 @@ export default function AuditRequestsPage() {
                             <option key={key} value={key}>{cfg.label}</option>
                         ))}
                     </select>
+                    <input
+                        type="month"
+                        value={filterPeriod}
+                        onChange={e => setFilterPeriod(e.target.value)}
+                        className="border rounded-lg px-3 py-1 text-sm bg-background h-9 cursor-pointer"
+                        title="Filtrar por período"
+                    />
+                    {filterPeriod && (
+                        <button
+                            onClick={() => setFilterPeriod('')}
+                            className="text-xs text-muted-foreground hover:text-foreground border rounded-lg px-2 h-9"
+                            title="Limpiar filtro de período"
+                        >✕</button>
+                    )}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportCSV}
+                        disabled={filtered.length === 0}
+                        className="h-9 gap-1.5"
+                        title="Exportar lista filtrada a CSV"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        CSV
+                    </Button>
                 </div>
             </div>
 

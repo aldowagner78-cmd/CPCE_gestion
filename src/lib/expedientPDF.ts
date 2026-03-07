@@ -318,3 +318,126 @@ export function generatePracticePDF(expedient: Expedient, practice: ExpedientPra
         printWindow.document.close();
     }
 }
+
+// ── Orden de Cobro de Coseguro ──
+
+export function generateCoseguroPDF(expedient: Expedient) {
+    const authorizedPractices = (expedient.practices || []).filter(
+        p => ['autorizada', 'autorizada_parcial'].includes(p.status) && (p.copay_amount ?? 0) > 0
+    );
+    const totalCopay = authorizedPractices.reduce((s, p) => s + (p.copay_amount || 0), 0);
+    if (totalCopay <= 0 || authorizedPractices.length === 0) return;
+
+    const jurisdictionLabel = expedient.jurisdiction_id === 1 ? 'Cámara I — Santa Fe' : 'Cámara II — Rosario';
+    const affiliate = expedient.affiliate;
+    const affiliateName = affiliate?.full_name ?? `Afil. ${expedient.affiliate_id}`;
+    const affiliateDNI = affiliate?.document_number ? `DNI ${affiliate.document_number}` : '';
+
+    const practiceRows = authorizedPractices.map((p, i) => `
+        <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${i + 1}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;">#${p.practice_id}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${p.quantity}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${p.practice_value ? fmtCurrency(p.practice_value) : '—'}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${p.coverage_percent ?? '—'}%</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;color:#6b7280;">${p.covered_amount ? fmtCurrency(p.covered_amount) : '—'}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:#dc2626;">${fmtCurrency(p.copay_amount || 0)}</td>
+        </tr>
+    `).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Orden de Coseguro — ${expedient.expedient_number}</title>
+    <style>
+        @page { size: A4; margin: 18mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10pt; color: #1f2937; line-height: 1.5; background: white; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #1e40af; color: white; padding: 8px 12px; text-align: left; font-size: 9pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #dc2626;padding-bottom:12px;margin-bottom:20px;">
+        <div>
+            <h1 style="font-size:18pt;color:#1e40af;font-weight:700;">CPCE Salud</h1>
+            <p style="font-size:8pt;color:#6b7280;">Consejo Profesional de Ciencias Económicas · Auditoría Médica</p>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:14pt;font-weight:700;color:#dc2626;">ORDEN DE COBRO DE COSEGURO</div>
+            <div style="font-size:11pt;font-weight:700;color:#374151;margin-top:2px;">${expedient.expedient_number}</div>
+            <div style="font-size:8pt;color:#6b7280;">${fmtDateTime(new Date().toISOString())}</div>
+        </div>
+    </div>
+
+    <!-- Datos del afiliado -->
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px 16px;margin-bottom:20px;">
+        <p style="font-size:9pt;font-weight:700;color:#991b1b;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Afiliado</p>
+        <div style="display:flex;gap:32px;font-size:11pt;">
+            <div><span style="color:#6b7280;">Nombre: </span><strong>${affiliateName}</strong></div>
+            ${affiliateDNI ? `<div><span style="color:#6b7280;">${affiliateDNI}</span></div>` : ''}
+            ${affiliate?.affiliate_number ? `<div><span style="color:#6b7280;">Nro. Afil.: </span><strong>${affiliate.affiliate_number}</strong></div>` : ''}
+            ${expedient.family_member_relation ? `<div><span style="color:#6b7280;">Parentesco: </span><strong>${expedient.family_member_relation}</strong></div>` : ''}
+        </div>
+        <div style="margin-top:6px;font-size:10pt;">
+            <span style="color:#6b7280;">Jurisdicción: </span><strong>${jurisdictionLabel}</strong>
+            ${expedient.provider_name ? `<span style="color:#6b7280;margin-left:24px;">Prestador: </span><strong>${expedient.provider_name}</strong>` : ''}
+        </div>
+    </div>
+
+    <!-- Tabla de prácticas -->
+    <div style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;margin-bottom:24px;">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:40px;text-align:center;">#</th>
+                    <th>Código</th>
+                    <th style="text-align:center;">Cant.</th>
+                    <th style="text-align:right;">Valor</th>
+                    <th style="text-align:center;">Cob.%</th>
+                    <th style="text-align:right;">Cubierto OS</th>
+                    <th style="text-align:right;background:#dc2626;">Coseguro</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${practiceRows}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Total a cobrar -->
+    <div style="background:#dc2626;color:white;border-radius:8px;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;">
+        <span style="font-size:14pt;font-weight:700;">TOTAL A COBRAR AL AFILIADO</span>
+        <span style="font-size:20pt;font-weight:700;font-family:monospace;">${fmtCurrency(totalCopay)}</span>
+    </div>
+
+    <!-- Firma -->
+    <div style="display:flex;justify-content:space-between;margin-top:20px;">
+        <div style="border-top:1px solid #374151;min-width:180px;padding-top:8px;text-align:center;">
+            <p style="font-size:9pt;color:#6b7280;">Firma del Prestador</p>
+        </div>
+        <div style="border-top:1px solid #374151;min-width:180px;padding-top:8px;text-align:center;">
+            <p style="font-size:9pt;color:#6b7280;">Aclaración y Sello</p>
+        </div>
+        <div style="border-top:1px solid #374151;min-width:180px;padding-top:8px;text-align:center;">
+            <p style="font-size:9pt;color:#6b7280;">Firma del Afiliado</p>
+        </div>
+    </div>
+
+    <div style="text-align:center;font-size:7pt;color:#d1d5db;margin-top:24px;">
+        CPCE Salud · Orden de Coseguro · ${expedient.expedient_number} · ${fmtDateTime(new Date().toISOString())}
+    </div>
+
+    <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+    const printWindow = window.open('', '_blank', 'width=800,height=1100');
+    if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+    }
+}
