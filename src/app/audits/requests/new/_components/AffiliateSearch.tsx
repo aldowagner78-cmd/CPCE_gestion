@@ -224,8 +224,10 @@ export function AffiliateSearch({
 
     {affiliate.observations && <div className="px-4 pb-3 text-xs text-muted-foreground">📝 {affiliate.observations}</div>}
 
-                    {/* Panel Cuota / Padrón */}
-                    {(affiliate.quota_coefficient || affiliate.agreement || affiliate.quota_debt || affiliate.copay_debt) && (
+                    {/* Panel Cuota / Padrón — OCULTO para administrativos/auditores.
+                        Reservado para vista gerencial cuando se definan roles de usuario.
+                        Ver: /memories/repo/roles_y_funciones_pendientes.md */}
+                    {false && (affiliate.quota_coefficient || affiliate.agreement || affiliate.quota_debt || affiliate.copay_debt) && (
                         <div className="mx-4 mb-3 p-3 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-lg">
                             <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Cuota / Padrón</p>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
