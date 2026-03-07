@@ -7,8 +7,7 @@ import {
 import type { Affiliate } from '@/types/database';
 import type { ClinicalPriorityResult } from '@/services/aiService';
 import { FamilyMemberSelector } from '@/components/FamilyMemberSelector';
-import { AffiliateConsumptions } from './AffiliateConsumptions';
-import type { DetailedConsumption, PracticeItem } from './types';
+
 import { History } from 'lucide-react';
 
 function calcAge(birthDate: string | null | undefined): number | null {
@@ -37,25 +36,11 @@ interface AffiliateSearchProps {
     planName: string;
     selectedFamilyMember: Affiliate | null;
     aiPriorityResult: ClinicalPriorityResult | null;
-    showConsumptions: boolean;
-    loadingConsumptions: boolean;
-    consumptions: { practiceCode: string; practiceName: string; count: number; lastDate: string }[];
-    detailedConsumptions: DetailedConsumption[];
-    practiceItems: PracticeItem[];
-    consumptionDateFrom: string;
-    consumptionDateTo: string;
-    consumptionPracticeFilter: string;
-    showConsumptionFilters: boolean;
     onAffSearchChange: (v: string) => void;
     onSelectAffiliate: (a: Affiliate) => void;
     onClearAffiliate: () => void;
     onSelectFamilyMember: (m: Affiliate | null) => void;
-    onToggleConsumptions: () => void;
-    onFilterChange: (key: 'from' | 'to' | 'practice', value: string) => void;
-    onClearFilters: () => void;
-    onToggleFilters: () => void;
     onViewAttachments: (expedientId: string, expedientNumber: string) => void;
-    onAddPractice: (practice: PracticeItem['practice']) => void;
     onViewFullHistory?: () => void;
 }
 
@@ -63,11 +48,8 @@ export function AffiliateSearch({
     affiliateNumberInput, onAffiliateNumberChange,
     affSearch, affResults, affiliate, searchingAff, planName,
     selectedFamilyMember, aiPriorityResult,
-    showConsumptions, loadingConsumptions, consumptions, detailedConsumptions, practiceItems,
-    consumptionDateFrom, consumptionDateTo, consumptionPracticeFilter, showConsumptionFilters,
     onAffSearchChange, onSelectAffiliate, onClearAffiliate, onSelectFamilyMember,
-    onToggleConsumptions, onFilterChange, onClearFilters, onToggleFilters,
-    onViewAttachments, onAddPractice, onViewFullHistory,
+    onViewAttachments, onViewFullHistory,
 }: AffiliateSearchProps) {
     const age = affiliate ? calcAge(affiliate.birth_date) : null;
     const specialConds = affiliate ? formatSpecialConditions(affiliate.special_conditions) : [];
@@ -231,23 +213,7 @@ export function AffiliateSearch({
                         </div>
                     )}
 
-                    <AffiliateConsumptions
-                        showConsumptions={showConsumptions}
-                        loadingConsumptions={loadingConsumptions}
-                        consumptions={consumptions}
-                        detailedConsumptions={detailedConsumptions}
-                        practiceItems={practiceItems}
-                        consumptionDateFrom={consumptionDateFrom}
-                        consumptionDateTo={consumptionDateTo}
-                        consumptionPracticeFilter={consumptionPracticeFilter}
-                        showConsumptionFilters={showConsumptionFilters}
-                        onToggle={onToggleConsumptions}
-                        onFilterChange={onFilterChange}
-                        onClearFilters={onClearFilters}
-                        onToggleFilters={onToggleFilters}
-                        onViewAttachments={onViewAttachments}
-                        onAddPractice={onAddPractice}
-                    />
+
                 </div>
             )}
         </div>

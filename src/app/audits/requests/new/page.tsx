@@ -38,7 +38,7 @@ import { ConsumptionHistoryModal } from './_components/ConsumptionHistoryModal';
 import { AffiliateFullHistoryModal } from './_components/AffiliateFullHistoryModal';
 import { GuidedTour } from '@/components/GuidedTour';
 import { HelpTooltip } from '@/components/HelpTooltip';
-import type { PracticeItem, PendingFile, ChatMessage, DetailedConsumption } from './_components/types';
+import type { PracticeItem, PendingFile, ChatMessage } from './_components/types';
 
 const supabase = createClient();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -105,14 +105,8 @@ export default function NewExpedientPage() {
     const [searchingAff, setSearchingAff] = useState(false);
     const [planName, setPlanName] = useState('');
     const [affiliatePlan, setAffiliatePlan] = useState<Plan | null>(null);
-    const [consumptions, setConsumptions] = useState<{ practiceCode: string; practiceName: string; count: number; lastDate: string }[]>([]);
-    const [detailedConsumptions, setDetailedConsumptions] = useState<DetailedConsumption[]>([]);
-    const [showConsumptions, setShowConsumptions] = useState(false);
-    const [loadingConsumptions, setLoadingConsumptions] = useState(false);
-    const [consumptionDateFrom, setConsumptionDateFrom] = useState('');
-    const [consumptionDateTo, setConsumptionDateTo] = useState('');
-    const [consumptionPracticeFilter, setConsumptionPracticeFilter] = useState('');
-    const [showConsumptionFilters, setShowConsumptionFilters] = useState(false);
+    const [typeAutoDetected, setTypeAutoDetected] = useState(false);
+    const typeManuallySet = useRef(false);
     const [viewingHistoryFor, setViewingHistoryFor] = useState<{ id: number; name: string } | null>(null);
     const [showFullHistory, setShowFullHistory] = useState(false);
     const [pracSearch, setPracSearch] = useState('');
@@ -282,10 +276,13 @@ export default function NewExpedientPage() {
     useEffect(() => { const t = setTimeout(() => { if (pracSearch) searchPracs(pracSearch); }, 300); return () => clearTimeout(t); }, [pracSearch, searchPracs]);
 
     // FASE 9: Auto-clasificar tipo de expediente según nomencladores de prácticas
+    // Solo auto-detecta si el usuario no eligió manualmente
     useEffect(() => {
+        if (typeManuallySet.current) return;
         const inferred = inferExpedientType(practiceItems);
         if (!inferred) return;
         setExpedientType(inferred.type);
+        setTypeAutoDetected(true);
     }, [practiceItems]);
 
     useEffect(() => {
@@ -352,10 +349,9 @@ export default function NewExpedientPage() {
     }, [affResults, affiliate, aiAffName, selectAffiliate]);
 
     const clearAffiliate = useCallback(() => {
-        setAffiliate(null); setAffSearch(''); setAffiliateNumberInput(''); setShowConsumptions(false);
-        setConsumptions([]); setDetailedConsumptions([]); setPlanName('');
+        setAffiliate(null); setAffSearch(''); setAffiliateNumberInput('');
+        setPlanName('');
         setAffiliatePlan(null); setRulesResult(null); setAiAffName(null);
-        setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter('');
     }, []);
 
     // Búsqueda por número exacto de afiliado (auto-carga)
@@ -427,67 +423,6 @@ export default function NewExpedientPage() {
         } catch { setAttachments([]); }
         setLoadingAttachments(false);
     };
-
-    const fetchConsumptions = useCallback(async () => {
-        if (!affiliate) return;
-        setLoadingConsumptions(true);
-        try {
-            const { data: exps } = await db('expedients').select('id, expedient_number, created_at, status, resolved_by, diagnosis_code, diagnosis_description').eq('affiliate_id', String(affiliate.id)).order('created_at', { ascending: false }).limit(100);
-            const expList = (exps || []) as Record<string, unknown>[];
-            const expIds = expList.map(e => e.id as string);
-            let expPractices: Record<string, unknown>[] = [];
-            if (expIds.length > 0) {
-                const { data } = await db('expedient_practices').select('id, expedient_id, practice_id, quantity, status, covered_amount, copay_amount, created_at').in('expedient_id', expIds);
-                expPractices = (data || []) as Record<string, unknown>[];
-            }
-            const allPracticeIds = [...new Set(expPractices.map(ep => ep.practice_id).filter(Boolean))];
-            let practiceMap = new Map<unknown, Record<string, unknown>>();
-            if (allPracticeIds.length > 0) {
-                const { data: practices } = await supabase.from('practices').select('*').in('id', allPracticeIds);
-                practiceMap = new Map((practices || []).map((p: Record<string, unknown>) => [p.id, p]));
-            }
-            const auditorIds = [...new Set(expList.map(e => e.resolved_by).filter(Boolean))];
-            let auditorMap = new Map<unknown, string>();
-            if (auditorIds.length > 0) {
-                const { data: users } = await db('users').select('id, full_name').in('id', auditorIds);
-                auditorMap = new Map((users || []).map((u: Record<string, unknown>) => [u.id, u.full_name as string]));
-            }
-            const expMap = new Map(expList.map(e => [e.id, e]));
-            const detailed: DetailedConsumption[] = expPractices.map(ep => {
-                const exp = expMap.get(ep.expedient_id) || {} as Record<string, unknown>;
-                const prac = practiceMap.get(ep.practice_id) || {} as Record<string, unknown>;
-                return {
-                    id: (ep.id as string) || String(Math.random()),
-                    date: (ep.created_at || (exp as Record<string, unknown>).created_at || '') as string,
-                    practiceCode: (prac.code as string) || '',
-                    practiceName: (prac.name as string) || 'Practica',
-                    practiceId: (ep.practice_id as number) || 0,
-                    status: (ep.status as string) || (exp as Record<string, unknown>).status as string || 'pendiente',
-                    coveredAmount: (ep.covered_amount as number) || 0,
-                    copayAmount: (ep.copay_amount as number) || 0,
-                    expedientNumber: ((exp as Record<string, unknown>).expedient_number as string) || '',
-                    expedientId: (ep.expedient_id as string) || '',
-                    auditorName: auditorMap.get((exp as Record<string, unknown>).resolved_by) || '',
-                    providerName: '',
-                    quantity: (ep.quantity as number) || 1,
-                    source: 'expedient' as const,
-                    diagnosisCode: (exp as Record<string, unknown>).diagnosis_code as string || '',
-                    diagnosisName: (exp as Record<string, unknown>).diagnosis_description as string || '',
-                    fullPractice: prac,
-                };
-            });
-            setDetailedConsumptions(detailed.sort((a, b) => (b.date || '').localeCompare(a.date || '')));
-            const grouped: Record<number, { practiceCode: string; practiceName: string; count: number; lastDate: string }> = {};
-            for (const d of detailed) {
-                if (!grouped[d.practiceId]) grouped[d.practiceId] = { practiceCode: d.practiceCode, practiceName: d.practiceName, count: 0, lastDate: '' };
-                grouped[d.practiceId].count += d.quantity;
-                if (!grouped[d.practiceId].lastDate || d.date > grouped[d.practiceId].lastDate) grouped[d.practiceId].lastDate = d.date;
-            }
-            setConsumptions(Object.values(grouped).sort((a, b) => b.count - a.count));
-            setShowConsumptions(true);
-        } catch { setConsumptions([]); setDetailedConsumptions([]); }
-        setLoadingConsumptions(false);
-    }, [affiliate]);
 
     const handleNotesChange = (channel: 'interna' | 'para_afiliado', text: string) => {
         setCommChannel(channel);
@@ -649,9 +584,9 @@ export default function NewExpedientPage() {
         setAffiliate(null); setPracticeItems([]); setFiles([]); setNotes(''); setDiagnosis('');
         setDiagnosisCode(''); setDiagInitialSearch(''); setPriority('normal');
         setSubmitted(false); setSubmittedExpNumber(''); setAutoApprovedCodes([]);
-        setAffSearch(''); setPracSearch(''); setShowConsumptions(false);
-        setConsumptions([]); setPlanName(''); setAffiliatePlan(null);
+        setAffSearch(''); setPracSearch(''); setPlanName(''); setAffiliatePlan(null);
         setRulesEvaluated(false); setRulesResult(null); setExpedientType('ambulatoria');
+        setTypeAutoDetected(false); typeManuallySet.current = false;
         setShowPreview(false); setChatMessages([]);
         setDoctorName(''); setDoctorRegistration(''); setDoctorSpecialty('');
         setProviderName(''); setPrescriptionDate(''); setPrescriptionNumber('');
@@ -723,26 +658,25 @@ export default function NewExpedientPage() {
 
             {/* Sección 1: Tipo y Afiliado */}
             <div data-tour="section-1" className="border rounded-xl">
-                <button onClick={() => setActiveSection(activeSection === 1 ? 0 : 1)}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-t-xl">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section1Complete ? 'bg-green-100 text-green-700' : activeSection === 1 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                <div className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-t-xl">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section1Complete ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                         {section1Complete ? <Check className="h-4 w-4" /> : '1'}
                     </div>
                     <span className="font-semibold text-sm flex-1 text-left">Tipo y Afiliado</span>
                     <HelpTooltip text="Seleccioná el tipo de solicitud (ambulatoria, internación, etc.) y buscá al afiliado por número, DNI o nombre." position="bottom" />
-                    {section1Complete && affiliate && <span className="text-xs text-muted-foreground mr-2 truncate max-w-[200px]">{affiliate.full_name}</span>}
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 1 ? 'rotate-180' : ''}`} />
-                </button>
-                {activeSection === 1 && (
+                    {section1Complete && affiliate && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{affiliate.full_name}</span>}
+                </div>
                 <div className="p-4 space-y-4 border-t">
             <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Tipo de expediente</label>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Tipo de expediente
+                    {typeAutoDetected && <span className="ml-2 inline-flex items-center gap-1 text-blue-600 font-medium normal-case"><Sparkles className="h-3 w-3" />auto-detectado</span>}
+                </label>
                 <div className="flex gap-1.5 flex-wrap">
                     {EXPEDIENT_TYPES.map(t => {
                         const Icon = t.icon;
                         const active = expedientType === t.value;
                         return (
-                            <button key={t.value} onClick={() => { setExpedientType(t.value); setRulesEvaluated(false); setRulesResult(null); }}
+                            <button key={t.value} onClick={() => { typeManuallySet.current = true; setTypeAutoDetected(false); setExpedientType(t.value); setRulesEvaluated(false); setRulesResult(null); }}
                                 className={'flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ' + (active ? t.cls + ' ring-1 ring-current/20' : 'border-border text-muted-foreground hover:border-muted-foreground/40')}>
                                 <Icon className="h-3.5 w-3.5" />
                                 <span className="hidden sm:inline">{t.label}</span>
@@ -763,51 +697,26 @@ export default function NewExpedientPage() {
                 planName={planName}
                 selectedFamilyMember={selectedFamilyMember}
                 aiPriorityResult={aiPriorityResult}
-                showConsumptions={showConsumptions}
-                loadingConsumptions={loadingConsumptions}
-                consumptions={consumptions}
-                detailedConsumptions={detailedConsumptions}
-                practiceItems={practiceItems}
-                consumptionDateFrom={consumptionDateFrom}
-                consumptionDateTo={consumptionDateTo}
-                consumptionPracticeFilter={consumptionPracticeFilter}
-                showConsumptionFilters={showConsumptionFilters}
                 onAffSearchChange={setAffSearch}
                 onSelectAffiliate={selectAffiliate}
                 onClearAffiliate={clearAffiliate}
                 onSelectFamilyMember={setSelectedFamilyMember}
-                onToggleConsumptions={() => {
-                    if (!showConsumptions && consumptions.length === 0) fetchConsumptions();
-                    else setShowConsumptions(prev => !prev);
-                }}
-                onFilterChange={(key, value) => {
-                    if (key === 'from') setConsumptionDateFrom(value);
-                    else if (key === 'to') setConsumptionDateTo(value);
-                    else setConsumptionPracticeFilter(value);
-                }}
-                onClearFilters={() => { setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter(''); }}
-                onToggleFilters={() => setShowConsumptionFilters(prev => !prev)}
                 onViewAttachments={viewAttachments}
-                onAddPractice={addPractice}
                 onViewFullHistory={() => setShowFullHistory(true)}
             />
                 </div>
-                )}
             </div>
 
             {/* Sección 2: Prácticas y Prescripción */}
             <div data-tour="section-2" className="border rounded-xl">
-                <button onClick={() => setActiveSection(activeSection === 2 ? 0 : 2)}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-t-xl">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section2Complete ? 'bg-green-100 text-green-700' : activeSection === 2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                <div className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-t-xl">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${section2Complete ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                         {section2Complete ? <Check className="h-4 w-4" /> : '2'}
                     </div>
                     <span className="font-semibold text-sm flex-1 text-left">Prácticas y Prescripción</span>
                     <HelpTooltip text="Agregá las prácticas médicas, el prescriptor y diagnóstico. El semáforo indica si es auto-aprobable." position="bottom" />
-                    {section2Complete && <span className="text-xs text-muted-foreground mr-2">{practiceItems.length} práctica{practiceItems.length !== 1 ? 's' : ''}</span>}
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 2 ? 'rotate-180' : ''}`} />
-                </button>
-                {activeSection === 2 && (
+                    {section2Complete && <span className="text-xs text-muted-foreground">{practiceItems.length} práctica{practiceItems.length !== 1 ? 's' : ''}</span>}
+                </div>
                 <div className="p-4 space-y-4 border-t">
 
             <PracticeSelector
@@ -881,22 +790,18 @@ export default function NewExpedientPage() {
                     autoSelectOnExactCode={!!diagInitialSearch}
                 />
                 </div>
-                )}
             </div>
 
             {/* Sección 3: Documentos y Envío */}
             <div data-tour="section-3" className="border rounded-xl">
-                <button onClick={() => setActiveSection(activeSection === 3 ? 0 : 3)}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-t-xl">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${activeSection === 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                <div className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-t-xl">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-blue-100 text-blue-700">
                         3
                     </div>
                     <span className="font-semibold text-sm flex-1 text-left">Documentos y Envío</span>
                     <HelpTooltip text="Adjuntá la orden médica (obligatoria) y documentación adicional. Dejá notas internas antes de enviar." position="bottom" />
-                    {files.length > 0 && <span className="text-xs text-muted-foreground mr-2">{files.length} archivo{files.length !== 1 ? 's' : ''}</span>}
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeSection === 3 ? 'rotate-180' : ''}`} />
-                </button>
-                {activeSection === 3 && (
+                    {files.length > 0 && <span className="text-xs text-muted-foreground">{files.length} archivo{files.length !== 1 ? 's' : ''}</span>}
+                </div>
                 <div className="p-4 space-y-4 border-t">
 
                 <AttachmentsPanel
@@ -962,7 +867,6 @@ export default function NewExpedientPage() {
             />
 
                 </div>
-                )}
             </div>
 
             <ConsumptionHistoryModal
