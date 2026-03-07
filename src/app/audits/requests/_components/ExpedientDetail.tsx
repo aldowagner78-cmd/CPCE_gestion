@@ -245,11 +245,16 @@ export function ExpedientDetail({ expedient: initialExpedient, onAction: _onActi
                             Tomar para revisión
                         </Button>
                     )}
-                    {hasAuthorizedPractices && (
-                        <Button variant="outline" size="sm" onClick={() => generateExpedientPDF(expedient)} title="Imprimir constancia">
-                            <Printer className="h-4 w-4 mr-1" /> Constancia
-                        </Button>
-                    )}
+                    {/* Imprimir — siempre visible; "Constancia" solo cuando hay prácticas autorizadas */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => generateExpedientPDF(expedient)}
+                        title={hasAuthorizedPractices ? 'Imprimir constancia de autorización' : 'Imprimir borrador del expediente'}
+                    >
+                        <Printer className="h-4 w-4 mr-1" />
+                        {hasAuthorizedPractices ? 'Constancia' : 'Imprimir'}
+                    </Button>
                     {isObserved && isAdmin && (
                         <Button className="flex-1 bg-orange-600 hover:bg-orange-700" size="sm" onClick={handleResubmit} disabled={resolving}>
                             {resolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}

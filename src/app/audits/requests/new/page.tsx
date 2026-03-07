@@ -703,6 +703,7 @@ export default function NewExpedientPage() {
                 onSelectFamilyMember={setSelectedFamilyMember}
                 onViewAttachments={viewAttachments}
                 onViewFullHistory={() => setShowFullHistory(true)}
+                waitingPeriodMonths={affiliatePlan?.rules?.waiting_period_months ?? 0}
             />
                 </div>
             </div>

@@ -19,6 +19,14 @@ function calcAge(birthDate: string | null | undefined): number | null {
     return age;
 }
 
+function calcCarencia(startDate: string | null | undefined, waitingMonths: number): { ok: boolean; months: number } {
+    if (!startDate || waitingMonths <= 0) return { ok: true, months: 0 };
+    const start = new Date(startDate);
+    const now = new Date();
+    const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    return { ok: months >= waitingMonths, months };
+}
+
 function formatSpecialConditions(sc: unknown): string[] {
     if (!sc) return [];
     if (Array.isArray(sc)) return sc.filter(Boolean).map(String);
@@ -42,6 +50,7 @@ interface AffiliateSearchProps {
     onSelectFamilyMember: (m: Affiliate | null) => void;
     onViewAttachments: (expedientId: string, expedientNumber: string) => void;
     onViewFullHistory?: () => void;
+    waitingPeriodMonths?: number;
 }
 
 export function AffiliateSearch({
@@ -50,11 +59,13 @@ export function AffiliateSearch({
     selectedFamilyMember, aiPriorityResult,
     onAffSearchChange, onSelectAffiliate, onClearAffiliate, onSelectFamilyMember,
     onViewAttachments, onViewFullHistory,
+    waitingPeriodMonths = 0,
 }: AffiliateSearchProps) {
     const age = affiliate ? calcAge(affiliate.birth_date) : null;
     const specialConds = affiliate ? formatSpecialConditions(affiliate.special_conditions) : [];
     const isAffiliateActive = affiliate?.status === 'activo';
     const isAffiliateBlocked = affiliate && !isAffiliateActive;
+    const carencia = affiliate ? calcCarencia(affiliate.start_date, waitingPeriodMonths) : null;
 
     return (
         <div className="space-y-2">
@@ -162,8 +173,21 @@ export function AffiliateSearch({
                                 ● {affiliate.status === 'activo' ? 'Activo' : affiliate.status === 'suspendido' ? 'Suspendido' : 'Baja'}
                             </span>
                         </div>
-                        {affiliate.start_date && <div className="text-xs text-muted-foreground">Alta: {new Date(affiliate.start_date).toLocaleDateString('es-AR')}</div>}
-                        {affiliate.agreement && <div className="text-xs text-muted-foreground truncate">Convenio: {affiliate.agreement}</div>}
+                    {affiliate.start_date && <div className="text-xs text-muted-foreground">Alta: {new Date(affiliate.start_date).toLocaleDateString('es-AR')}</div>}
+                        {affiliate.end_date && (
+                            <div className="text-xs font-medium text-red-600">Baja: {new Date(affiliate.end_date).toLocaleDateString('es-AR')}</div>
+                        )}
+                        {carencia && waitingPeriodMonths > 0 && (
+                            <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full w-fit ${
+                                carencia.ok
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-red-100 text-red-700'
+                            }`}>
+                                {carencia.ok
+                                    ? `✓ Carencia: Ok`
+                                    : `✗ Carencia: ${carencia.months}/${waitingPeriodMonths} meses`}
+                            </div>
+                        )}
                         {affiliate.phone && <div className="flex items-center gap-1.5 text-muted-foreground"><Phone className="h-3.5 w-3.5" /><span className="text-xs">{affiliate.phone}</span></div>}
                         {affiliate.email && <div className="flex items-center gap-1.5 text-muted-foreground"><Mail className="h-3.5 w-3.5" /><span className="text-xs truncate">{affiliate.email}</span></div>}
                         {(affiliate.city || affiliate.address) && (
