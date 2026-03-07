@@ -226,40 +226,9 @@ export function AffiliateSearch({
 
                     {/* Panel Cuota / Padrón — OCULTO para administrativos/auditores.
                         Reservado para vista gerencial cuando se definan roles de usuario.
-                        Ver: /memories/repo/roles_y_funciones_pendientes.md */}
-                    {false && (affiliate.quota_coefficient || affiliate.agreement || affiliate.quota_debt || affiliate.copay_debt) && (
-                        <div className="mx-4 mb-3 p-3 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-lg">
-                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Cuota / Padrón</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
-                                {affiliate.agreement && (
-                                    <div><span className="text-muted-foreground">Convenio: </span><span className="font-medium">{affiliate.agreement}</span></div>
-                                )}
-                                {affiliate.quota_coefficient !== undefined && affiliate.quota_coefficient !== null && (
-                                    <div><span className="text-muted-foreground">Coef.: </span><span className="font-medium">{affiliate.quota_coefficient}</span></div>
-                                )}
-                                {(affiliate.children_count !== undefined && affiliate.children_count !== null) && (
-                                    <div><span className="text-muted-foreground">Hijos: </span><span className="font-medium">{affiliate.children_count}</span></div>
-                                )}
-                                {Number(affiliate.quota_debt) > 0 && (
-                                    <div className="col-span-2 sm:col-span-1">
-                                        <span className="text-muted-foreground">Deuda cuota: </span>
-                                        <span className="font-bold text-red-600">${Number(affiliate.quota_debt).toLocaleString('es-AR')}</span>
-                                        {affiliate.quota_coefficient && Number(affiliate.quota_coefficient) > 0 && (
-                                            <span className="text-muted-foreground ml-1">
-                                                (~{Math.round(Number(affiliate.quota_debt) / Number(affiliate.quota_coefficient))} mes{Math.round(Number(affiliate.quota_debt) / Number(affiliate.quota_coefficient)) !== 1 ? 'es' : ''})
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                                {Number(affiliate.copay_debt) > 0 && (
-                                    <div>
-                                        <span className="text-muted-foreground">Deuda coseguro: </span>
-                                        <span className="font-bold text-orange-600">${Number(affiliate.copay_debt).toLocaleString('es-AR')}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                        Ver: /memories/repo/roles_y_funciones_pendientes.md
+                        Para habilitar: reemplazar "null" por el JSX del panel. */}
+                    {null /* panel cuota/padron */}
 
                     {isAffiliateActive && (
                         <div className="px-4 pb-3">

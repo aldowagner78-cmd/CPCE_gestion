@@ -737,7 +737,6 @@ export default function NewExpedientPage() {
                 onAddPractice={addPractice}
                 onRemovePractice={removePractice}
                 onUpdateQuantity={updateQuantity}
-                onUpdatePracticeField={updatePracticeField}
                 onViewHistory={(id, name) => setViewingHistoryFor({ id, name })}
                 jurisdictionId={activeJurisdiction?.id ?? 1}
                 affiliateSelected={!!affiliate}
