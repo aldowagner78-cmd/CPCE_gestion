@@ -27,6 +27,8 @@ function formatSpecialConditions(sc: unknown): string[] {
 }
 
 interface AffiliateSearchProps {
+    affiliateNumberInput: string;
+    onAffiliateNumberChange: (v: string) => void;
     affSearch: string;
     affResults: Affiliate[];
     affiliate: Affiliate | null;
@@ -56,6 +58,7 @@ interface AffiliateSearchProps {
 }
 
 export function AffiliateSearch({
+    affiliateNumberInput, onAffiliateNumberChange,
     affSearch, affResults, affiliate, searchingAff, planName,
     selectedFamilyMember, aiPriorityResult,
     showConsumptions, loadingConsumptions, consumptions, detailedConsumptions, practiceItems,
@@ -74,43 +77,57 @@ export function AffiliateSearch({
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Afiliado *</label>
 
             {!affiliate ? (
-                <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar por nombre, DNI o nro. de afiliado..."
-                        value={affSearch}
-                        onChange={e => onAffSearchChange(e.target.value)}
-                        className="pl-9"
-                        autoFocus
-                    />
-                    {searchingAff && <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando afiliados...</p>}
-                    {affResults.length > 0 && (
-                        <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                            {affResults.map(a => {
-                                const aAge = calcAge(a.birth_date);
-                                return (
-                                    <button key={String(a.id)} onClick={() => onSelectAffiliate(a)}
-                                        className="w-full px-3 py-2.5 text-left hover:bg-muted/50 text-sm border-b last:border-0 flex items-center gap-3">
-                                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                                        <div className="min-w-0 flex-1">
-                                            <div className="font-semibold truncate">{a.full_name}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                                DNI {a.document_number}
-                                                {a.affiliate_number && ` · Nro ${a.affiliate_number}`}
-                                                {aAge !== null && ` · ${aAge} años`}
-                                                {a.relationship && ` · ${a.relationship}`}
+                <div className="space-y-2">
+                    {/* Campo principal: número de afiliado */}
+                    <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-xs font-bold text-muted-foreground select-none">#</span>
+                        <Input
+                            placeholder="Nro. de afiliado (carga automática)"
+                            value={affiliateNumberInput}
+                            onChange={e => onAffiliateNumberChange(e.target.value.replace(/\D/g, ''))}
+                            className="pl-7 font-mono"
+                            inputMode="numeric"
+                        />
+                    </div>
+                    <div className="relative text-xs text-muted-foreground text-center">— o buscar por —</div>
+                    {/* Campo secundario: nombre / DNI */}
+                    <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Nombre o DNI..."
+                            value={affSearch}
+                            onChange={e => onAffSearchChange(e.target.value)}
+                            className="pl-9"
+                        />
+                        {affResults.length > 0 && (
+                            <div className="absolute z-20 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                                {affResults.map(a => {
+                                    const aAge = calcAge(a.birth_date);
+                                    return (
+                                        <button key={String(a.id)} onClick={() => onSelectAffiliate(a)}
+                                            className="w-full px-3 py-2.5 text-left hover:bg-muted/50 text-sm border-b last:border-0 flex items-center gap-3">
+                                            <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="font-semibold truncate">{a.full_name}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    DNI {a.document_number}
+                                                    {a.affiliate_number && ` · Nro ${a.affiliate_number}`}
+                                                    {aAge !== null && ` · ${aAge} años`}
+                                                    {a.relationship && ` · ${a.relationship}`}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${a.status === 'activo' ? 'bg-green-100 text-green-700' : a.status === 'suspendido' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                            {a.status}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                    {affSearch.length >= 2 && !searchingAff && affResults.length === 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">No se encontraron afiliados</p>
+                                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${a.status === 'activo' ? 'bg-green-100 text-green-700' : a.status === 'suspendido' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                {a.status}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                    {searchingAff && <p className="text-xs text-muted-foreground animate-pulse">Buscando afiliados...</p>}
+                    {(affSearch.length >= 2 || affiliateNumberInput.length >= 3) && !searchingAff && affResults.length === 0 && (
+                        <p className="text-xs text-muted-foreground">No se encontraron afiliados</p>
                     )}
                 </div>
             ) : (

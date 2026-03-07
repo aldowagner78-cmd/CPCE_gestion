@@ -688,6 +688,142 @@ export interface Database {
                     performed_at?: string
                 }
             }
+            repositions: {
+                Row: {
+                    id: string
+                    affiliate_id: string | null
+                    family_member_relation: string | null
+                    practice_id: number | null
+                    material_code: string | null
+                    material_description: string | null
+                    quantity: number
+                    unit_price: number | null
+                    total_amount: number | null
+                    surgical_protocol_url: string | null
+                    implant_certificate_url: string | null
+                    stickers_photo_url: string | null
+                    procedure_date: string | null
+                    facility_id: number | null
+                    surgeon_name: string | null
+                    diagnosis_code: string | null
+                    diagnosis_name: string | null
+                    status: 'pendiente' | 'en_revision' | 'aprobada' | 'rechazada' | 'pagada' | 'anulada'
+                    request_date: string
+                    resolution_date: string | null
+                    approved_amount: number | null
+                    auditor_id: string | null
+                    resolution_notes: string | null
+                    expedient_id: string | null
+                    jurisdiction_id: number
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    affiliate_id?: string | null
+                    family_member_relation?: string | null
+                    practice_id?: number | null
+                    material_code?: string | null
+                    material_description?: string | null
+                    quantity?: number
+                    unit_price?: number | null
+                    total_amount?: number | null
+                    surgical_protocol_url?: string | null
+                    implant_certificate_url?: string | null
+                    stickers_photo_url?: string | null
+                    procedure_date?: string | null
+                    facility_id?: number | null
+                    surgeon_name?: string | null
+                    diagnosis_code?: string | null
+                    diagnosis_name?: string | null
+                    status?: 'pendiente' | 'en_revision' | 'aprobada' | 'rechazada' | 'pagada' | 'anulada'
+                    request_date?: string
+                    resolution_date?: string | null
+                    approved_amount?: number | null
+                    auditor_id?: string | null
+                    resolution_notes?: string | null
+                    expedient_id?: string | null
+                    jurisdiction_id: number
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    affiliate_id?: string | null
+                    family_member_relation?: string | null
+                    practice_id?: number | null
+                    material_code?: string | null
+                    material_description?: string | null
+                    quantity?: number
+                    unit_price?: number | null
+                    total_amount?: number | null
+                    surgical_protocol_url?: string | null
+                    implant_certificate_url?: string | null
+                    stickers_photo_url?: string | null
+                    procedure_date?: string | null
+                    facility_id?: number | null
+                    surgeon_name?: string | null
+                    diagnosis_code?: string | null
+                    diagnosis_name?: string | null
+                    status?: 'pendiente' | 'en_revision' | 'aprobada' | 'rechazada' | 'pagada' | 'anulada'
+                    request_date?: string
+                    resolution_date?: string | null
+                    approved_amount?: number | null
+                    auditor_id?: string | null
+                    resolution_notes?: string | null
+                    expedient_id?: string | null
+                    jurisdiction_id?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            coseguro_rules: {
+                Row: {
+                    id: number
+                    description: string
+                    plan_id: number | null
+                    practice_type_id: number | null
+                    practice_category: string | null
+                    practice_code: string | null
+                    special_condition: string | null
+                    coseguro_percent: number
+                    valid_from: string
+                    valid_to: string | null
+                    is_active: boolean
+                    jurisdiction_id: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: number
+                    description: string
+                    plan_id?: number | null
+                    practice_type_id?: number | null
+                    practice_category?: string | null
+                    practice_code?: string | null
+                    special_condition?: string | null
+                    coseguro_percent: number
+                    valid_from?: string
+                    valid_to?: string | null
+                    is_active?: boolean
+                    jurisdiction_id: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: number
+                    description?: string
+                    plan_id?: number | null
+                    practice_type_id?: number | null
+                    practice_category?: string | null
+                    practice_code?: string | null
+                    special_condition?: string | null
+                    coseguro_percent?: number
+                    valid_from?: string
+                    valid_to?: string | null
+                    is_active?: boolean
+                    jurisdiction_id?: number
+                    created_at?: string
+                }
+            }
         }
     }
 }
@@ -713,3 +849,9 @@ export type AuditInsert = Database['public']['Tables']['audits']['Insert']
 export type AlertInsert = Database['public']['Tables']['alerts']['Insert']
 export type EventInsert = Database['public']['Tables']['events']['Insert']
 export type MessageInsert = Database['public']['Tables']['messages']['Insert']
+export type RepositionInsert = Database['public']['Tables']['repositions']['Insert']
+export type CoseguroRuleInsert = Database['public']['Tables']['coseguro_rules']['Insert']
+
+// Tipos de fila
+export type Reposition = Database['public']['Tables']['repositions']['Row']
+export type CoseguroRuleRow = Database['public']['Tables']['coseguro_rules']['Row']

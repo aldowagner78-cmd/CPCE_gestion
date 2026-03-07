@@ -15,6 +15,8 @@ import {
     DollarSign,
     Pause,
     RotateCcw,
+    PackagePlus,
+    HeartHandshake,
 } from 'lucide-react';
 import type {
     ExpedientType,
@@ -32,6 +34,8 @@ export const TYPE_CONFIG: Record<ExpedientType, { label: string; icon: React.Ele
     programas_especiales: { label: 'Prog. Especial', icon: Shield, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
     elementos: { label: 'Elementos', icon: Pill, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300' },
     reintegros: { label: 'Reintegro', icon: DollarSign, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
+    reposiciones: { label: 'Reposicion', icon: PackagePlus, color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' },
+    subsidios: { label: 'Subsidio', icon: HeartHandshake, color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' },
 };
 
 export const STATUS_CONFIG: Record<ExpedientStatus, { label: string; color: string; icon: React.ElementType }> = {

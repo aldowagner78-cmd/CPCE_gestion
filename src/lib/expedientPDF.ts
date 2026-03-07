@@ -13,6 +13,8 @@ const TYPE_LABELS: Record<ExpedientType, string> = {
     programas_especiales: 'Programas Especiales',
     elementos: 'Elementos / Prótesis',
     reintegros: 'Reintegro',
+    reposiciones: 'Reposición de Materiales',
+    subsidios: 'Subsidio',
 };
 
 const fmtCurrency = (v: number) =>

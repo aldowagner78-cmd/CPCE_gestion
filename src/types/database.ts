@@ -622,6 +622,8 @@ export type ExpedientType =
     | 'programas_especiales'
     | 'elementos'
     | 'reintegros'
+    | 'reposiciones'
+    | 'subsidios'
 
 export type ExpedientStatus =
     | 'borrador'
@@ -922,6 +924,82 @@ export type DebitType =
     | 'autorizacion_vencida'
     | 'duplicada'
     | 'otro'
+
+// ── Reposiciones (materiales quirúrgicos) ──
+
+export type RepositionStatus =
+    | 'pendiente'
+    | 'en_revision'
+    | 'aprobada'
+    | 'rechazada'
+    | 'pagada'
+    | 'anulada'
+
+export type Reposition = {
+    id: string
+    affiliate_id: string | null
+    family_member_relation: string | null
+    practice_id: number | null
+    material_code: string | null
+    material_description: string | null
+    quantity: number
+    unit_price: number | null
+    total_amount: number | null
+    surgical_protocol_url: string | null
+    implant_certificate_url: string | null
+    stickers_photo_url: string | null
+    procedure_date: string | null
+    facility_id: number | null
+    surgeon_name: string | null
+    diagnosis_code: string | null
+    diagnosis_name: string | null
+    status: RepositionStatus
+    request_date: string
+    resolution_date: string | null
+    approved_amount: number | null
+    auditor_id: string | null
+    resolution_notes: string | null
+    expedient_id: string | null
+    jurisdiction_id: number
+    created_at: string
+    updated_at: string
+}
+
+// ── Reglas de Coseguro ──
+
+export type CoseguroRule = {
+    id: number
+    description: string
+    plan_id: number | null
+    practice_type_id: number | null
+    practice_category: string | null
+    practice_code: string | null
+    special_condition: string | null
+    coseguro_percent: number
+    valid_from: string
+    valid_to: string | null
+    is_active: boolean
+    jurisdiction_id: number
+    created_at: string
+}
+
+// ── Historial unificado de afiliado ──
+
+export type NomenclatorAbbr = 'MED' | 'BIO' | 'ODO' | 'FAR' | 'N/N'
+
+export type AffiliateHistoryRow = {
+    type: 'auth' | 'reimbursement' | 'reposition' | 'special'
+    practice_name: string
+    practice_code: string
+    nomenclator_abbr: NomenclatorAbbr
+    date: string
+    reference: string
+    status: string
+    total_value: number
+    coseguro: number
+    source_id: string
+    source_table: 'expedient_practices' | 'reimbursements' | 'repositions'
+}
 
 export type PostAuditIssue = {
     type: string

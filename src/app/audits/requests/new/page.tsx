@@ -17,6 +17,7 @@ import {
     AlertCircle, ArrowLeft, Check, ChevronDown, Sparkles, PenLine,
     Stethoscope, FlaskConical, Building2, Smile,
     ShieldCheck, Package, DollarSign, User,
+    PackagePlus, HeartHandshake,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -58,13 +59,44 @@ const EXPEDIENT_TYPES: { value: ExpedientType; label: string; short: string; ico
     { value: 'programas_especiales', label: 'Prog. Especiales', short: 'Prog', icon: ShieldCheck, cls: 'text-amber-700 bg-amber-50 border-amber-300' },
     { value: 'elementos', label: 'Elementos', short: 'Elem', icon: Package, cls: 'text-cyan-700 bg-cyan-50 border-cyan-300' },
     { value: 'reintegros', label: 'Reintegros', short: 'Rein', icon: DollarSign, cls: 'text-orange-700 bg-orange-50 border-orange-300' },
+    { value: 'reposiciones', label: 'Reposiciones', short: 'Rep', icon: PackagePlus, cls: 'text-indigo-700 bg-indigo-50 border-indigo-300' },
+    { value: 'subsidios', label: 'Subsidios', short: 'Sub', icon: HeartHandshake, cls: 'text-rose-700 bg-rose-50 border-rose-300' },
 ];
+
+// FASE 9: Mapeo de tipo de nomenclador al tipo de expediente correspondiente
+const NOMENCLATOR_TO_EXPEDIENT: Record<string, ExpedientType> = {
+    medico: 'ambulatoria',
+    bioquimico: 'bioquimica',
+    odontologico: 'odontologica',
+};
+
+/**
+ * Infiere el tipo de expediente según los nomencladores de las prácticas.
+ * Devuelve null si las prácticas son mixtas (sugiere programas_especiales).
+ */
+function inferExpedientType(items: PracticeItem[]): { type: ExpedientType; mixed: boolean } | null {
+    if (items.length === 0) return null;
+    const types = new Set<ExpedientType | null>(items.map(pi => {
+        const nt = pi.practice.nomenclator_type ?? '';
+        return NOMENCLATOR_TO_EXPEDIENT[nt] ?? null;
+    }));
+    // Si alguna práctica no tiene tipo mapeado (farmacia, N/N) → no infiere
+    if (types.has(null)) return null;
+    const typesClean = [...types].filter((t): t is ExpedientType => t !== null);
+    const uniqueSet = new Set(typesClean);
+    if (uniqueSet.size === 1) {
+        return { type: typesClean[0], mixed: false };
+    }
+    // Más de un tipo → mezcla de nomencladores
+    return { type: 'programas_especiales', mixed: true };
+}
 
 export default function NewExpedientPage() {
     const { user } = useAuth();
     const { activeJurisdiction } = useJurisdiction();
 
     const [expedientType, setExpedientType] = useState<ExpedientType>('ambulatoria');
+    const [affiliateNumberInput, setAffiliateNumberInput] = useState('');
     const [affSearch, setAffSearch] = useState('');
     const [affResults, setAffResults] = useState<Affiliate[]>([]);
     const [affiliate, setAffiliate] = useState<Affiliate | null>(null);
@@ -246,6 +278,13 @@ export default function NewExpedientPage() {
     useEffect(() => { const t = setTimeout(() => { if (affSearch) searchAffs(affSearch); }, 300); return () => clearTimeout(t); }, [affSearch, searchAffs]);
     useEffect(() => { const t = setTimeout(() => { if (pracSearch) searchPracs(pracSearch); }, 300); return () => clearTimeout(t); }, [pracSearch, searchPracs]);
 
+    // FASE 9: Auto-clasificar tipo de expediente según nomencladores de prácticas
+    useEffect(() => {
+        const inferred = inferExpedientType(practiceItems);
+        if (!inferred) return;
+        setExpedientType(inferred.type);
+    }, [practiceItems]);
+
     useEffect(() => {
         (async () => {
             const { data } = await supabase.from('users').select('id, full_name, role').in('role', ['auditor', 'supervisor']).eq('is_active', true).order('full_name');
@@ -291,7 +330,7 @@ export default function NewExpedientPage() {
     }, [practiceKey, affiliate?.id, affiliatePlan?.id, expedientType, activeJurisdiction?.id]);
 
     const selectAffiliate = useCallback(async (a: Affiliate) => {
-        setAffiliate(a); setAffResults([]); setAffSearch('');
+        setAffiliate(a); setAffResults([]); setAffSearch(''); setAffiliateNumberInput('');
         setRulesEvaluated(false); setRulesResult(null);
         setSelectedFamilyMember(null); setAiPriorityResult(null);
         setCoherenceResult(null); setOcrResult(null);
@@ -310,11 +349,40 @@ export default function NewExpedientPage() {
     }, [affResults, affiliate, aiAffName, selectAffiliate]);
 
     const clearAffiliate = useCallback(() => {
-        setAffiliate(null); setAffSearch(''); setShowConsumptions(false);
+        setAffiliate(null); setAffSearch(''); setAffiliateNumberInput(''); setShowConsumptions(false);
         setConsumptions([]); setDetailedConsumptions([]); setPlanName('');
         setAffiliatePlan(null); setRulesResult(null); setAiAffName(null);
         setConsumptionDateFrom(''); setConsumptionDateTo(''); setConsumptionPracticeFilter('');
     }, []);
+
+    // Búsqueda por número exacto de afiliado (auto-carga)
+    const searchAffByNumber = useCallback(async (num: string) => {
+        if (num.length < 3 || affiliate) return;
+        setSearchingAff(true);
+        try {
+            const { data } = await supabase.from('affiliates').select('*')
+                .eq('affiliate_number', num)
+                .eq('jurisdiction_id', activeJurisdiction?.id || 1)
+                .limit(1);
+            if (data && data.length === 1) {
+                await selectAffiliate(data[0] as Affiliate);
+            } else {
+                // Fallback: buscar por prefijo
+                const { data: partial } = await supabase.from('affiliates').select('*')
+                    .ilike('affiliate_number', num + '%')
+                    .eq('jurisdiction_id', activeJurisdiction?.id || 1)
+                    .order('affiliate_number').limit(10);
+                setAffResults((partial || []) as Affiliate[]);
+            }
+        } catch { /* silently fail */ }
+        setSearchingAff(false);
+    }, [affiliate, activeJurisdiction, selectAffiliate]);
+
+    useEffect(() => {
+        if (!affiliateNumberInput || affiliate) return;
+        const t = setTimeout(() => searchAffByNumber(affiliateNumberInput), 300);
+        return () => clearTimeout(t);
+    }, [affiliateNumberInput, affiliate, searchAffByNumber]);
 
     const addPractice = (practice: Practice) => {
         if (practiceItems.some(pi => pi.practice.id === practice.id)) return;
@@ -683,6 +751,8 @@ export default function NewExpedientPage() {
             </div>
 
             <AffiliateSearch
+                affiliateNumberInput={affiliateNumberInput}
+                onAffiliateNumberChange={setAffiliateNumberInput}
                 affSearch={affSearch}
                 affResults={affResults}
                 affiliate={affiliate}
