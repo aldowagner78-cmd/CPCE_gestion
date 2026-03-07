@@ -149,7 +149,7 @@ export function Sidebar() {
                     <div className="h-px bg-border w-full" />
                 </div>
 
-                <nav className="flex-1 min-h-0 px-4 pt-1 pb-20 md:pb-6 space-y-1 overflow-y-auto overscroll-contain scroll-smooth">
+                <nav className="flex-1 min-h-0 px-4 pt-1 pb-20 md:pb-[100vh] space-y-1 overflow-y-auto overscroll-contain scroll-smooth">
                     {/* Buscador como primer item */}
                     <Link
                         href="/buscador"

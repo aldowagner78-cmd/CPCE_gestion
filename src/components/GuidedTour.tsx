@@ -117,6 +117,11 @@ const REVIEW_STEPS: Step[] = [
     },
 ];
 
+// ── Feature flag ── 
+// Tour deshabilitado temporalmente; los contenidos están desactualizados
+// respecto a los cambios en curso. Re-habilitar al final del desarrollo.
+const TOURS_ENABLED = false;
+
 type TourId = 'dashboard' | 'creation' | 'review';
 
 const TOURS: Record<TourId, Step[]> = {
@@ -155,7 +160,7 @@ export function useOnboarding(tourId: TourId) {
     const [hasChecked, setHasChecked] = useState(false);
 
     useEffect(() => {
-        if (!user || hasChecked) return;
+        if (!TOURS_ENABLED || !user || hasChecked) return;
         // Small delay to let DOM targets mount
         const timer = setTimeout(() => {
             const completed = getCompletedTours();

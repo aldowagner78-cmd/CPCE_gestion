@@ -3,6 +3,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { HelpCircle } from 'lucide-react';
 
+// ── Feature flag ──────────────────────────────────────────────────────────────
+// Deshabilitado temporalmente: la implementación actual tiene fondo negro y texto
+// extenso que no se adapta bien al diseño vigente.
+// Para re-habilitar: cambiar a `true`.
+const HELP_TOOLTIP_ENABLED = false;
+
 interface HelpTooltipProps {
     text: string;
     /** Position relative to the icon */
@@ -27,6 +33,9 @@ export function HelpTooltip({ text, position = 'top', size = 14, className = '' 
     };
 
     useEffect(() => () => clearTimeout(timeoutRef.current), []);
+
+    // Renderiza solo el ícono (sin popup) mientras el flag está apagado
+    if (!HELP_TOOLTIP_ENABLED) return null;
 
     const positionClasses: Record<string, string> = {
         top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
