@@ -41,6 +41,15 @@ const supabase = createClient();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: string): any => supabase.from(table as any);
 
+/**
+ * CARGA ASISTIDA POR IA
+ * Actualmente desactivada por costo y velocidad de los modelos.
+ * Para reactivar: cambiar false → true
+ * Los componentes AIUploadModal, OCRUpload y la API /api/ai/parse-document
+ * se conservan intactos para uso futuro.
+ */
+const ENABLE_AI_UPLOAD = false;
+
 const EXPEDIENT_TYPES: { value: ExpedientType; label: string; short: string; icon: React.ElementType; cls: string }[] = [
     { value: 'ambulatoria', label: 'Ambulatoria', short: 'Amb', icon: Stethoscope, cls: 'text-blue-700 bg-blue-50 border-blue-300' },
     { value: 'bioquimica', label: 'Bioquimica', short: 'Bio', icon: FlaskConical, cls: 'text-emerald-700 bg-emerald-50 border-emerald-300' },
@@ -624,19 +633,22 @@ export default function NewExpedientPage() {
                 </div>
             </div>
 
-            {/* Tabs IA / Manual */}
-            <div data-tour="mode-tabs" className="flex rounded-lg border bg-muted/30 p-0.5">
-                <button onClick={() => setLoadMode('ia')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${loadMode === 'ia' ? 'bg-white shadow-sm text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
-                    <Sparkles className="h-4 w-4" /> Carga con IA
-                </button>
-                <button onClick={() => setLoadMode('manual')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${loadMode === 'manual' ? 'bg-white shadow-sm text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
-                    <PenLine className="h-4 w-4" /> Carga Manual
-                </button>
-            </div>
-
-            {loadMode === 'ia' && <AIUploadModal onDataParsed={handleAIParsed} />}
+            {/* Tabs IA / Manual — ocultos hasta que ENABLE_AI_UPLOAD = true */}
+            {ENABLE_AI_UPLOAD && (
+                <>
+                <div data-tour="mode-tabs" className="flex rounded-lg border bg-muted/30 p-0.5">
+                    <button onClick={() => setLoadMode('ia')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${loadMode === 'ia' ? 'bg-white shadow-sm text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
+                        <Sparkles className="h-4 w-4" /> Carga con IA
+                    </button>
+                    <button onClick={() => setLoadMode('manual')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${loadMode === 'manual' ? 'bg-white shadow-sm text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
+                        <PenLine className="h-4 w-4" /> Carga Manual
+                    </button>
+                </div>
+                {loadMode === 'ia' && <AIUploadModal onDataParsed={handleAIParsed} />}
+                </>
+            )}
 
             {/* Sección 1: Tipo y Afiliado */}
             <div data-tour="section-1" className="border rounded-xl">
