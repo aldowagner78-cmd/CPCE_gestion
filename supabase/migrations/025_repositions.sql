@@ -4,14 +4,18 @@
 -- en urgencias sin autorización previa y que se reponen a posteriori.
 -- ============================================================
 
-CREATE TYPE IF NOT EXISTS reposition_status AS ENUM (
-    'pendiente',
-    'en_revision',
-    'aprobada',
-    'rechazada',
-    'pagada',
-    'anulada'
-);
+DO $$ BEGIN
+    CREATE TYPE reposition_status AS ENUM (
+        'pendiente',
+        'en_revision',
+        'aprobada',
+        'rechazada',
+        'pagada',
+        'anulada'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.repositions (
     id                      UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
