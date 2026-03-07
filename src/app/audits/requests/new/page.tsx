@@ -35,6 +35,7 @@ import { SubmitPreview } from './_components/SubmitPreview';
 import { SuccessView } from './_components/SuccessView';
 import { AttachmentsModal } from './_components/HistoryModals';
 import { ConsumptionHistoryModal } from './_components/ConsumptionHistoryModal';
+import { AffiliateFullHistoryModal } from './_components/AffiliateFullHistoryModal';
 import { GuidedTour } from '@/components/GuidedTour';
 import { HelpTooltip } from '@/components/HelpTooltip';
 import type { PracticeItem, PendingFile, ChatMessage, DetailedConsumption } from './_components/types';
@@ -113,6 +114,7 @@ export default function NewExpedientPage() {
     const [consumptionPracticeFilter, setConsumptionPracticeFilter] = useState('');
     const [showConsumptionFilters, setShowConsumptionFilters] = useState(false);
     const [viewingHistoryFor, setViewingHistoryFor] = useState<{ id: number; name: string } | null>(null);
+    const [showFullHistory, setShowFullHistory] = useState(false);
     const [pracSearch, setPracSearch] = useState('');
     const [pracResults, setPracResults] = useState<Practice[]>([]);
     const [searchingPrac, setSearchingPrac] = useState(false);
@@ -787,6 +789,7 @@ export default function NewExpedientPage() {
                 onToggleFilters={() => setShowConsumptionFilters(prev => !prev)}
                 onViewAttachments={viewAttachments}
                 onAddPractice={addPractice}
+                onViewFullHistory={() => setShowFullHistory(true)}
             />
                 </div>
                 )}
@@ -967,6 +970,14 @@ export default function NewExpedientPage() {
                 practiceName={viewingHistoryFor?.name ?? ''}
                 affiliateId={affiliate ? String(affiliate.id) : null}
                 onClose={() => setViewingHistoryFor(null)}
+            />
+
+            <AffiliateFullHistoryModal
+                affiliateId={showFullHistory && affiliate ? String(affiliate.id) : null}
+                affiliateName={affiliate?.full_name ?? ''}
+                affiliateNumber={affiliate?.affiliate_number}
+                planName={planName}
+                onClose={() => setShowFullHistory(false)}
             />
 
             <AttachmentsModal

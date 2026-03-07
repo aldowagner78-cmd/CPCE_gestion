@@ -9,6 +9,7 @@ import type { ClinicalPriorityResult } from '@/services/aiService';
 import { FamilyMemberSelector } from '@/components/FamilyMemberSelector';
 import { AffiliateConsumptions } from './AffiliateConsumptions';
 import type { DetailedConsumption, PracticeItem } from './types';
+import { History } from 'lucide-react';
 
 function calcAge(birthDate: string | null | undefined): number | null {
     if (!birthDate) return null;
@@ -55,6 +56,7 @@ interface AffiliateSearchProps {
     onToggleFilters: () => void;
     onViewAttachments: (expedientId: string, expedientNumber: string) => void;
     onAddPractice: (practice: PracticeItem['practice']) => void;
+    onViewFullHistory?: () => void;
 }
 
 export function AffiliateSearch({
@@ -65,7 +67,7 @@ export function AffiliateSearch({
     consumptionDateFrom, consumptionDateTo, consumptionPracticeFilter, showConsumptionFilters,
     onAffSearchChange, onSelectAffiliate, onClearAffiliate, onSelectFamilyMember,
     onToggleConsumptions, onFilterChange, onClearFilters, onToggleFilters,
-    onViewAttachments, onAddPractice,
+    onViewAttachments, onAddPractice, onViewFullHistory,
 }: AffiliateSearchProps) {
     const age = affiliate ? calcAge(affiliate.birth_date) : null;
     const specialConds = affiliate ? formatSpecialConditions(affiliate.special_conditions) : [];
@@ -142,9 +144,21 @@ export function AffiliateSearch({
                                 {affiliate.cuit && ` · CUIT ${affiliate.cuit}`}
                             </p>
                         </div>
-                        <button onClick={onClearAffiliate} className="text-muted-foreground hover:text-foreground p-1">
-                            <X className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {onViewFullHistory && (
+                                <button
+                                    onClick={onViewFullHistory}
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 transition-colors"
+                                    title="Ver historial completo del afiliado"
+                                >
+                                    <History className="h-3.5 w-3.5" />
+                                    Historial
+                                </button>
+                            )}
+                            <button onClick={onClearAffiliate} className="text-muted-foreground hover:text-foreground p-1">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
