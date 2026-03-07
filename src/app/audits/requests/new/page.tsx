@@ -607,7 +607,7 @@ export default function NewExpedientPage() {
     }
 
     return (
-        <div className="max-w-3xl mx-auto p-4 space-y-4">
+        <div className="max-w-5xl mx-auto p-4 space-y-4">
             <GuidedTour tourId="creation" />
             <div className="flex items-center gap-3">
                 <Link href="/audits/requests">
@@ -735,6 +735,8 @@ export default function NewExpedientPage() {
                 onUpdateQuantity={updateQuantity}
                 onViewHistory={(id, name) => setViewingHistoryFor({ id, name })}
                 jurisdictionId={activeJurisdiction?.id ?? 1}
+                affiliateSelected={!!affiliate}
+                onViewFullHistory={() => setShowFullHistory(true)}
             />
 
             <PrescriptionForm

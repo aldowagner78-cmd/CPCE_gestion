@@ -129,7 +129,7 @@ export function NomenclatorSearchModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-background rounded-xl w-full max-w-2xl shadow-xl flex flex-col max-h-[85vh]">
+            <div className="bg-background rounded-xl w-full max-w-4xl shadow-xl flex flex-col max-h-[85vh]">
 
                 {/* Header */}
                 <div className="flex justify-between items-center px-5 py-4 border-b">
