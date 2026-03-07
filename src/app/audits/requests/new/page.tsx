@@ -33,7 +33,8 @@ import { CommunicationPanel } from './_components/CommunicationPanel';
 import { AttachmentsPanel } from './_components/AttachmentsPanel';
 import { SubmitPreview } from './_components/SubmitPreview';
 import { SuccessView } from './_components/SuccessView';
-import { PracticeHistoryModal, AttachmentsModal } from './_components/HistoryModals';
+import { AttachmentsModal } from './_components/HistoryModals';
+import { ConsumptionHistoryModal } from './_components/ConsumptionHistoryModal';
 import { GuidedTour } from '@/components/GuidedTour';
 import { HelpTooltip } from '@/components/HelpTooltip';
 import type { PracticeItem, PendingFile, ChatMessage, DetailedConsumption } from './_components/types';
@@ -821,6 +822,7 @@ export default function NewExpedientPage() {
                 onRemovePractice={removePractice}
                 onUpdateQuantity={updateQuantity}
                 onViewHistory={(id, name) => setViewingHistoryFor({ id, name })}
+                jurisdictionId={activeJurisdiction?.id ?? 1}
             />
 
             <PrescriptionForm
@@ -960,15 +962,11 @@ export default function NewExpedientPage() {
                 )}
             </div>
 
-            <PracticeHistoryModal
-                viewingHistoryFor={viewingHistoryFor}
-                detailedConsumptions={detailedConsumptions}
-                practiceItems={practiceItems}
-                showConsumptions={showConsumptions}
-                loadingConsumptions={loadingConsumptions}
+            <ConsumptionHistoryModal
+                practiceId={viewingHistoryFor?.id ?? null}
+                practiceName={viewingHistoryFor?.name ?? ''}
+                affiliateId={affiliate ? String(affiliate.id) : null}
                 onClose={() => setViewingHistoryFor(null)}
-                onLoadConsumptions={fetchConsumptions}
-                onViewAttachments={viewAttachments}
             />
 
             <AttachmentsModal

@@ -1,10 +1,12 @@
 ﻿'use client';
 
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Search, Trash2, Clock, CheckCircle, AlertTriangle, ShieldAlert, Plus } from 'lucide-react';
 import type { PracticeItem } from './types';
 import type { Practice } from '@/types/database';
 import type { PracticeRuleResult } from '@/services/rulesEngine';
+import { NomenclatorSearchModal } from './NomenclatorSearchModal';
 
 // Mapeo de tipo de nomenclador a abreviatura visible
 const NOMENCLATOR_ABBR: Record<string, string> = {
@@ -38,6 +40,7 @@ interface PracticeSelectorProps {
     yellowCount: number;
     redCount: number;
     totalValue: number;
+    jurisdictionId?: number;
     onPracSearchChange: (v: string) => void;
     onAddPractice: (p: Practice) => void;
     onRemovePractice: (idx: number) => void;
@@ -48,8 +51,11 @@ interface PracticeSelectorProps {
 export function PracticeSelector({
     pracSearch, pracResults, searchingPrac, practiceItems,
     rulesEvaluated, greenCount, yellowCount, redCount, totalValue,
+    jurisdictionId = 1,
     onPracSearchChange, onAddPractice, onRemovePractice, onUpdateQuantity, onViewHistory,
 }: PracticeSelectorProps) {
+
+    const [searchModalOpen, setSearchModalOpen] = useState(false);
 
     const totalCoseguro = practiceItems.reduce((sum, pi) => {
         const rr = pi.ruleResult as PracticeRuleResult | undefined;
@@ -78,13 +84,26 @@ export function PracticeSelector({
 
             {/* Buscador de practicas — siempre visible */}
             <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Buscar por codigo o descripcion (ej: RMN, consulta, 420101)..."
-                    value={pracSearch}
-                    onChange={e => onPracSearchChange(e.target.value)}
-                    className="pl-9"
-                />
+                <div className="flex gap-2 mb-1">
+                    <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Buscar por codigo o descripcion (ej: RMN, consulta, 420101)..."
+                        value={pracSearch}
+                        onChange={e => onPracSearchChange(e.target.value)}
+                        className="pl-9"
+                    />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setSearchModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border rounded-lg text-blue-700 border-blue-300 bg-blue-50 hover:bg-blue-100 transition-colors shrink-0"
+                        title="Buscar con filtros por nomenclador"
+                    >
+                        <Search className="h-3.5 w-3.5" />
+                        Avanzado
+                    </button>
+                </div>
                 {searchingPrac && (
                     <p className="text-xs text-muted-foreground mt-1 animate-pulse">Buscando en nomenclador...</p>
                 )}
@@ -249,7 +268,7 @@ export function PracticeSelector({
                     {/* Footer totales */}
                     <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-t">
                         <button
-                            onClick={() => { const el = document.querySelector('[placeholder*="nomenclador"]') as HTMLInputElement | null; el?.focus(); }}
+                            onClick={() => setSearchModalOpen(true)}
                             className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
                         >
                             <Plus className="h-3.5 w-3.5" />
@@ -266,6 +285,12 @@ export function PracticeSelector({
                     </div>
                 </div>
             )}
+        <NomenclatorSearchModal
+            isOpen={searchModalOpen}
+            onClose={() => setSearchModalOpen(false)}
+            onSelectPractice={p => { onAddPractice(p); setSearchModalOpen(false); }}
+            jurisdictionId={jurisdictionId}
+        />
         </div>
     );
 }
