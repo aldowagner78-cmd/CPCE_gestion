@@ -62,22 +62,23 @@ export function NomenclatorSearchModal({
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (isOpen) {
+        if (!isOpen) return;
+        const t = setTimeout(() => {
             setQuery('');
             setResults([]);
             setShowNN(false);
             setNNDesc('');
             setNNPrice('');
             setActiveTab('todos');
-            setTimeout(() => inputRef.current?.focus(), 80);
-        }
+            inputRef.current?.focus();
+        }, 0);
+        return () => clearTimeout(t);
     }, [isOpen]);
 
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
 
         if (query.length < 2) {
-            setResults([]);
             return;
         }
 
@@ -104,7 +105,6 @@ export function NomenclatorSearchModal({
             }
             setLoading(false);
         }, 300);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, activeTab, jurisdictionId]);
 
     function handleAddNN() {
@@ -122,6 +122,8 @@ export function NomenclatorSearchModal({
         onSelectPractice(custom);
         onClose();
     }
+
+    const displayResults = query.length < 2 ? [] : results;
 
     if (!isOpen) return null;
 
@@ -237,7 +239,7 @@ export function NomenclatorSearchModal({
                             <Package className="h-10 w-10 opacity-30" />
                             <p className="text-sm">Escribí al menos 2 caracteres para buscar</p>
                         </div>
-                    ) : results.length === 0 ? (
+                    ) : displayResults.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
                             <Search className="h-8 w-8 opacity-30" />
                             <p className="text-sm">Sin resultados para &ldquo;{query}&rdquo;</p>
@@ -257,7 +259,7 @@ export function NomenclatorSearchModal({
                                 <span>Denominación</span>
                                 <span className="text-right">Unitario est.</span>
                             </div>
-                            {results.map(p => {
+                            {displayResults.map(p => {
                                 const abbr = ABBR_MAP[p.nomenclator_type ?? ''] ?? 'N/N';
                                 return (
                                     <button
@@ -283,7 +285,7 @@ export function NomenclatorSearchModal({
                 {/* Footer */}
                 <div className="px-5 py-3 border-t flex justify-between items-center">
                     <span className="text-xs text-muted-foreground">
-                        {results.length > 0 ? `${results.length} resultado(s)` : ''}
+                        {displayResults.length > 0 ? `${displayResults.length} resultado(s)` : ''}
                     </span>
                     <button
                         onClick={onClose}
