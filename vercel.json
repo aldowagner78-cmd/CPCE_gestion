@@ -8,5 +8,11 @@
     "src/app/api/ai/parse-document/route.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/keepalive",
+      "schedule": "0 8 * * *"
+    }
+  ]
 }
